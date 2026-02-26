@@ -7,6 +7,7 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
 ```
 .claude/skills/          — Skill definitions (SKILL.md files)
 backlog/                 — Saved health report backlog items per repo
+repos/                   — Local clones of target repositories (gitignored)
 .gh-skills/backlog-items/ — Ideas and planned skills not yet implemented
 ```
 
@@ -23,6 +24,8 @@ backlog/                 — Saved health report backlog items per repo
 ## Available Skills
 
 - **repo-health-check** — Audit a repository against quality best practices, produce a scored health report, and save actionable findings as structured markdown backlog items
+- **apply-backlog-item** — Apply a backlog item fix to a GitHub repository: clone the repo, generate quality content, verify acceptance criteria, and create a PR
+- **backlog-dashboard** — Show a dashboard of all backlog items across audited repositories with scores, progress, and next-action recommendations
 
 ## Adding New Skills
 
