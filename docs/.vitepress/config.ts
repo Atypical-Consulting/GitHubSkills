@@ -6,19 +6,30 @@ export default withMermaid(
     title: 'GHS — GitHub Skills',
     description: 'Claude Code skills for auditing, managing, and improving GitHub repositories',
     base: '/GitHubSkills/',
+    lastUpdated: true,
 
     head: [
       ['link', { rel: 'icon', type: 'image/svg+xml', href: '/GitHubSkills/logo.svg' }],
+      ['meta', { property: 'og:type', content: 'website' }],
+      ['meta', { property: 'og:title', content: 'GHS — GitHub Skills' }],
+      ['meta', { property: 'og:description', content: '43 health checks, parallel AI agents, real pull requests. Claude Code skills for auditing and improving GitHub repositories.' }],
+      ['meta', { property: 'og:url', content: 'https://atypical-consulting.github.io/GitHubSkills/' }],
+      ['meta', { name: 'twitter:card', content: 'summary' }],
+      ['meta', { name: 'twitter:title', content: 'GHS — GitHub Skills' }],
+      ['meta', { name: 'twitter:description', content: '43 health checks, parallel AI agents, real pull requests. Claude Code skills for auditing and improving GitHub repositories.' }],
     ],
 
     themeConfig: {
       logo: '/logo.svg',
+      outline: [2, 3],
 
       nav: [
         { text: 'Home', link: '/' },
         { text: 'Getting Started', link: '/getting-started/installation' },
         { text: 'Skills', link: '/skills/' },
         { text: 'Checks', link: '/checks/' },
+        { text: 'Workflows', link: '/workflows/health-loop' },
+        { text: 'Reference', link: '/reference/scoring' },
         { text: 'Contributing', link: '/contributing/' },
       ],
 
@@ -30,6 +41,7 @@ export default withMermaid(
               { text: 'Installation', link: '/getting-started/installation' },
               { text: 'Your First Scan', link: '/getting-started/first-scan' },
               { text: 'Core Concepts', link: '/getting-started/concepts' },
+              { text: 'Troubleshooting', link: '/getting-started/troubleshooting' },
             ],
           },
         ],
@@ -62,6 +74,7 @@ export default withMermaid(
           {
             text: 'Actions',
             items: [
+              { text: 'ghs-action-fix', link: '/skills/ghs-action-fix' },
               { text: 'ghs-merge-prs', link: '/skills/ghs-merge-prs' },
             ],
           },
@@ -101,10 +114,10 @@ export default withMermaid(
           {
             text: 'Reference',
             items: [
-              { text: 'Backlog Format', link: '/reference/backlog-format' },
-              { text: 'Agent Contract', link: '/reference/agent-contract' },
-              { text: 'Check Format', link: '/reference/check-format' },
               { text: 'Scoring', link: '/reference/scoring' },
+              { text: 'Backlog Format', link: '/reference/backlog-format' },
+              { text: 'Check Format', link: '/reference/check-format' },
+              { text: 'Agent Contract', link: '/reference/agent-contract' },
             ],
           },
         ],

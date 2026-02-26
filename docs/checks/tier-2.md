@@ -1,6 +1,6 @@
 # Tier 2 — Recommended
 
-Tier 2 checks verify professional standards that well-maintained repositories should have. Each check is worth **2 points**. There are 20 checks in this tier for a maximum of 40 points.
+Tier 2 checks verify professional standards that well-maintained repositories should have. Each check is worth **2 points**. There are 22 checks in this tier for a maximum of 44 points.
 
 ## .gitignore
 
@@ -29,6 +29,26 @@ Automated testing and deployment are table-stakes for modern development. Even a
 | `ci-workflow-health` | CI/CD | The most recent CI workflow run completed successfully |
 
 Having CI is good. Having CI that actually passes is better. This check verifies your workflows aren't permanently broken.
+
+---
+
+## Action Version Pinning
+
+| Slug | Category | What it checks |
+|------|----------|----------------|
+| `action-version-pinning` | CI/CD | Third-party actions use SHA pins or version tags, not `@main`/`@master`/`@latest` |
+
+Unpinned actions are a supply-chain security risk. If a third-party action's `main` branch is compromised, your workflow automatically pulls the malicious code. Pin to SHAs or version tags for reproducible, secure builds.
+
+---
+
+## Workflow Permissions
+
+| Slug | Category | What it checks |
+|------|----------|----------------|
+| `workflow-permissions` | CI/CD | Every workflow declares an explicit `permissions:` block |
+
+Without explicit permissions, workflows inherit the repository's default token permissions — often overly broad. Declaring `permissions:` limits the blast radius if a workflow is compromised.
 
 ---
 

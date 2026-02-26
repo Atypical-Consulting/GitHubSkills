@@ -36,6 +36,8 @@ checks/
 | .gitignore | `gitignore` | dev-config | [gitignore.md](dev-config/gitignore.md) | Normal |
 | CI/CD Workflows | `ci-cd-workflows` | ci-cd | [ci-cd-workflows.md](ci-cd/ci-cd-workflows.md) | Normal |
 | CI Workflow Health | `ci-workflow-health` | ci-cd | [ci-workflow-health.md](ci-cd/ci-workflow-health.md) | Normal |
+| Action Version Pinning | `action-version-pinning` | ci-cd | [action-version-pinning.md](ci-cd/action-version-pinning.md) | Normal |
+| Workflow Permissions | `workflow-permissions` | ci-cd | [workflow-permissions.md](ci-cd/workflow-permissions.md) | Normal |
 | .editorconfig | `editorconfig` | dev-config | [editorconfig.md](dev-config/editorconfig.md) | Normal |
 | CODEOWNERS | `codeowners` | dev-config | [codeowners.md](dev-config/codeowners.md) | Normal |
 | Issue Templates | `issue-templates` | community | [issue-templates.md](community/issue-templates.md) | Normal |
@@ -58,6 +60,9 @@ checks/
 
 | Check | Slug | Category | File | Scoring |
 |-------|------|----------|------|---------|
+| Workflow Naming | `workflow-naming` | ci-cd | [workflow-naming.md](ci-cd/workflow-naming.md) | Normal |
+| Workflow Timeouts | `workflow-timeouts` | ci-cd | [workflow-timeouts.md](ci-cd/workflow-timeouts.md) | Normal |
+| Workflow Concurrency | `workflow-concurrency` | ci-cd | [workflow-concurrency.md](ci-cd/workflow-concurrency.md) | Normal |
 | SECURITY.md | `security-md` | community | [security-md.md](community/security-md.md) | Normal |
 | CONTRIBUTING.md | `contributing-md` | documentation | [contributing-md.md](documentation/contributing-md.md) | Normal |
 | Security Alerts | `security-alerts` | security | [security-alerts.md](security/security-alerts.md) | Normal |
@@ -78,9 +83,9 @@ checks/
 | Tier | Checks | Points each | Subtotal |
 |------|--------|-------------|----------|
 | Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 20 | 2 | 40 |
-| Tier 3 | 11 (excluding Funding, Discussions, Commit Signoff) | 1 | 11 |
-| **Total** | **35** | | **67** |
+| Tier 2 | 22 | 2 | 44 |
+| Tier 3 | 14 (excluding Funding, Discussions, Commit Signoff) | 1 | 14 |
+| **Total** | **40** | | **74** |
 
 - WARN items are excluded from both earned and possible totals.
 - INFO items (Funding, Discussions Enabled, Commit Signoff) carry no points and no penalty.
@@ -93,7 +98,7 @@ checks/
 | documentation | 13 | Project documentation files (README, LICENSE, CHANGELOG, README content quality, etc.) |
 | repo-settings | 8 | GitHub repository configuration (description, topics, branch protection, merge strategy, etc.) |
 | dev-config | 6 | Developer tooling and config files (.gitignore, .editorconfig, .gitattributes, etc.) |
-| ci-cd | 2 | CI/CD pipelines and workflow health |
+| ci-cd | 7 | CI/CD pipelines, workflow health, and GitHub Actions best practices |
 | community | 3 | Community health templates (issue/PR templates, security policy) |
 | security | 2 | Security posture and dependency management |
 | maintenance | 4 | Ongoing project health (releases, stale issues, stale PRs, stale branches) |
@@ -133,6 +138,11 @@ Agents use this table to resolve check file paths from slugs:
 | `codeowners` | `dev-config/codeowners.md` |
 | `ci-cd-workflows` | `ci-cd/ci-cd-workflows.md` |
 | `ci-workflow-health` | `ci-cd/ci-workflow-health.md` |
+| `action-version-pinning` | `ci-cd/action-version-pinning.md` |
+| `workflow-permissions` | `ci-cd/workflow-permissions.md` |
+| `workflow-naming` | `ci-cd/workflow-naming.md` |
+| `workflow-timeouts` | `ci-cd/workflow-timeouts.md` |
+| `workflow-concurrency` | `ci-cd/workflow-concurrency.md` |
 | `issue-templates` | `community/issue-templates.md` |
 | `pr-template` | `community/pr-template.md` |
 | `security-md` | `community/security-md.md` |

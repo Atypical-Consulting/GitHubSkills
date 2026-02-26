@@ -1,6 +1,10 @@
 # Skills Reference
 
-GHS provides **10 skills** organized into two workflow loops plus a shared merge skill.
+GHS provides **11 skills** organized into two workflow loops plus action skills.
+
+::: tip Start Here
+New to GHS? Start with [ghs-repo-scan](/skills/ghs-repo-scan) — it's the entry point for everything else.
+:::
 
 ## Health Loop
 
@@ -17,7 +21,7 @@ flowchart LR
     scan --> board
 ```
 
-The health loop audits repositories against 38 quality checks, optionally syncs findings to GitHub Issues for team visibility, displays findings on a dashboard, fixes them with parallel agents, and merges the resulting PRs.
+The health loop audits repositories against 43 quality checks, optionally syncs findings to GitHub Issues for team visibility, displays findings on a dashboard, fixes them with parallel agents, and merges the resulting PRs.
 
 ## Issue Loop
 
@@ -34,13 +38,14 @@ The issue loop classifies GitHub issues with labels, investigates the codebase f
 
 | Skill | Loop | Version | Description |
 |-------|------|---------|-------------|
-| [ghs-repo-scan](/skills/ghs-repo-scan) | Health | 4.0.0 | Scan a repo for quality best practices and open issues |
-| [ghs-backlog-sync](/skills/ghs-backlog-sync) | Health | 1.0.0 | Sync health findings to GitHub Issues for team visibility |
-| [ghs-backlog-board](/skills/ghs-backlog-board) | Health | 3.0.0 | Dashboard of all backlog items across audited repos |
-| [ghs-backlog-fix](/skills/ghs-backlog-fix) | Health | 5.0.0 | Fix backlog items using parallel worktree agents |
-| [ghs-backlog-score](/skills/ghs-backlog-score) | Health | 2.0.0 | Calculate and display health score |
-| [ghs-backlog-next](/skills/ghs-backlog-next) | Health | 2.0.0 | Recommend highest-impact next fix |
-| [ghs-issue-triage](/skills/ghs-issue-triage) | Issue | 2.0.0 | Apply proper labels to GitHub issues |
-| [ghs-issue-analyze](/skills/ghs-issue-analyze) | Issue | 2.0.0 | Deep-analyze an issue, post analysis comment |
-| [ghs-issue-implement](/skills/ghs-issue-implement) | Issue | 2.0.0 | Implement an issue, create a PR |
-| [ghs-merge-prs](/skills/ghs-merge-prs) | Both | 2.0.0 | Merge PRs with CI-aware confirmation |
+| [ghs-repo-scan](/skills/ghs-repo-scan) | <Badge type="health" text="Health" /> | 4.0.0 | Scan a repo for quality best practices and open issues |
+| [ghs-backlog-sync](/skills/ghs-backlog-sync) | <Badge type="health" text="Health" /> | 1.0.0 | Sync health findings to GitHub Issues for team visibility |
+| [ghs-backlog-board](/skills/ghs-backlog-board) | <Badge type="health" text="Health" /> | 3.0.0 | Dashboard of all backlog items across audited repos |
+| [ghs-backlog-fix](/skills/ghs-backlog-fix) | <Badge type="health" text="Health" /> | 5.0.0 | Fix backlog items using parallel worktree agents |
+| [ghs-backlog-score](/skills/ghs-backlog-score) | <Badge type="health" text="Health" /> | 2.0.0 | Calculate and display health score |
+| [ghs-backlog-next](/skills/ghs-backlog-next) | <Badge type="health" text="Health" /> | 2.0.0 | Recommend highest-impact next fix |
+| [ghs-issue-triage](/skills/ghs-issue-triage) | <Badge type="issue" text="Issue" /> | 2.0.0 | Apply proper labels to GitHub issues |
+| [ghs-issue-analyze](/skills/ghs-issue-analyze) | <Badge type="issue" text="Issue" /> | 2.0.0 | Deep-analyze an issue, post analysis comment |
+| [ghs-issue-implement](/skills/ghs-issue-implement) | <Badge type="issue" text="Issue" /> | 2.0.0 | Implement an issue, create a PR |
+| [ghs-action-fix](/skills/ghs-action-fix) | <Badge type="action" text="Action" /> | 1.0.0 | Fix failing GitHub Actions pipelines directly |
+| [ghs-merge-prs](/skills/ghs-merge-prs) | <Badge type="action" text="Both" /> | 2.0.0 | Merge PRs with CI-aware confirmation |

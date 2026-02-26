@@ -12,7 +12,7 @@ Different checks need fundamentally different fix approaches. API-only fixes (li
 |----------|-------------|-----------|-------|--------|
 | **A** (API-only) | Uses `gh` commands directly, no file changes | No | `category-a-agent.md` | branch-protection, security-alerts, description, topics, delete-branch-on-merge, merge-strategy, homepage-url, stale-branches, github-releases |
 | **B** (file changes) | Creates/modifies files, commits, pushes, creates PR | Yes — one per item | `category-b-agent.md` | license, editorconfig, codeowners, issue-templates, pr-template, security-md, contributing-md, code-of-conduct, readme, gitignore, ci-cd-workflows, changelog, gitattributes, version-pinning, dependency-update-config |
-| **CI** (special) | Diagnoses CI failures before fixing | Yes | `category-ci-agent.md` | ci-workflow-health |
+| **CI** (special) | Diagnoses CI failures before fixing | Yes | `category-ci-agent.md` | ci-workflow-health, action-version-pinning, workflow-permissions, workflow-naming, workflow-timeouts, workflow-concurrency |
 
 ## Classification Rules
 

@@ -4,6 +4,36 @@ Tier 3 checks verify polish and completeness items. Scored checks are worth **1 
 
 ## Scored Checks (1 pt each)
 
+### Workflow Naming
+
+| Slug | Category |
+|------|----------|
+| `workflow-naming` | CI/CD |
+
+Every workflow file should have a top-level `name:` field. Without it, GitHub displays the filename (e.g., `ci.yml`) instead of a descriptive name in the Actions tab and PR status checks.
+
+---
+
+### Workflow Timeouts
+
+| Slug | Category |
+|------|----------|
+| `workflow-timeouts` | CI/CD |
+
+All jobs should declare `timeout-minutes` to prevent hung runners from consuming CI minutes. The default timeout is 6 hours — a stuck build can silently waste resources.
+
+---
+
+### Workflow Concurrency
+
+| Slug | Category |
+|------|----------|
+| `workflow-concurrency` | CI/CD |
+
+PR-triggered workflows should use `concurrency:` groups with `cancel-in-progress: true`. Without them, pushing 5 quick commits creates 5 parallel CI runs when only the last one matters.
+
+---
+
 ### SECURITY.md
 
 | Slug | Category |

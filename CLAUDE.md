@@ -77,6 +77,7 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 
 ### Actions
 
+- **ghs-action-fix** — Fix failing GitHub Actions pipelines directly: detect broken workflows, read run logs, diagnose root causes, apply fixes in worktrees, and create PRs — no prior scan needed
 - **ghs-merge-prs** — Merge open PRs (own, Renovate, or all) with CI-aware confirmation, batch support, and automatic branch cleanup
 
 ### Utilities

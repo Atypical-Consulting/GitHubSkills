@@ -15,9 +15,9 @@ GHS uses a tiered scoring system to measure repository health.
 | Tier | Checks | Points Each | Subtotal |
 |------|--------|-------------|----------|
 | Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 20 | 2 | 40 |
-| Tier 3 | 11 | 1 | 11 |
-| **Total** | **35** | | **67** |
+| Tier 2 | 22 | 2 | 44 |
+| Tier 3 | 14 | 1 | 14 |
+| **Total** | **40** | | **74** |
 
 ## Calculation
 
@@ -44,7 +44,7 @@ These are reported but don't affect the score.
 
 Scores are visualized with an 8-character progress bar:
 ```
-Score: 45/67 (67%) ██████░░
+Score: 52/74 (70%) ██████░░
 ```
 
 Characters: filled with `█` and empty with `░`.
