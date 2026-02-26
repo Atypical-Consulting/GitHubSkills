@@ -86,7 +86,7 @@ Scan `backlog/{owner}_{repo}/health/` for all items. For each file:
 
 You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
 
-For detailed fix strategies per check, read the individual check file at `../shared/checks/{slug}.md`.
+For detailed fix strategies per check, read `../shared/checks/index.md` for the Slug-to-Path Lookup table, then read the individual check file at `../shared/checks/{category}/{slug}.md`.
 
 ## Phase 2 — Prepare Repository
 
@@ -198,7 +198,7 @@ Items to fix:
 {For each Category A item:}
 - Slug: {slug}
   Backlog file: {path}
-  Check file: {skills_path}/shared/checks/{slug}.md
+  Check file: {skills_path}/shared/checks/{category}/{slug}.md (use Slug-to-Path Lookup in index.md)
 
 Your job:
 1. For each item, read the check file to understand the fix strategy
@@ -238,7 +238,7 @@ Date: {YYYY-MM-DD}
 Item to fix:
 - Slug: {slug}
   Backlog file: {item_path}
-  Check file: {skills_path}/shared/checks/{slug}.md
+  Check file: {skills_path}/shared/checks/{category}/{slug}.md (use Slug-to-Path Lookup in index.md)
 
 Your job:
 1. Read the backlog item file to understand what's missing

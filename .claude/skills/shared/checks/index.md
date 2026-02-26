@@ -1,62 +1,137 @@
 # Health Checks Index
 
-Registry of all health checks used by the ghs:repo-scan skill. Each check has its own file in this directory containing verification commands, pass conditions, and backlog content.
+Registry of all health checks used by the ghs:repo-scan skill. Each check has its own file organized in category subdirectories.
 
 Consumed by: ghs:repo-scan (orchestrator and check agents), ghs:backlog-fix, ghs:backlog-board, ghs:backlog-score.
+
+## Directory Structure
+
+```
+checks/
+├── index.md                    ← this file
+├── documentation/              ← project documentation files
+├── repo-settings/              ← GitHub repository settings
+├── dev-config/                 ← developer configuration files
+├── ci-cd/                      ← continuous integration and delivery
+├── community/                  ← community health and templates
+├── security/                   ← security posture
+└── maintenance/                ← ongoing project health
+```
 
 ## Check Registry
 
 ### Tier 1 — Required (4 points each)
 
-| Check | Slug | File | Scoring |
-|-------|------|------|---------|
-| README | `readme` | [readme.md](readme.md) | Normal |
-| LICENSE | `license` | [license.md](license.md) | Normal |
-| Description | `description` | [description.md](description.md) | Normal |
-| Branch Protection | `branch-protection` | [branch-protection.md](branch-protection.md) | Normal |
+| Check | Slug | Category | File | Scoring |
+|-------|------|----------|------|---------|
+| README | `readme` | documentation | [readme.md](documentation/readme.md) | Normal |
+| LICENSE | `license` | documentation | [license.md](documentation/license.md) | Normal |
+| Description | `description` | repo-settings | [description.md](repo-settings/description.md) | Normal |
+| Branch Protection | `branch-protection` | repo-settings | [branch-protection.md](repo-settings/branch-protection.md) | Normal |
 
 ### Tier 2 — Recommended (2 points each)
 
-| Check | Slug | File | Scoring |
-|-------|------|------|---------|
-| .gitignore | `gitignore` | [gitignore.md](gitignore.md) | Normal |
-| CI/CD Workflows | `ci-cd-workflows` | [ci-cd-workflows.md](ci-cd-workflows.md) | Normal |
-| CI Workflow Health | `ci-workflow-health` | [ci-workflow-health.md](ci-workflow-health.md) | Normal |
-| .editorconfig | `editorconfig` | [editorconfig.md](editorconfig.md) | Normal |
-| CODEOWNERS | `codeowners` | [codeowners.md](codeowners.md) | Normal |
-| Issue Templates | `issue-templates` | [issue-templates.md](issue-templates.md) | Normal |
-| PR Template | `pr-template` | [pr-template.md](pr-template.md) | Normal |
-| Topics | `topics` | [topics.md](topics.md) | Normal |
+| Check | Slug | Category | File | Scoring |
+|-------|------|----------|------|---------|
+| .gitignore | `gitignore` | dev-config | [gitignore.md](dev-config/gitignore.md) | Normal |
+| CI/CD Workflows | `ci-cd-workflows` | ci-cd | [ci-cd-workflows.md](ci-cd/ci-cd-workflows.md) | Normal |
+| CI Workflow Health | `ci-workflow-health` | ci-cd | [ci-workflow-health.md](ci-cd/ci-workflow-health.md) | Normal |
+| .editorconfig | `editorconfig` | dev-config | [editorconfig.md](dev-config/editorconfig.md) | Normal |
+| CODEOWNERS | `codeowners` | dev-config | [codeowners.md](dev-config/codeowners.md) | Normal |
+| Issue Templates | `issue-templates` | community | [issue-templates.md](community/issue-templates.md) | Normal |
+| PR Template | `pr-template` | community | [pr-template.md](community/pr-template.md) | Normal |
+| Topics | `topics` | repo-settings | [topics.md](repo-settings/topics.md) | Normal |
+| Changelog | `changelog` | documentation | [changelog.md](documentation/changelog.md) | Normal |
+| Delete Branch on Merge | `delete-branch-on-merge` | repo-settings | [delete-branch-on-merge.md](repo-settings/delete-branch-on-merge.md) | Normal |
+| GitHub Releases | `github-releases` | maintenance | [github-releases.md](maintenance/github-releases.md) | Normal |
+| Stale Issues | `stale-issues` | maintenance | [stale-issues.md](maintenance/stale-issues.md) | Normal |
+| Merge Strategy | `merge-strategy` | repo-settings | [merge-strategy.md](repo-settings/merge-strategy.md) | Normal |
 
 ### Tier 3 — Nice to Have (1 point each)
 
-| Check | Slug | File | Scoring |
-|-------|------|------|---------|
-| SECURITY.md | `security-md` | [security-md.md](security-md.md) | Normal |
-| CONTRIBUTING.md | `contributing-md` | [contributing-md.md](contributing-md.md) | Normal |
-| Security Alerts | `security-alerts` | [security-alerts.md](security-alerts.md) | Normal |
-| .editorconfig Drift | `editorconfig-drift` | [editorconfig-drift.md](editorconfig-drift.md) | Normal |
-| Funding | `funding` | [funding.md](funding.md) | **INFO only** |
+| Check | Slug | Category | File | Scoring |
+|-------|------|----------|------|---------|
+| SECURITY.md | `security-md` | community | [security-md.md](community/security-md.md) | Normal |
+| CONTRIBUTING.md | `contributing-md` | documentation | [contributing-md.md](documentation/contributing-md.md) | Normal |
+| Security Alerts | `security-alerts` | security | [security-alerts.md](security/security-alerts.md) | Normal |
+| .editorconfig Drift | `editorconfig-drift` | dev-config | [editorconfig-drift.md](dev-config/editorconfig-drift.md) | Normal |
+| Code of Conduct | `code-of-conduct` | documentation | [code-of-conduct.md](documentation/code-of-conduct.md) | Normal |
+| Homepage URL | `homepage-url` | repo-settings | [homepage-url.md](repo-settings/homepage-url.md) | Normal |
+| .gitattributes | `gitattributes` | dev-config | [gitattributes.md](dev-config/gitattributes.md) | Normal |
+| Version Pinning | `version-pinning` | dev-config | [version-pinning.md](dev-config/version-pinning.md) | Normal |
+| Dependency Update Config | `dependency-update-config` | security | [dependency-update-config.md](security/dependency-update-config.md) | Normal |
+| Funding | `funding` | documentation | [funding.md](documentation/funding.md) | **INFO only** |
+| Discussions Enabled | `discussions-enabled` | repo-settings | [discussions-enabled.md](repo-settings/discussions-enabled.md) | **INFO only** |
+| Commit Signoff | `commit-signoff` | repo-settings | [commit-signoff.md](repo-settings/commit-signoff.md) | **INFO only** |
 
 ## Scoring Summary
 
 | Tier | Checks | Points each | Subtotal |
 |------|--------|-------------|----------|
 | Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 8 | 2 | 16 |
-| Tier 3 | 4 (excluding Funding) | 1 | 4 |
-| **Total** | **16** | | **36** |
+| Tier 2 | 13 | 2 | 26 |
+| Tier 3 | 9 (excluding Funding, Discussions, Commit Signoff) | 1 | 9 |
+| **Total** | **26** | | **51** |
 
 - WARN items are excluded from both earned and possible totals.
-- INFO items (Funding) carry no points and no penalty.
+- INFO items (Funding, Discussions Enabled, Commit Signoff) carry no points and no penalty.
 - Percentage: `earned / possible * 100`, rounded to nearest integer.
+
+## Category Summary
+
+| Category | Checks | Description |
+|----------|--------|-------------|
+| documentation | 6 | Project documentation files (README, LICENSE, CHANGELOG, etc.) |
+| repo-settings | 8 | GitHub repository configuration (description, topics, branch protection, merge strategy, etc.) |
+| dev-config | 6 | Developer tooling and config files (.gitignore, .editorconfig, .gitattributes, etc.) |
+| ci-cd | 2 | CI/CD pipelines and workflow health |
+| community | 3 | Community health templates (issue/PR templates, security policy) |
+| security | 2 | Security posture and dependency management |
+| maintenance | 2 | Ongoing project health (releases, stale issues) |
+
+## Slug-to-Path Lookup
+
+Agents use this table to resolve check file paths from slugs:
+
+| Slug | Path |
+|------|------|
+| `readme` | `documentation/readme.md` |
+| `license` | `documentation/license.md` |
+| `changelog` | `documentation/changelog.md` |
+| `contributing-md` | `documentation/contributing-md.md` |
+| `code-of-conduct` | `documentation/code-of-conduct.md` |
+| `funding` | `documentation/funding.md` |
+| `description` | `repo-settings/description.md` |
+| `topics` | `repo-settings/topics.md` |
+| `homepage-url` | `repo-settings/homepage-url.md` |
+| `branch-protection` | `repo-settings/branch-protection.md` |
+| `delete-branch-on-merge` | `repo-settings/delete-branch-on-merge.md` |
+| `merge-strategy` | `repo-settings/merge-strategy.md` |
+| `discussions-enabled` | `repo-settings/discussions-enabled.md` |
+| `commit-signoff` | `repo-settings/commit-signoff.md` |
+| `gitignore` | `dev-config/gitignore.md` |
+| `editorconfig` | `dev-config/editorconfig.md` |
+| `editorconfig-drift` | `dev-config/editorconfig-drift.md` |
+| `gitattributes` | `dev-config/gitattributes.md` |
+| `version-pinning` | `dev-config/version-pinning.md` |
+| `codeowners` | `dev-config/codeowners.md` |
+| `ci-cd-workflows` | `ci-cd/ci-cd-workflows.md` |
+| `ci-workflow-health` | `ci-cd/ci-workflow-health.md` |
+| `issue-templates` | `community/issue-templates.md` |
+| `pr-template` | `community/pr-template.md` |
+| `security-md` | `community/security-md.md` |
+| `security-alerts` | `security/security-alerts.md` |
+| `dependency-update-config` | `security/dependency-update-config.md` |
+| `stale-issues` | `maintenance/stale-issues.md` |
+| `github-releases` | `maintenance/github-releases.md` |
 
 ## How Agents Use This Index
 
 Each check agent receives a tier assignment. It:
 1. Reads this index to find the checks in its tier
-2. For each check, reads the individual check file (`{slug}.md`)
-3. Runs the verification command from the check file
-4. Determines PASS/FAIL/WARN based on status rules
-5. If FAIL/WARN, writes a backlog item using the Backlog Content section from the check file
-6. Returns structured results to the orchestrator
+2. For each check, uses the **Slug-to-Path Lookup** table to find the check file: `{category}/{slug}.md`
+3. Reads the individual check file
+4. Runs the verification command from the check file
+5. Determines PASS/FAIL/WARN based on status rules
+6. If FAIL/WARN, writes a backlog item using the Backlog Content section from the check file
+7. Returns structured results to the orchestrator

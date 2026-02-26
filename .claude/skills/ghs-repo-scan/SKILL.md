@@ -80,7 +80,7 @@ Skills path: {path to .claude/skills}
 Your job:
 1. Read the check index at `{skills_path}/shared/checks/index.md` to find which checks belong to Tier {N}
 2. For each check in your tier:
-   a. Read the check file: `{skills_path}/shared/checks/{slug}.md`
+   a. Read the check file using the Slug-to-Path Lookup table from the index: `{skills_path}/shared/checks/{category}/{slug}.md`
    b. Run the verification command from the "Verification" section (substitute {owner}/{repo} and {default_branch})
    c. Determine PASS/FAIL/WARN based on the "Status Rules" section
    d. If FAIL or WARN: write a backlog item file to `backlog/{owner}_{repo}/health/tier-{N}--{slug}.md`
@@ -195,21 +195,33 @@ Present the combined results as a clean, scannable terminal report:
   [FAIL] Issue templates — Not found
   [PASS] PR template — Found at .github/pull_request_template.md
   [FAIL] Topics — No topics set
+  [FAIL] Changelog — Not found
+  [FAIL] Delete Branch on Merge — Disabled
+  [FAIL] GitHub Releases — No releases found
+  [PASS] Stale Issues — No stale issues
+  [FAIL] Merge Strategy — All 3 methods enabled (no deliberate choice)
 
 #### Tier 3 — Nice to Have
   [FAIL] SECURITY.md — Not found
   [FAIL] CONTRIBUTING.md — Not found
   [PASS] Security alerts — No open alerts
   [PASS] .editorconfig Drift — N/A (no .editorconfig to compare)
+  [FAIL] Code of Conduct — Not found
+  [FAIL] Homepage URL — Not set
+  [FAIL] .gitattributes — Not found
+  [FAIL] Version Pinning — No global.json found (.NET project)
+  [FAIL] Dependency Update Config — Bare-minimum renovate.json
   [INFO] FUNDING.yml — Not found (optional)
+  [INFO] Discussions — Disabled (optional)
+  [INFO] Commit Signoff — Disabled (optional)
 
 ---
 
-### Health Score: 14/36 (39%)
+### Health Score: 14/51 (27%)
 
   Tier 1:  8/16  ████░░░░ (50%)
-  Tier 2:  4/16  ██░░░░░░ (25%)
-  Tier 3:  2/4   ████░░░░ (50%)
+  Tier 2:  6/26  ██░░░░░░ (23%)
+  Tier 3:  0/9   ░░░░░░░░ (0%)
 
 ---
 
