@@ -2,7 +2,7 @@
 
 ## Skills
 
-GHS is a collection of **9 Claude Code skills**. Skills are markdown files in `.claude/skills/` that define how Claude Code performs specific tasks. Each skill has a name, trigger phrases, allowed tools, and a structured process.
+GHS is a collection of **10 Claude Code skills**. Skills are markdown files in `.claude/skills/` that define how Claude Code performs specific tasks. Each skill has a name, trigger phrases, allowed tools, and a structured process.
 
 You invoke skills with natural language. Saying "scan my repo" triggers `ghs-repo-scan`. Saying "fix the backlog" triggers `ghs-backlog-fix`. Claude Code matches your intent to the right skill automatically.
 
@@ -12,7 +12,9 @@ The primary workflow is a continuous improvement cycle for repository quality:
 
 ```mermaid
 flowchart LR
-    A[ghs-repo-scan] --> B[ghs-backlog-board]
+    A[ghs-repo-scan] --> S[ghs-backlog-sync]
+    S --> B[ghs-backlog-board]
+    A --> B
     B --> C[ghs-backlog-fix]
     C --> D[ghs-merge-prs]
     D --> A
@@ -22,10 +24,11 @@ flowchart LR
 ```
 
 1. **Scan** — `ghs-repo-scan` audits the repo against 38 checks and saves findings as backlog items
-2. **Review** — `ghs-backlog-board` shows a dashboard of all findings with scores and progress
-3. **Fix** — `ghs-backlog-fix` spawns parallel agents to fix failing items and create PRs
-4. **Merge** — `ghs-merge-prs` merges the PRs with CI awareness and branch cleanup
-5. **Repeat** — Re-scan to verify fixes and catch any new issues
+2. **Sync** (optional) — `ghs-backlog-sync` publishes findings as GitHub Issues for team visibility
+3. **Review** — `ghs-backlog-board` shows a dashboard of all findings with scores and progress
+4. **Fix** — `ghs-backlog-fix` spawns parallel agents to fix failing items and create PRs (auto-closes synced issues)
+5. **Merge** — `ghs-merge-prs` merges the PRs with CI awareness and branch cleanup
+6. **Repeat** — Re-scan to verify fixes and catch any new issues
 
 ## The Issue Loop
 

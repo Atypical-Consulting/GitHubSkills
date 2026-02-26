@@ -36,6 +36,17 @@ Each health item has a metadata table:
 | Status | FAIL, PASS, or WARN |
 | Category | One of 7 categories |
 
+### Sync Metadata (optional)
+
+After running `ghs-backlog-sync`, two additional fields may appear in health items:
+
+| Field | Description |
+|-------|-------------|
+| Synced Issue | GitHub issue number (e.g., `#42`) |
+| Issue URL | Full URL to the GitHub issue |
+
+These fields are backward-compatible — items that have not been synced simply lack them.
+
 ## Issue Item Metadata
 
 | Field | Description |

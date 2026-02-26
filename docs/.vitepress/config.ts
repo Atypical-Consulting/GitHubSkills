@@ -44,6 +44,7 @@ export default withMermaid(
             text: 'Health Loop',
             items: [
               { text: 'ghs-repo-scan', link: '/skills/ghs-repo-scan' },
+              { text: 'ghs-backlog-sync', link: '/skills/ghs-backlog-sync' },
               { text: 'ghs-backlog-board', link: '/skills/ghs-backlog-board' },
               { text: 'ghs-backlog-fix', link: '/skills/ghs-backlog-fix' },
               { text: 'ghs-backlog-score', link: '/skills/ghs-backlog-score' },

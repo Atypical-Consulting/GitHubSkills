@@ -25,6 +25,7 @@ When GHS spawns sub-agents (via the Task tool), agents return structured results
 | `pr_url` | string or null | PR URL if created |
 | `verification` | string | How the fix was verified |
 | `error` | string or null | Error message if failed |
+| `github_issue` | number or null | GitHub issue number if synced (optional) |
 
 ### Status Semantics
 

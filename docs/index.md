@@ -45,10 +45,10 @@ GHS audits your repository against **38 health checks** organized into 3 tiers:
 ## How It Works
 
 ```
-"scan my repo" --> scored report --> "fix the backlog" --> PRs created --> "merge my PRs" --> improved score
+"scan my repo" --> scored report --> "sync backlog" --> GitHub Issues --> "fix the backlog" --> PRs created --> "merge my PRs" --> improved score
 ```
 
-GHS follows a simple loop: **scan** to find problems, **fix** to create pull requests, and **merge** to land the improvements. Each cycle raises your health score closer to 100%.
+GHS follows a simple loop: **scan** to find problems, optionally **sync** to publish findings as GitHub Issues for team visibility, **fix** to create pull requests (with auto-close references), and **merge** to land the improvements. Each cycle raises your health score closer to 100%.
 
 ## Terminal Output Preview
 
