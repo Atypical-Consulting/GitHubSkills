@@ -14,7 +14,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-sync
@@ -28,21 +28,31 @@ routes-from:
 
 # Backlog Dashboard
 
-Scan all backlog items (health findings and issues), display a cross-repo dashboard with scores and progress, and recommend what to work on next.
+Display a cross-repo dashboard of all backlog items with scores, progress, and next-action recommendations.
 
 <context>
-Purpose: Display a cross-repo dashboard of all backlog items with scores, progress, and next-action recommendations.
+Purpose: Read-only dashboard renderer for backlog data produced by ghs-repo-scan.
 
 Roles:
-1. **Dashboard Renderer** (you) — reads backlog files, computes scores, formats the display
+1. **Dashboard Renderer** (you) — reads SUMMARY.md files, formats the display, recommends next action
 
 No sub-agents — this is a read-only skill that renders local data.
 
-Shared docs:
-- `../shared/gh-prerequisites.md` — authentication and error handling
-- `../shared/backlog-format.md` — file naming, metadata formats, scoring rules
-- `../shared/config.md` — scoring constants, display settings, stale scan threshold
+Shared references (use these, do not duplicate their logic):
+- `../shared/references/scoring-logic.md` — tier weights, score formula, priority algorithm, progress bar format
+- `../shared/references/backlog-format.md` — directory structure, file naming, metadata formats, status values
+- `../shared/references/output-conventions.md` — dashboard tables, status indicators, recommendation block
 </context>
+
+## Anti-Patterns
+
+| Do NOT | Do Instead |
+|--------|-----------|
+| Re-read every backlog item when SUMMARY.md exists | Use SUMMARY.md as the index — it has scores, tier breakdowns, and item lists |
+| Recalculate scores from scratch | Use the score from SUMMARY.md, or `python ../shared/scripts/calculate_score.py` |
+| Suggest fixes inline in the dashboard | Route to `ghs-backlog-fix` for any fix action |
+| Show resolved/PASS items by default | Only show FAIL and WARN items; show PASS items only when user drills down |
+| Read individual health/issue files unprompted | Only read individual files when the user asks for detail on a specific item |
 
 <objective>
 Display a dashboard of all backlog items with health scores, issue counts, and progress.
@@ -52,7 +62,7 @@ Outputs:
 - Highest-impact next action recommendation
 
 Next routing:
-- Suggest `ghs-backlog-fix` for the recommended item — "To apply: `/ghs-backlog-fix backlog/{owner}_{repo}/health/{item}`"
+- Suggest `ghs-backlog-fix` for the recommended item
 - Suggest `ghs-repo-scan` if scan data is stale (> 30 days)
 - If user says "apply it" or "fix it" after seeing the recommendation, treat as a trigger for `ghs-backlog-fix`
 </objective>
@@ -69,32 +79,62 @@ Optional filters the user might provide:
 - A specific tier: "show tier 1 items"
 - Only failures: "show remaining failures"
 
-## Phase 1 — Discover Repositories
+## Phase 1 — Discover Repositories (SUMMARY.md as Index)
 
-Scan `backlog/` for all `{owner}_{repo}/` directories. For the backlog directory structure and file formats, see `../shared/backlog-format.md`.
+Scan `backlog/` for all `{owner}_{repo}/` directories. For directory structure, see `../shared/references/backlog-format.md`.
 
-For each repo, read `SUMMARY.md` to extract:
+For each repo, read **only** `SUMMARY.md` to extract:
 - Health score (earned / max / percentage)
 - Tier breakdown (earned per tier)
 - Open issue count
 - Generated date
 - Visibility (Public / Private)
 
-## Phase 2 — Collect Item Status
+> **Rule:** SUMMARY.md is the single source of truth for the overview.
+>
+> **Trigger:** User asks "show backlog", "dashboard", "how are my repos doing"
+>
+> **Example:** Read `backlog/phmatray_NewSLN/SUMMARY.md` to get `10/31 (32%)` — do NOT scan individual item files.
 
-For each repo, scan both `health/` and `issues/` directories.
+### Progressive Disclosure
 
-Parse items using the shared format defined in `../shared/backlog-format.md`.
-You can also parse items programmatically: `python ../shared/scripts/parse_backlog_item.py <path>`
-For aggregate scores: `python ../shared/scripts/calculate_score.py backlog/{owner}_{repo}`
+| User Action | Data Source |
+|-------------|------------|
+| "show backlog" / "dashboard" | SUMMARY.md files only |
+| "show details for phmatray/NewSLN" | SUMMARY.md + list FAIL/WARN files from `health/` and `issues/` |
+| "tell me about the README item" | Read the specific `tier-1--readme.md` file |
 
-Count totals per repo:
-- Health: items total, passed, failed, warned; points earned vs possible
-- Issues: total, open, with PRs, closed
+## Phase 2 — Display the Dashboard
 
-## Phase 3 — Display the Dashboard
+### Dashboard Columns
+
+| Column | Source | Description |
+|--------|--------|-------------|
+| Repository | Directory name | `{owner}/{repo}` format |
+| Health | SUMMARY.md | `{earned}/{possible} ({pct}%)` |
+| Progress | Computed | 8-char bar per `../shared/references/scoring-logic.md` |
+| Issues | SUMMARY.md | Total open issue count |
+| Open | SUMMARY.md | Issues currently open |
+| PRs | SUMMARY.md | Issues with PRs created |
+| Last Scan | SUMMARY.md | `YYYY-MM-DD` generated date |
+
+### Status Indicators
+
+See `../shared/references/output-conventions.md` for the canonical list. Key indicators for this skill:
+
+| Indicator | When Shown |
+|-----------|-----------|
+| `[FAIL]` | Health check failed — action required |
+| `[WARN]` | Cannot verify (permissions) — shown but not actionable |
+| `[PASS]` | Only in drill-down view, not default dashboard |
 
 ### Multi-repo overview (when multiple repos exist)
+
+> **Rule:** Show one row per repo. Only FAIL/WARN counts matter in the overview.
+>
+> **Trigger:** Multiple `backlog/{owner}_{repo}/` directories found
+>
+> **Example output:**
 
 ```
 ## Backlog Dashboard
@@ -107,9 +147,15 @@ Count totals per repo:
 Total: 2 repos | Health items: 25 (14 pass) | Issues: 23 (17 open)
 ```
 
-Progress bar uses `█` and `░`, 8 chars wide (see `../shared/config.md` for display constants).
+Progress bar format is defined in `../shared/references/scoring-logic.md`.
 
 ### Single-repo detail (when one repo, or user filters to one)
+
+> **Rule:** Show remaining FAIL/WARN items by default. Show PASS items in a collapsed section.
+>
+> **Trigger:** Single repo in backlog, or user says "show backlog for {owner}/{repo}"
+>
+> **Example output:**
 
 ```
 ## Backlog: phmatray/NewSLN
@@ -120,23 +166,15 @@ Progress bar uses `█` and `░`, 8 chars wide (see `../shared/config.md` for d
 
 | # | Item | Tier | Points | Status | Issue | PR |
 |---|------|------|--------|--------|-------|----|
-| 1 | README | 1 | 4 | FAIL | #42 | — |
-| 2 | Branch Protection | 1 | 4 | FAIL | — | — |
-...
-
-### Health — Completed Items
-
-| Item | Tier | Points | PR |
-|------|------|--------|----|
-| LICENSE | 1 | 4 | (pre-existing) |
-| Description | 1 | 4 | N/A — API fix |
+| 1 | README | 1 | 4 | FAIL | #42 | -- |
+| 2 | Branch Protection | 1 | 4 | FAIL | -- | -- |
 ...
 
 ### Health Score Breakdown
 
-  Tier 1:  8/16  ████░░░░ (50%)  — 2 remaining
-  Tier 2:  2/12  █░░░░░░░ (17%)  — 5 remaining
-  Tier 3:  0/3   ░░░░░░░░ (0%)   — 3 remaining
+  Tier 1:  8/16  ████░░░░ (50%)  -- 2 remaining
+  Tier 2:  2/12  █░░░░░░░ (17%)  -- 5 remaining
+  Tier 3:  0/3   ░░░░░░░░ (0%)   -- 3 remaining
 
 ### Open Issues
 
@@ -148,45 +186,80 @@ Progress bar uses `█` and `░`, 8 chars wide (see `../shared/config.md` for d
 Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 ```
 
-The "Issue" column shows `#{number}` for items synced via `ghs-backlog-sync`, or `—` for non-synced items. Only display this column when at least one item has a synced issue.
+The "Issue" column in the health table shows `#{number}` for items synced via `ghs-backlog-sync`, or `--` for non-synced items. Only display this column when at least one item has a synced issue.
 
 Order health items by tier (1 first), then by points (highest first). Order issues by creation date (oldest first).
 
-## Phase 4 — Recommend Next Action
+#### Good vs Bad Output
 
-After the dashboard, suggest the highest-impact next action:
+**Good** (default view — only FAIL/WARN):
+```
+### Health — Remaining Items (by priority)
+
+| # | Item | Tier | Points | Status |
+|---|------|------|--------|--------|
+| 1 | README | 1 | 4 | FAIL |
+| 2 | Branch Protection | 1 | 4 | FAIL |
+| 3 | .editorconfig | 2 | 2 | FAIL |
+```
+
+**Bad** (showing everything including PASS — clutters the view):
+```
+### Health — All Items
+
+| # | Item | Tier | Points | Status |
+|---|------|------|--------|--------|
+| 1 | LICENSE | 1 | 4 | PASS |
+| 2 | README | 1 | 4 | FAIL |
+| 3 | Description | 1 | 4 | PASS |
+| 4 | Branch Protection | 1 | 4 | FAIL |
+| 5 | .gitignore | 2 | 2 | PASS |
+| 6 | .editorconfig | 2 | 2 | FAIL |
+```
+
+## Phase 3 — Recommend Next Action
+
+After the dashboard, suggest the highest-impact next action. Use the priority algorithm from `../shared/references/scoring-logic.md` (do not redefine it here).
+
+### Recommendation Block
+
+See `../shared/references/output-conventions.md` for the canonical format:
 
 ```
 ### Recommended Next
 
-The highest-impact item is **README** (Health — Tier 1, 4 points).
+The highest-impact item is **README** (Health -- Tier 1, 4 points).
 To apply it:
 
   /ghs-backlog-fix backlog/phmatray_NewSLN/health/tier-1--readme.md
 ```
 
-Selection logic (same as `ghs-backlog-next`):
-1. Pick the repo with the lowest health score percentage
-2. Health items take priority over issues — they improve the repo's foundation
-3. Within health items, pick the lowest tier number (Tier 1 > Tier 2 > Tier 3)
-4. Within that tier, pick the highest point value
-5. If all health items are done, recommend the oldest open issue
-6. If there's a tie, pick the first one alphabetically
+### Routing Logic
 
-Tier point values are defined in `../shared/config.md`.
+| User Situation | Suggest | Command |
+|---------------|---------|---------|
+| Has failing health items | Apply the top-priority fix | `/ghs-backlog-fix backlog/{owner}_{repo}/health/{item}` |
+| All health items pass, has open issues | Implement the oldest issue | `/ghs-issue-implement {owner}/{repo}#{number}` |
+| Scan data > 30 days old | Re-scan the repo | `/ghs-repo-scan {owner}/{repo}` |
+| Items not synced to GitHub | Sync backlog to issues | `/ghs-backlog-sync {owner}/{repo}` |
+| All items resolved | Congratulations message | (none) |
 
-### Stale scan detection
+### Stale Scan Detection
 
-If the scan date is more than 30 days old (see `../shared/config.md` for threshold), add a note:
+If the scan date is more than 30 days old (threshold defined in `../shared/references/scoring-logic.md`), add:
 
 ```
 > This scan is 45 days old. Consider re-running:
 >   /ghs-repo-scan {owner}/{repo}
 ```
 
-## Phase 5 — Quick-Apply Prompt
+## Phase 4 — Quick-Apply Prompt
 
-If the user says something like "apply it" or "fix it" after seeing the recommendation, treat that as a trigger for the `ghs-backlog-fix` skill with the recommended item's path.
+> **Rule:** Treat follow-up fix requests as a trigger for ghs-backlog-fix.
+>
+> **Trigger:** User says "apply it", "fix it", "do it", "yes" after seeing the recommendation
+>
+> **Example:** User sees README recommended, says "fix it" -> invoke `ghs-backlog-fix backlog/phmatray_NewSLN/health/tier-1--readme.md`
 
 </process>
 
@@ -194,21 +267,8 @@ If the user says something like "apply it" or "fix it" after seeing the recommen
 
 - **No backlog directory**: Tell the user no scans have been run yet and suggest: `/ghs-repo-scan {owner}/{repo}`
 - **All items done**: Display a congratulatory message with the final score
-- **WARN items**: Show them separately — they aren't actionable without permission changes
-
-## Examples
-
-**Example 1: Show full dashboard**
-User says: "show backlog"
-Result: Multi-repo overview table with health scores and issue counts, followed by recommendation.
-
-**Example 2: Drill into one repo**
-User says: "backlog status for phmatray/NewSLN"
-Result: Single-repo detail view with remaining/completed items, score breakdown, and issue table.
-
-**Example 3: Find next action**
-User says: "what should I work on next?"
-Result: Dashboard with recommendation pointing to the lowest-scoring repo's highest-priority failing item.
+- **WARN items**: Show them separately -- they are not actionable without permission changes
+- **Missing issues directory**: If a repo had no open issues when scanned, the `issues/` directory will not exist. This is normal.
 
 ## Troubleshooting
 
@@ -220,6 +280,3 @@ Re-run the scan to refresh: `/ghs-repo-scan owner/repo`. Scores are based on the
 
 **Stale scan data**
 If a scan is more than 30 days old, the dashboard will flag it with a re-scan suggestion.
-
-**Missing issues directory**
-If a repo had no open issues when scanned, the `issues/` directory won't exist. This is normal.

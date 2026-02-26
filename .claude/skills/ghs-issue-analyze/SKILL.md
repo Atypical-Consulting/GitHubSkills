@@ -14,7 +14,7 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 routes-to:
   - ghs-issue-implement
   - ghs-issue-triage
@@ -34,10 +34,34 @@ Roles:
 
 This skill does not spawn sub-agents — the analysis requires accumulated context from file reads that doesn't parallelize well.
 
-Shared docs:
+Shared references (see `../shared/references/`):
+- `gh-cli-patterns.md` — authentication, repo detection, error handling, issue/label operations
+- `output-conventions.md` — status indicators, table formats, routing suggestions
+
+Other shared docs:
 - `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
 - `../shared/implementation-workflow.md` §1 — repository clone/pull logic
 </context>
+
+## Anti-Patterns
+
+| Do NOT | Why |
+|--------|-----|
+| Implement the fix during analysis | This skill is analysis-only — code changes belong in `ghs-issue-implement` |
+| Guess affected files — verify by reading code | Guessed file lists erode trust; always confirm with Grep/Glob/Read |
+| Post analysis if issue is already closed | Closed issues don't need analysis; warn the user and ask before proceeding |
+| Duplicate existing analysis comments | Check for `## Issue Analysis` in existing comments before posting a new one |
+| Create branches, PRs, or modify code | Scope boundary: analyze only — never touch the codebase |
+| Skip codebase investigation | An analysis without reading code is just speculation — always clone and read |
+
+## Scope Boundary
+
+This skill **analyzes only** — it never modifies code, creates branches, or creates PRs. The sole write actions are:
+
+1. Posting a GitHub comment on the issue
+2. Updating the issue's status label from `status:triaged` to `status:analyzing`
+
+Everything else is read-only investigation.
 
 <objective>
 Produce a structured analysis comment on the GitHub issue with feasibility, complexity, affected files, and suggested approach.
@@ -47,7 +71,7 @@ Outputs:
 - Issue label updated to `status:analyzing`
 - Terminal display of the same analysis
 
-Next routing:
+Next routing (see `output-conventions.md` § Routing Suggestions):
 - Suggest `ghs-issue-implement #{number}` to implement — "To implement: `/ghs-issue-implement #{number}`"
 - If the issue lacks labels, suggest `ghs-issue-triage` first
 - For batch analysis, show a summary table and suggest implementing the simplest issues first
@@ -63,7 +87,7 @@ Next routing:
 
 ## Phase 1 — Fetch Issue
 
-Retrieve the full issue from GitHub:
+Retrieve the full issue from GitHub (see `gh-cli-patterns.md` § Issue Operations):
 
 ```bash
 gh issue view {number} --repo {owner}/{repo} \
@@ -75,7 +99,10 @@ Extract:
 - Existing labels (especially `type:*` and `priority:*` from triage)
 - Comments (may contain additional context, reproduction steps, or workarounds)
 
-If the issue is closed, warn the user and ask whether to proceed.
+**Guard rails:**
+- If the issue is **closed**, warn the user and ask whether to proceed — do not analyze silently
+- If the issue is a **pull request**, warn and suggest reviewing the PR diff instead
+- If an existing comment starts with `## Issue Analysis`, ask whether to update or add a new one
 
 ## Phase 2 — Prepare Repository
 
@@ -95,7 +122,40 @@ Search the codebase for files, functions, and patterns related to the issue:
 
 Build a map of affected files with line numbers and brief descriptions of what each does.
 
-## Phase 4 — Produce Analysis
+> **Rule**: Never list a file as "affected" unless you have opened and read it. Guessed file paths destroy credibility.
+
+## Phase 4 — Complexity Assessment
+
+Assess complexity using the criteria table below.
+
+### Complexity Criteria
+
+| Complexity | Files Changed | Cross-Module | Test Changes | External Deps | Typical Pattern |
+|------------|--------------|--------------|-------------|----------------|-----------------|
+| **Low** | 1–2 | No | Minor or none | None | Typo fix, config tweak, copy change |
+| **Medium** | 3–5 | Limited | Moderate | None or few | Single-feature addition, focused refactor |
+| **High** | 6–10 | Yes | Significant | Some | Cross-cutting feature, API change |
+| **Very High** | 10+ | Heavy | Extensive | Many | Architecture change, migration, new subsystem |
+
+### Effort Estimation Scale
+
+| Size | Time Range | Description |
+|------|-----------|-------------|
+| **S** | < 1 hour | Trivial change, minimal testing |
+| **M** | 1–4 hours | Focused work, standard testing |
+| **L** | 4–8 hours | Significant implementation and testing |
+| **XL** | > 8 hours | Multi-session work, extensive testing |
+
+### Rule/Trigger/Example Triples
+
+| Rule | Trigger | Example |
+|------|---------|---------|
+| Single-file text change = Low/S | Issue mentions a typo, wording, or config value | "Fix typo in README badge URL" → Low complexity, S effort |
+| New API endpoint = Medium/M or higher | Issue requests a new route, controller, or handler | "Add GET /api/health endpoint" → Medium complexity, M effort |
+| Cross-module refactor = High/L | Issue affects shared utilities, types, or interfaces used across modules | "Refactor auth middleware to support OAuth2" → High complexity, L effort |
+| Database migration = Very High/XL | Issue requires schema changes, data migration, or ORM model updates | "Split user table into users and profiles" → Very High complexity, XL effort |
+
+## Phase 5 — Produce Analysis
 
 Generate a structured analysis with these sections:
 
@@ -110,7 +170,7 @@ Generate a structured analysis with these sections:
 
 ### Affected Areas
 
-List files/modules that would need changes:
+List files/modules that would need changes, with line numbers from actual code reading:
 
 ```
 - `src/components/LoginForm.tsx` (L45-82) — form validation logic
@@ -130,9 +190,51 @@ Specific risks and external dependencies that could affect implementation.
 
 Questions that need answers before implementation (if any).
 
-## Phase 5 — Post GitHub Comment
+### Good and Bad Analysis Examples
 
-Post the analysis as a comment on the issue:
+**Good analysis comment** (verified, specific, actionable):
+
+```markdown
+## Issue Analysis
+
+| Field | Value |
+|-------|-------|
+| **Feasibility** | Feasible |
+| **Complexity** | Medium |
+| **Effort** | M (1–4h) |
+| **Risk** | Low |
+
+### Affected Areas
+
+- `src/auth/login.ts` (L23-45) — password validation uses deprecated bcrypt rounds
+- `src/auth/login.test.ts` (L10-30) — existing tests pass but don't cover edge case
+- `package.json` — bcrypt dependency needs minor version bump
+
+### Suggested Approach
+
+1. Update bcrypt rounds constant in `src/auth/login.ts:L28` from 8 to 12
+2. Add test case for empty password in `src/auth/login.test.ts`
+3. Bump bcrypt to ^5.1.0 in package.json
+
+### Risks & Dependencies
+
+- Increasing bcrypt rounds will slow login by ~100ms (acceptable)
+- No breaking API changes
+```
+
+**Bad analysis comment** (vague, unverified, no line numbers):
+
+```markdown
+## Issue Analysis
+
+The login system probably needs some changes. I think the auth files
+might be affected. The fix should be straightforward — just update
+the relevant code. Risk is low because it seems simple.
+```
+
+## Phase 6 — Post GitHub Comment
+
+Post the analysis as a comment on the issue (see `gh-cli-patterns.md` § Issue Operations):
 
 ```bash
 gh issue comment {number} --repo {owner}/{repo} --body "$(cat <<'EOF'
@@ -166,18 +268,18 @@ EOF
 )"
 ```
 
-## Phase 6 — Update Status Label
+## Phase 7 — Update Status Label
 
-If the issue has a `status:triaged` label, update it to `status:analyzing` — this signals to other skills and users that the issue is being worked on:
+If the issue has a `status:triaged` label, update it to `status:analyzing` (see `gh-cli-patterns.md` § Label Operations):
 
 ```bash
 gh issue edit {number} --repo {owner}/{repo} \
   --remove-label "status:triaged" --add-label "status:analyzing"
 ```
 
-## Phase 7 — Terminal Output
+## Phase 8 — Terminal Output
 
-Show the same analysis in the terminal:
+Show the same analysis in the terminal (see `output-conventions.md` § Table Patterns):
 
 ```
 ## Analysis: #{number} — {title}

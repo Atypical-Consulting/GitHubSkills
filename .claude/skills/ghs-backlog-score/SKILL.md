@@ -12,7 +12,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 routes-to:
   - ghs-backlog-board
   - ghs-backlog-next
@@ -23,124 +23,155 @@ routes-from:
 
 # Backlog Score
 
-Calculate and display the health score for a repository from its backlog health items. This is a lightweight, focused view — just the score, tier breakdown, and points summary.
+Calculate and display the health score for a repository from its backlog health items. This is a lightweight, read-only view -- just the score, tier breakdown, and points summary.
 
-<context>
-Purpose: Quick, focused health score display — lighter than the full dashboard.
+## Anti-Patterns
 
-Roles:
-1. **Score Calculator** (you) — reads backlog files, applies scoring rules, renders the display
+- **Do NOT re-scan the repo.** This skill reads existing backlog data only. If no data exists, tell the user to run `/ghs-repo-scan` first.
+- **Do NOT modify backlog items.** This skill is strictly read-only. Never update statuses, points, or metadata during scoring.
+- **Do NOT invent scores for missing items.** If a health file is missing or unparseable, skip it and note the gap -- never fabricate data.
+- **Do NOT show full issue lists.** That is `ghs-backlog-board`'s job. This skill shows only the numeric score and tier breakdown.
 
-No sub-agents — this is a read-only calculation skill.
+## References
 
-Shared docs:
-- `../shared/backlog-format.md` — scoring rules and tier definitions
-- `../shared/checks/index.md` — check registry
-- `../shared/config.md` — tier point values, progress bar format
-</context>
+This skill is intentionally thin. The core scoring logic lives in shared references:
 
-<objective>
-Display the health score for one or all repositories with tier breakdown.
+| Reference | What It Provides |
+|-----------|-----------------|
+| `../shared/references/scoring-logic.md` | Tier weights, formula, status rules, progress bar format |
+| `../shared/references/backlog-format.md` | Directory structure, file naming, metadata parsing |
+| `../shared/references/output-conventions.md` | Terminal output patterns, table formats, routing suggestions |
 
-Outputs:
-- Terminal display with score, tier breakdown, progress bars, and points summary
+## Rules
 
-Next routing:
-- Suggest `ghs-backlog-board` for full details — "For full details: `/ghs-backlog-board {owner}/{repo}`"
-- Suggest `ghs-backlog-next` for next action — "To fix the highest-impact item: `/ghs-backlog-next`"
-- Suggest `ghs-repo-scan` if data is stale
-</objective>
+### Rule 1: Determine target repository
 
-<process>
+| Trigger | Behavior |
+|---------|----------|
+| User names a repo (`"score for owner/repo"`) | Score that single repo |
+| User says `"all scores"` or gives no repo | Score every repo found under `backlog/` |
+| Backlog directory does not exist | Stop and suggest `/ghs-repo-scan {owner}/{repo}` |
 
-## Input
+Example -- user says: `"what's the score for phmatray/Formidable?"`
+Action: look up `backlog/phmatray_Formidable/` and score it.
 
-The user provides a repository identifier:
-- Explicit: "score for phmatray/Formidable" or "score phmatray_Formidable"
-- If not provided, scan `backlog/` for all repos and show scores for each
+### Rule 2: Collect health items and calculate score
 
-## Phase 1 — Collect Health Items
+Use the shared Python script for reliable, consistent scoring:
 
-Scan `backlog/{owner}_{repo}/health/` for all `tier-*--*.md` files.
+```bash
+python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}
+```
 
-For each file, extract:
-- **Tier** (from filename: `tier-{N}--`)
-- **Points** (see `../shared/config.md` — Tier 1 = 4, Tier 2 = 2, Tier 3 = 1)
-- **Status** (PASS, FAIL, or WARN from the metadata table)
+If you need to parse individual items:
 
-You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
+```bash
+python .claude/skills/shared/scripts/parse_backlog_item.py <path>
+```
 
-Also read `backlog/{owner}_{repo}/SUMMARY.md` for checks that passed at scan time — they don't have individual files, only FAIL/WARN items get files.
+The scoring formula (from `scoring-logic.md`):
 
-For a complete score, use: `python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}`
+| Component | Formula |
+|-----------|---------|
+| Earned points | `sum(tier_points for each PASS check)` |
+| Possible points | `sum(tier_points for each PASS or FAIL check)` |
+| Percentage | `round(earned / possible * 100)` |
 
-## Phase 2 — Calculate Score
+Status scoring rules:
 
-Apply the scoring rules from `../shared/backlog-format.md#scoring-rules`:
+| Status | Earned | In Possible? | Reason |
+|--------|--------|-------------|--------|
+| PASS | Full tier points | Yes | Check passed |
+| FAIL | 0 | Yes | Action required |
+| WARN | 0 | No | Permission issue -- excluded from both totals |
+| INFO | 0 | No | Informational only -- no score impact |
 
-1. Each check contributes points based on its tier (see `../shared/config.md`)
-2. **WARN items**: excluded from both earned and possible totals — they indicate permission issues, not real failures
-3. **INFO items** (Funding): excluded entirely — no points, no penalty
-4. **Percentage**: `earned_points / possible_points * 100`, rounded to nearest integer
+### Rule 3: Display the score
 
-## Phase 3 — Display Score
-
-### Single-repo view
+**Single-repo view:**
 
 ```
 ## Health Score: {owner}/{repo}
 
   Score: {earned}/{possible} ({percentage}%)
 
-  Tier 1 — Required:      {n}/{max}  {bar}  ({pct}%)  — {remaining} remaining
-  Tier 2 — Recommended:   {n}/{max}  {bar}  ({pct}%)  — {remaining} remaining
-  Tier 3 — Nice to Have:  {n}/{max}  {bar}  ({pct}%)  — {remaining} remaining
+  Tier 1 -- Required:      {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+  Tier 2 -- Recommended:   {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+  Tier 3 -- Nice to Have:  {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
 
   Status: {pass} PASS | {fail} FAIL | {warn} WARN (excluded)
   Points recoverable: {fail_points} (from {fail_count} failing checks)
 ```
 
-Progress bars: `█` filled, `░` empty, 8 chars wide (see `../shared/config.md`).
-
-### Multi-repo view (when no specific repo given)
+**Multi-repo view:**
 
 ```
 ## Health Scores
 
 | Repository | Score | Progress | PASS | FAIL | WARN | Recoverable |
 |------------|-------|----------|------|------|------|-------------|
-| phmatray/Formidable | 8/36 (22%) | ██░░░░░░ | 2 | 10 | 0 | 28 pts |
-| phmatray/NewSLN | 24/36 (67%) | █████░░░ | 12 | 4 | 0 | 12 pts |
+| owner/repo | 8/36 (22%) | ██░░░░░░ | 2 | 10 | 0 | 28 pts |
 ```
 
-### After displaying the score
+Progress bars: 8 chars wide, `█` filled, `░` empty (see `scoring-logic.md`).
 
-If there are FAIL items, suggest the next action:
+### Rule 4: Handle edge cases
+
+| Situation | Action |
+|-----------|--------|
+| No backlog directory | Tell user to run `/ghs-repo-scan {owner}/{repo}` |
+| All checks pass (100%) | Show congratulatory 100% score with full bars |
+| Only WARN items (0/0) | Show "N/A" -- explain all checks are permission-blocked |
+| SUMMARY.md date > 30 days old | Note staleness and suggest `/ghs-repo-scan` to refresh |
+
+### Rule 5: Suggest next actions
+
+After displaying the score, if there are FAIL items:
 
 ```
 To see full details: /ghs-backlog-board {owner}/{repo}
 To fix the highest-impact item: /ghs-backlog-next
 ```
 
-</process>
+## Good and Bad Examples
 
-## Edge Cases
+### Good: Clean single-repo output
 
-- **No backlog directory**: Tell the user no scans have been run yet and suggest `/ghs-repo-scan {owner}/{repo}`
-- **All checks pass**: Display a congratulatory score of 100% with all tiers fully filled
-- **Only WARN items**: Score is N/A (0/0) — explain that all checks are permission-blocked
-- **Stale data**: If SUMMARY.md's date is > 30 days old, note this and suggest re-scanning
+```
+## Health Score: phmatray/Formidable
 
-## Examples
+  Score: 8/36 (22%)
 
-**Example 1: Score for a specific repo**
-User says: "what's the score for phmatray/Formidable?"
-Result: Single-repo score view with tier breakdown, progress bars, and points recoverable.
+  Tier 1 -- Required:      2/4   ████░░░░  (50%)  -- 2 remaining
+  Tier 2 -- Recommended:   2/8   ██░░░░░░  (25%)  -- 6 remaining
+  Tier 3 -- Nice to Have:  0/4   ░░░░░░░░  (0%)   -- 4 remaining
 
-**Example 2: All scores**
-User says: "show all scores"
-Result: Multi-repo table with scores, progress bars, and recoverable points for each audited repo.
+  Status: 4 PASS | 12 FAIL | 1 WARN (excluded)
+  Points recoverable: 28 (from 12 failing checks)
 
-**Example 3: After applying fixes**
-User says: "recalculate score for phmatray/Formidable"
-Result: Re-reads backlog items (updated by `ghs-backlog-fix`), calculates fresh score, shows improvement.
+To see full details: /ghs-backlog-board phmatray/Formidable
+To fix the highest-impact item: /ghs-backlog-next
+```
+
+### Bad: Mixing in dashboard content
+
+```
+## Health Score: phmatray/Formidable
+Score: 8/36 (22%)
+
+Here are the failing items:
+1. LICENSE -- missing, you should add MIT license...
+2. .editorconfig -- not found, here's a template...
+```
+
+Why bad: This skill should NOT list individual items or suggest fixes inline. That is `ghs-backlog-board` and `ghs-backlog-fix` territory.
+
+### Bad: Guessing at missing data
+
+```
+## Health Score: phmatray/Formidable
+Score: 12/36 (33%)
+(Note: Could not parse 2 files, estimated their scores as FAIL)
+```
+
+Why bad: Never estimate or invent scores. Report only what can be parsed. Note unparseable files as skipped.

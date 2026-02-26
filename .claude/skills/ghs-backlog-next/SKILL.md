@@ -13,7 +13,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-repo-scan
@@ -23,74 +23,93 @@ routes-from:
 
 # Backlog Next
 
-Quickly find and recommend the single highest-impact backlog item to work on next. This is a focused, fast skill — it returns one recommendation with the command to apply it.
+Quickly find and recommend the **single** highest-impact backlog item to work on next. Returns one recommendation with the command to apply it.
 
-<context>
-Purpose: Fast, single-item recommendation for the highest-impact next fix.
+No sub-agents — this is a lightweight, read-only skill.
 
-Roles:
-1. **Recommender** (you) — scans backlog, applies priority algorithm, returns one recommendation
+## References
 
-No sub-agents — this is a lightweight read-only skill.
-
-Shared docs:
-- `../shared/backlog-format.md` — scoring rules and tier definitions
+- `../shared/references/scoring-logic.md` — tier weights, priority algorithm, score formula
+- `../shared/references/backlog-format.md` — directory layout, file naming, metadata format
+- `../shared/references/output-conventions.md` — status indicators, table patterns, progress bars
 - `../shared/config.md` — tier point values, stale scan threshold
-</context>
 
-<objective>
-Recommend the single highest-impact backlog item with the command to apply it.
+## Anti-Patterns
 
-Outputs:
-- Terminal display with recommendation, rationale, and exact command
-
-Next routing:
-- Provide the exact `ghs-backlog-fix` command — "To apply: `/ghs-backlog-fix backlog/{owner}_{repo}/health/{item}`"
-- If everything is done, suggest `ghs-repo-scan` to re-scan for changes
-</objective>
-
-<process>
+| Anti-Pattern | Why It Fails | Do Instead |
+|-------------|-------------|------------|
+| Recommend an already-fixed (PASS) item | Wastes the user's time on completed work | Always check current status from backlog files before recommending |
+| Recommend without verifying item still exists | File may have been deleted after a fix | Confirm the backlog file is present and status is FAIL or OPEN |
+| Show multiple recommendations as a list | Defeats the purpose of "next ONE item" — causes decision paralysis | Return exactly one item; show a single runner-up line only if multiple repos exist |
+| Guess the score instead of calculating | Produces wrong priority ordering | Always run `calculate_score.py` for accurate scores |
+| Recommend WARN items as actionable | WARN means permission-blocked, user cannot fix it | Skip WARN items; only mention them if nothing else remains |
 
 ## Input
 
 No input required. Scans all `backlog/` subdirectories automatically.
 
-Optional: the user may specify a repo to limit the search: "next for phmatray/Formidable"
+Optional: the user may specify a repo to limit the search — "next for phmatray/Formidable".
 
-## Phase 1 — Discover Failing Items
+| Trigger | Example | Behavior |
+|---------|---------|----------|
+| General next | "what should I work on next?" | Scan all repos, pick the single best item |
+| Repo-scoped next | "next for phmatray/Formidable" | Limit search to that repo only |
+| After a fix | "next" | Previous fix is now PASS, pick the next best item |
 
-Scan `backlog/{owner}_{repo}/health/` across all repos (or the specified repo) for items with status FAIL.
+## Process
+
+### Phase 1 — Discover Failing Items
+
+Scan `backlog/{owner}_{repo}/health/` across all repos (or the specified repo) for items with status **FAIL**.
 
 For each item, extract:
-- Repository (`owner/repo`)
-- Check name (from title)
-- Tier (from filename)
-- Points (see `../shared/config.md` — Tier 1 = 4, Tier 2 = 2, Tier 3 = 1)
-- Status (skip PASS and WARN)
 
-Also check `backlog/{owner}_{repo}/issues/` for items with status OPEN — issues are secondary to health items because health items improve the repo's structural foundation.
+| Field | Source |
+|-------|--------|
+| Repository | `owner/repo` from metadata table |
+| Check name | From item title |
+| Tier | From filename (`tier-{N}--{slug}.md`) |
+| Points | Per tier: Tier 1 = 4, Tier 2 = 2, Tier 3 = 1 (see `scoring-logic.md`) |
+| Status | Only keep FAIL; skip PASS, WARN, INFO |
 
-You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
+Also check `backlog/{owner}_{repo}/issues/` for items with status **OPEN** — issues are secondary to health items.
 
-## Phase 2 — Select the Highest-Impact Item
+Parse items programmatically:
 
-Apply this priority algorithm:
+```bash
+python .claude/skills/shared/scripts/parse_backlog_item.py <path>
+```
 
-1. **Lowest health score percentage repo first** — the repo that needs the most help
-   - Calculate per-repo scores using `python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}`
-2. **Health items over issues** — health items improve the repo's structural foundation
-3. **Lowest tier number** — Tier 1 (Required) before Tier 2 (Recommended) before Tier 3 (Nice to Have)
-4. **Highest point value** — within the same tier, pick the item worth more points
-5. **Oldest issue** — for issues, pick the oldest (by creation date)
-6. **Alphabetical** — final tiebreaker
+### Phase 2 — Select the Highest-Impact Item
 
-## Phase 3 — Display Recommendation
+Apply the priority algorithm (see `scoring-logic.md` for canonical definition):
+
+| Priority | Rule |
+|----------|------|
+| 1 | Lowest health score percentage repo first |
+| 2 | Health items over issues (structural foundation) |
+| 3 | Lowest tier number (Tier 1 before Tier 2 before Tier 3) |
+| 4 | Highest point value within same tier |
+| 5 | Oldest issue (by creation date) for issue items |
+| 6 | Alphabetical (final tiebreaker) |
+
+Calculate per-repo scores:
+
+```bash
+python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}
+```
+
+Tie between repos with same score: pick the one with the most failing items.
+
+### Phase 3 — Display Recommendation
+
+#### Standard recommendation
 
 ```
 ## Next: {Check Name}
 
 Repository:  {owner}/{repo} ({score}% health)
-Source:      Health Check — Tier {N} ({label})
+Source:      Health Check — Tier {N} ({Required|Recommended|Nice to Have})
 Points:      {points}
 Category:    {A (API-only) | B (file changes) | CI}
 
@@ -103,13 +122,13 @@ To apply:
 GitHub Issue: https://github.com/{owner}/{repo}/issues/{number}
 ```
 
-If there are multiple repos, also show the runner-up:
+If there are multiple repos, also show the runner-up (one line only):
 
 ```
 Runner-up: {Check Name} for {owner}/{repo} ({score}% health, Tier {N}, {points} pts)
 ```
 
-### When everything is done
+#### All caught up
 
 If all health items are PASS and all issues are CLOSED or have PRs:
 
@@ -120,26 +139,66 @@ All health checks are passing and all issues have been addressed.
 To re-scan for changes: /ghs-repo-scan {owner}/{repo}
 ```
 
-</process>
+## Good and Bad Examples
+
+### Good: Clear single recommendation
+
+```
+## Next: LICENSE
+
+Repository:  phmatray/Formidable (32% health)
+Source:      Health Check — Tier 1 (Required)
+Points:      4
+Category:    B (file changes)
+
+Why this item: Lowest-scoring repo, highest-tier failing check worth 4 points.
+
+To apply:
+  /ghs-backlog-fix backlog/phmatray_Formidable/health/tier-1--license.md
+```
+
+### Bad: Multiple recommendations dumped as a list
+
+```
+Here are the top 5 items you should work on:
+1. LICENSE for phmatray/Formidable
+2. README for phmatray/Formidable
+3. .editorconfig for phmatray/Formidable
+4. SECURITY.md for phmatray/Formidable
+5. Branch protection for phmatray/Formidable
+```
+
+Why it is bad: defeats the purpose of "next ONE item" and creates decision paralysis. Use `ghs-backlog-board` for full lists.
+
+### Bad: Recommending a PASS item
+
+```
+## Next: README.md
+
+Repository:  phmatray/Formidable (75% health)
+Source:      Health Check — Tier 1 (Required)
+Points:      4
+
+To apply:
+  /ghs-backlog-fix backlog/phmatray_Formidable/health/tier-1--readme.md
+```
+
+Why it is bad: README already has status PASS. Always verify the item's current status before recommending.
 
 ## Edge Cases
 
-- **No backlog directory**: Tell the user no scans have been run yet and suggest `/ghs-repo-scan {owner}/{repo}`
-- **All items passing**: Display the "all caught up" message
-- **Only WARN items left**: Explain that remaining items are permission-blocked and suggest checking access
-- **Multiple repos tied**: Pick the one with the most failing items as tiebreaker
-- **Stale data**: If any repo's scan date is > 30 days old (see `../shared/config.md`), note it
+| Situation | Action |
+|-----------|--------|
+| No `backlog/` directory | Tell user no scans have been run; suggest `/ghs-repo-scan {owner}/{repo}` |
+| All items passing | Display the "All caught up!" message |
+| Only WARN items left | Explain remaining items are permission-blocked; suggest checking access |
+| Multiple repos tied on score | Pick the one with the most failing items |
+| Stale data (scan > 30 days old) | Note it and suggest re-scanning: `/ghs-repo-scan {owner}/{repo}` |
 
-## Examples
+## Routing
 
-**Example 1: Quick recommendation**
-User says: "what should I work on next?"
-Result: Shows the single highest-impact item with the exact command to apply it.
-
-**Example 2: Repo-specific**
-User says: "next for phmatray/Formidable"
-Result: Shows the highest-impact item within that repo only.
-
-**Example 3: After applying a fix**
-User says: "next"
-Result: Picks the next highest-impact item (the previous one is now PASS and skipped).
+| After This Skill | Suggest |
+|-----------------|---------|
+| User wants to apply the fix | `/ghs-backlog-fix backlog/{owner}_{repo}/health/tier-{N}--{slug}.md` |
+| Everything is done | `/ghs-repo-scan {owner}/{repo}` to re-scan for changes |
+| User wants a full overview | `/ghs-backlog-board` for the multi-repo dashboard |

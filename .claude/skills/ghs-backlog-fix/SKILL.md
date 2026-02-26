@@ -14,7 +14,7 @@ compatibility: "Requires gh CLI (authenticated), git, python3, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 5.0.0
+  version: 6.0.0
 routes-to:
   - ghs-merge-prs
   - ghs-backlog-board
@@ -30,6 +30,53 @@ routes-from:
 
 Read structured backlog items (health findings or GitHub issues), apply fixes using parallel worktree-based agents, verify acceptance criteria, and update item statuses.
 
+## Anti-Patterns
+
+- Do NOT modify files outside the fix scope — only touch what the backlog item describes
+- Do NOT chain fixes — one backlog item per agent, no side-quests
+- Do NOT retry failed fixes more than 3 times — mark as failed and move on
+- Do NOT skip verification before creating a PR — every fix must pass its acceptance criteria
+- Do NOT create PRs for incomplete fixes — partial work stays local until complete
+
+## Scope Boundary
+
+Only fix what the backlog item describes. Pre-existing issues, linting warnings, or
+unrelated findings are out of scope. Log discoveries to deferred-items if needed.
+
+## Context Budget
+
+What to pass to each subagent:
+
+| Pass | Do NOT Pass |
+|------|-------------|
+| The specific backlog item file content | All backlog items for the repo |
+| Repository structure overview (tech stack, default branch) | Full scan results |
+| Acceptance criteria for this item | Other agents' output |
+| Worktree path (for B/CI agents) | Unrelated check details |
+| Synced issue number (if applicable) | Previous run history |
+
+See `../shared/references/agent-spawning.md` for the full agent spawning protocol, context budgeting, and worktree management patterns.
+
+## Circuit Breaker
+
+| Attempt | Action |
+|---------|--------|
+| 1st failure | Re-run agent with error context appended to prompt |
+| 2nd failure | Re-run with error + stricter constraints |
+| 3rd failure | Mark as `NEEDS_HUMAN`, preserve worktree, stop retrying |
+
+After 3 failures on the same item, the orchestrator moves on. The worktree is left in place for manual continuation.
+
+## Deviation Handling
+
+| Rule | Trigger | Example |
+|------|---------|---------|
+| One item per agent | Agent prompt mentions multiple slugs | Agent assigned `license` starts modifying `.editorconfig` — reject, re-prompt with scope reminder |
+| No unrelated changes | Diff contains files outside acceptance criteria | Agent adds a linting fix alongside the LICENSE — strip unrelated commits before PR |
+| Verify before PR | Agent returns PASS without running checks | Agent claims PASS but acceptance criteria unchecked — re-run verification, mark FAILED if criteria unmet |
+| Respect circuit breaker | Same item fails 3 times | Agent fails on `ci-workflow-health` 3 times — mark NEEDS_HUMAN, do not spawn a 4th attempt |
+| Branch hygiene | Branch already exists with unrelated commits | Pre-flight detects stale branch — flag in plan, ask user before force-creating |
+
 <context>
 Purpose: Apply backlog item fixes using parallel worktree-based agents — one clone, multiple worktrees, simultaneous agents.
 
@@ -42,7 +89,10 @@ Roles:
 Agent prompts: `agents/category-a-agent.md`, `agents/category-b-agent.md`, `agents/category-ci-agent.md`
 
 Shared docs:
-- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+- `../shared/references/agent-spawning.md` — worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup
+- `../shared/references/backlog-format.md` — file formats and status values
+- `../shared/references/gh-cli-patterns.md` — authentication, repo detection, error handling
+- `../shared/references/output-conventions.md` — status indicators, table formats, summary blocks
 - `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
 - `../shared/config.md` — scoring constants
 - `../shared/backlog-format.md` — file formats and status values
@@ -117,6 +167,8 @@ For detailed fix strategies per check, read `../shared/checks/index.md` for the 
 
 Follow `../shared/implementation-workflow.md` §1 to clone or pull the repo and detect the default branch and tech stack.
 
+See `../shared/references/agent-spawning.md` (Repository Cloning section) for the clone/pull pattern.
+
 ## Phase 3 — Show Batch Plan & Confirm
 
 Display a summary table of ALL items to be processed:
@@ -162,11 +214,21 @@ Wait for user confirmation before continuing.
 
 Per `../shared/implementation-workflow.md` §5 — check for branch conflicts and existing PRs. Flag any conflicts in the plan table.
 
+See `../shared/references/agent-spawning.md` (Pre-flight Checks section) for the exact commands.
+
 ## Phase 4 — Create Worktrees
 
-Per `../shared/implementation-workflow.md` §2 — create worktrees for each Category B and CI item.
+Worktree setup steps:
+
+| Step | Command | Notes |
+|------|---------|-------|
+| 1. Create worktree dir | `mkdir -p repos/{owner}_{repo}--worktrees` | Sibling to main clone, never nested inside |
+| 2. Add worktree | `git -C repos/{owner}_{repo} worktree add ../repos/{owner}_{repo}--worktrees/{prefix}--{slug} -b {prefix}/{slug}` | One worktree per Category B/CI item |
+| 3. Verify creation | `ls repos/{owner}_{repo}--worktrees/{prefix}--{slug}/.git` | Confirm worktree is valid |
 
 Category A items don't need worktrees — they use `gh` API commands directly.
+
+See `../shared/references/agent-spawning.md` (Worktree Creation section) for the full pattern including branch prefix conventions.
 
 ## Phase 5 — Launch Agents in Parallel
 
@@ -193,9 +255,9 @@ After all agents complete:
 
 1. Parse the JSON result from each agent
 
-**Bounded retries**: If an agent returns status FAILED and the error suggests a transient issue (content filter, timeout, malformed output):
-- Retry once with the error message appended to the agent prompt
-- If the retry also fails, mark as NEEDS_HUMAN — two failures on the same item indicate a problem that needs human judgment
+**Circuit breaker applies here**: If an agent returns status FAILED:
+- Retry up to 2 more times (3 total attempts) per the circuit breaker table above
+- If all 3 attempts fail, mark as NEEDS_HUMAN — do not retry further
 - See `../shared/edge-cases.md` for the full retry protocol
 
 2. For each successful item (status = PASS):
@@ -221,7 +283,7 @@ You can verify the score with: `python .claude/skills/shared/scripts/calculate_s
 
 ## Phase 7 — Cleanup Worktrees
 
-Per `../shared/implementation-workflow.md` §2 (Cleanup section):
+Per `../shared/implementation-workflow.md` §2 (Cleanup section) and `../shared/references/agent-spawning.md` (Worktree Cleanup section):
 
 - Remove worktrees for PASS and FAILED items
 - Leave NEEDS_HUMAN worktrees in place with instructions
@@ -255,6 +317,28 @@ Remaining items:
   [FAILED] CI Workflow Health — {error}
   [NEEDS_HUMAN] ... — worktree at ...
 ```
+
+### PR Template Fields
+
+| Field | Value | Notes |
+|-------|-------|-------|
+| Title | `fix({slug}): {short description}` | Conventional commit style |
+| Base | `{default_branch}` | Always target default branch |
+| Head | `{prefix}/{slug}` | Branch created in worktree |
+| Body | Description + acceptance criteria + `Fixes #{number}` | Include issue ref for auto-close |
+| Labels | `ghs:auto-fix` | Identifies PRs created by this skill |
+
+### Verification Checklist
+
+Before creating a PR, every agent must verify:
+
+| Check | How |
+|-------|-----|
+| Files match acceptance criteria | Diff review — only expected files changed |
+| No unrelated modifications | `git diff --stat` shows only in-scope files |
+| Commit message follows convention | Starts with `fix(`, `feat(`, or `docs(` |
+| Tests pass (if applicable) | Run test command from tech stack detection |
+| PR body includes issue reference | Contains `Fixes #{number}` when synced issue exists |
 
 </process>
 

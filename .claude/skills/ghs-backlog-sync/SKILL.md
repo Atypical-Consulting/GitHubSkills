@@ -12,7 +12,7 @@ compatibility: "Requires gh CLI (authenticated), python3, network access. Target
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-board
@@ -23,75 +23,153 @@ routes-from:
 
 # Backlog Sync
 
-Sync local health backlog items to GitHub Issues for team visibility and tracking. Creates issues for FAIL items, updates existing synced issues, and closes resolved ones.
+Sync local health backlog items to GitHub Issues for team visibility and tracking.
 
-<context>
-Purpose: Publish health check findings as GitHub Issues so they are visible to collaborators and manageable through GitHub's native UI.
+## Anti-Patterns
 
-Roles:
-1. **Syncer** (you) — reads local backlog items, creates/updates/closes GitHub Issues, updates local files with sync metadata
+- **Never create duplicate issues.** Title-based dedup (`[Health] {Check Name}`) is the sole guard — always check existing issues before creating.
+- **Never close issues manually reopened by users.** If a PASS item's synced issue was reopened by a human after the skill closed it, leave it open.
+- **Never sync PASS items as new issues.** Only FAIL items become issues. PASS items only trigger closing of their previously-synced issue.
+- **Never modify backlog item content during sync.** Only add/update `Synced Issue` and `Issue URL` metadata rows. The backlog files are owned by `ghs-repo-scan`.
+- **Never retry in a loop on rate limits.** Report progress so far and tell the user to re-run later.
 
-No sub-agents — this is a single-actor skill that orchestrates GitHub API calls.
+## Scope Boundary
 
-Shared docs:
-- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
-- `../shared/backlog-format.md` — file naming, metadata formats, status values
-- `../shared/sync-format.md` — label taxonomy, issue title convention, body template, local metadata additions
-- `../shared/edge-cases.md` — rate limiting, permission errors, bounded retries
-- `../shared/item-categories.md` — item classification (Category A/B/CI)
-</context>
+This skill is a **one-way publisher**: local backlog health findings go to GitHub Issues. It does not pull issue state back into backlog files, change item statuses, or apply fixes. The only local writes are the two sync metadata rows (`Synced Issue`, `Issue URL`).
 
-<objective>
-Sync local health backlog items to GitHub Issues.
+## References
 
-Outputs:
-- GitHub Issues created/updated/closed on the target repository
-- Local backlog item files updated with `Synced Issue` and `Issue URL` metadata
-- Updated SUMMARY.md if statuses changed
-- Terminal report with sync actions taken
+> Shared docs consumed by this skill — read them for full field definitions and patterns.
 
-Next routing:
-- Suggest `ghs-backlog-fix` to apply fixes — "To fix items: `/ghs-backlog-fix {owner}/{repo}`"
-- Suggest `ghs-backlog-board` to see the updated dashboard
-</objective>
+| Reference | What It Provides |
+|-----------|-----------------|
+| `shared/references/gh-cli-patterns.md` | Auth check, repo detection, issue CRUD, label creation, error codes |
+| `shared/references/backlog-format.md` | Directory layout, file naming, metadata table schema, status values |
+| `shared/sync-format.md` | Label taxonomy, issue title convention, body template, hidden metadata comment |
+| `shared/item-categories.md` | Category A/B/CI classification for label assignment |
+| `shared/references/output-conventions.md` | Status indicators, table formats, summary block pattern |
+| `shared/edge-cases.md` | Rate limiting, permission errors, bounded retries |
 
-<process>
+## Sync Status Mapping
 
-## Input
+| Backlog Status | Has Synced Issue? | GitHub Issue State | Action |
+|---------------|-------------------|-------------------|--------|
+| FAIL | No | — | **Create** new issue |
+| FAIL | Yes | Open | **Update** if content changed, else skip |
+| FAIL | Yes | Closed | **Reopen** with comment |
+| PASS | Yes | Open | **Close** with comment |
+| PASS | Yes | Closed | Skip (already resolved) |
+| PASS | No | — | Skip (nothing to sync) |
+| WARN / INFO | Any | Any | Skip (not actionable) |
+
+## Issue Template Fields
+
+Issues created by this skill follow the body template in `shared/sync-format.md`:
+
+| Field | Source | Example |
+|-------|--------|---------|
+| Hidden metadata comment | Slug, tier, points, category, detected date | `<!-- ghs-sync:metadata slug:license tier:1 ... -->` |
+| Tier | Backlog item metadata | `1 — Required` |
+| Points | Backlog item metadata | `4` |
+| Category | `shared/item-categories.md` lookup | `B (file changes)` |
+| Detected | Backlog item metadata | `2026-01-15` |
+| What's Missing | Backlog item section | Content from item |
+| Why It Matters | Backlog item section | Content from item |
+| How to Fix | Backlog item section | Content from item |
+| Acceptance Criteria | Backlog item section | Checklist from item |
+
+## Good and Bad Examples
+
+### Issue Titles
+
+| Example | Verdict | Why |
+|---------|---------|-----|
+| `[Health] LICENSE` | GOOD | Matches convention, dedup-safe |
+| `[Health] Branch Protection` | GOOD | Matches convention |
+| `Missing LICENSE file` | BAD | Breaks title-based dedup, will create duplicates |
+| `[Health] license` | BAD | Case mismatch — won't match existing `[Health] LICENSE` |
+
+### Issue Bodies
+
+**GOOD** — includes hidden metadata, structured fields, acceptance criteria:
+```markdown
+<!-- ghs-sync:metadata
+slug: license
+tier: 1
+points: 4
+category: B
+detected: 2026-01-15
+-->
+
+| Field | Value |
+|-------|-------|
+| **Tier** | 1 — Required |
+| **Points** | 4 |
+| **Category** | B (file changes) |
+| **Detected** | 2026-01-15 |
+
+## What's Missing
+
+No LICENSE file found in the repository root.
+
+## How to Fix
+
+Add a LICENSE file matching the project's declared license.
+
+## Acceptance Criteria
+
+- [ ] LICENSE file exists in repository root
+- [ ] License type matches package metadata
+```
+
+**BAD** — no metadata comment, no structure, unactionable:
+```markdown
+This repo needs a license. Please add one.
+```
+
+## Process
+
+### Input
 
 The user provides a repo identifier: `owner/repo` or `owner_repo`.
 
-If not provided, detect from the current git remote:
-```bash
-gh repo view --json nameWithOwner -q '.nameWithOwner'
-```
+If not provided, detect from the current git remote (see `shared/references/gh-cli-patterns.md` — Repo Detection).
 
-## Phase 1 — Discover Local Items
+### Phase 1 — Discover Local Items
 
-Scan `backlog/{owner}_{repo}/health/` for all items. Parse each with:
+**Rule:** Only FAIL items become issues. PASS items with a synced issue trigger closing. WARN/INFO items are always skipped.
+
+**Trigger:** Backlog directory `backlog/{owner}_{repo}/health/` exists and contains item files.
+
+Scan all items and parse each with:
 ```bash
-python .claude/skills/shared/scripts/parse_backlog_item.py <path>
+python3 .claude/skills/shared/scripts/parse_backlog_item.py <path>
 ```
 
 Build two lists:
-1. **FAIL items**: Items with status FAIL — candidates for issue creation
-2. **Resolved items**: Items with status PASS that have a `Synced Issue` field — candidates for issue closing
 
-Skip items with status WARN or INFO — these are not actionable.
+| List | Criteria | Purpose |
+|------|----------|---------|
+| FAIL items | Status = FAIL | Candidates for issue creation/update |
+| Resolved items | Status = PASS AND has `Synced Issue` field | Candidates for issue closing |
 
-## Phase 2 — Ensure Labels Exist
+**Example:** If `tier-1--license.md` has Status=FAIL and no Synced Issue, it goes into the FAIL list for creation. If `tier-2--editorconfig.md` has Status=PASS and Synced Issue=#43, it goes into the Resolved list for closing.
 
-Pre-check: verify the target repo has issues enabled:
-```bash
-gh repo view {owner}/{repo} --json hasIssuesEnabled -q '.hasIssuesEnabled'
+If the backlog directory does not exist, abort: `No backlog found for {owner}/{repo}. Run /ghs-repo-scan first.`
+
+If all items are PASS, report: `All checks passing — nothing to sync.` Then handle any resolved items that need closing.
+
+### Phase 2 — Ensure Labels Exist
+
+Pre-check: verify the target repo has issues enabled (see `shared/references/gh-cli-patterns.md` — Issues enabled).
+
+If issues are disabled, abort:
+```
+Issues are disabled on {owner}/{repo}. Enable them in Settings > General > Features > Issues, then re-run sync.
 ```
 
-If issues are disabled, abort with a clear message:
-```
-Issues are disabled on {owner}/{repo}. Enable them in Settings → General → Features → Issues, then re-run sync.
-```
+Create labels from the taxonomy in `shared/sync-format.md` using idempotent commands (see `shared/references/gh-cli-patterns.md` — Label Operations):
 
-Create the label taxonomy defined in `../shared/sync-format.md` using idempotent commands:
 ```bash
 gh label create "ghs:health-check" --color "7057ff" --description "Health check finding from ghs-repo-scan" --repo {owner}/{repo} 2>&1 || true
 gh label create "tier:1" --color "d73a4a" --description "Tier 1 — Required" --repo {owner}/{repo} 2>&1 || true
@@ -102,83 +180,74 @@ gh label create "category:file-change" --color "bfd4f2" --description "Fix requi
 gh label create "category:ci" --color "d4c5f9" --description "Fix requires CI workflow changes" --repo {owner}/{repo} 2>&1 || true
 ```
 
-## Phase 3 — Fetch Existing Synced Issues
+### Phase 3 — Fetch Existing Synced Issues
 
-Query GitHub for all issues with the `ghs:health-check` label:
+Query GitHub for all issues with the `ghs:health-check` label (see `shared/references/gh-cli-patterns.md` — Issue Operations):
+
 ```bash
 gh issue list --label "ghs:health-check" --state all --json number,title,state,body --limit 500 --repo {owner}/{repo}
 ```
 
-Build a lookup map keyed by title: `title → {number, state, body}`.
+Build a lookup map: `title -> {number, state, body}`.
 
-This enables dedup — matching is done by the `[Health] {Check Name}` title convention from `../shared/sync-format.md`.
+This enables title-based dedup per the convention in `shared/sync-format.md`.
 
-## Phase 4 — Sync Loop
+### Phase 4 — Sync Loop
 
-### For each FAIL item:
+For each item, apply the action from the **Sync Status Mapping** table above.
 
-Construct the expected issue title: `[Health] {Check Name}` (using the item's H1 title).
+#### Creating a New Issue
 
-Look up the title in the existing issues map:
+**Rule:** Only create when no matching `[Health] {Check Name}` title exists in any state.
 
-**No matching issue — Create:**
-1. Build the issue body from the template in `../shared/sync-format.md`
-2. Determine labels: `ghs:health-check`, `tier:{N}`, and the appropriate `category:*` label based on the item's category (use `../shared/item-categories.md` to classify)
-3. Create the issue:
+1. Build the issue body from `shared/sync-format.md` — Issue Body Template
+2. Classify the item using `shared/item-categories.md` to determine the `category:*` label
+3. Create:
    ```bash
    gh issue create --title "[Health] {Check Name}" --body "{body}" --label "ghs:health-check,tier:{N},category:{cat}" --repo {owner}/{repo}
    ```
-4. Record the action: `Created`
 
-**Open matching issue — Update (if changed):**
-1. Compare the hidden metadata comment in the existing body with current item data
-2. If content has changed (tier, points, or section content differs), update the body:
-   ```bash
-   gh issue edit {number} --body "{new_body}" --repo {owner}/{repo}
-   ```
-3. If content unchanged, skip
-4. Record the action: `Updated` or `Already synced`
+#### Updating an Existing Open Issue
 
-**Closed matching issue (check still fails) — Reopen:**
-1. Reopen the issue with a comment explaining the check still fails:
-   ```bash
-   gh issue reopen {number} --repo {owner}/{repo}
-   gh issue comment {number} --body "This check is still failing as of {date}. Reopening." --repo {owner}/{repo}
-   ```
-2. Record the action: `Reopened`
+**Rule:** Only update if the hidden metadata comment shows tier, points, or category has changed. Never overwrite user edits to visible content unless metadata diverges.
 
-### For each PASS item with `Synced Issue`:
+1. Compare hidden `<!-- ghs-sync:metadata ... -->` in existing body with current item data
+2. If changed: `gh issue edit {number} --body "{new_body}" --repo {owner}/{repo}`
+3. If unchanged: skip
 
-Look up the synced issue number:
+#### Reopening a Closed Issue
+
+**Rule:** Only reopen if the check still fails. The issue was closed (either by sync or manually) but the underlying problem persists.
+
 ```bash
-gh issue view {number} --json state -q '.state' --repo {owner}/{repo}
+gh issue reopen {number} --repo {owner}/{repo}
+gh issue comment {number} --body "This check is still failing as of {date}. Reopening." --repo {owner}/{repo}
 ```
 
-**Issue still open — Close:**
+#### Closing a Resolved Issue
+
+**Rule:** Only close issues where the local item status changed to PASS. Never close issues that were manually reopened by users without a corresponding PASS status.
+
 ```bash
 gh issue close {number} --comment "Check now passes as of {date}. Closing." --repo {owner}/{repo}
 ```
-Record the action: `Closed (resolved)`
 
-**Issue already closed — Skip:**
-Record the action: `Already closed`
+### Phase 5 — Update Local Files
 
-## Phase 5 — Update Local Files
+For each item that was created or matched to an issue, add or update the sync metadata rows in the local backlog item (see `shared/references/backlog-format.md` — Health Item Metadata):
 
-For each item that was created or matched to an issue:
+```markdown
+| **Synced Issue** | #{number} |
+| **Issue URL** | https://github.com/{owner}/{repo}/issues/{number} |
+```
 
-1. Add or update `Synced Issue` and `Issue URL` rows in the local backlog item's metadata table:
-   ```markdown
-   | **Synced Issue** | #{number} |
-   | **Issue URL** | https://github.com/{owner}/{repo}/issues/{number} |
-   ```
-2. If the rows already exist, update them in place. If they don't exist, append them after the `| **Detected** |` row.
+If the rows already exist, update them in place. If they don't exist, append them after the `| **Detected** |` row.
 
-Update `SUMMARY.md` if any statuses changed during the sync (e.g., a PASS item's issue was closed).
+Update `SUMMARY.md` if any statuses changed during the sync.
 
-## Phase 6 — Report
+### Phase 6 — Report
 
-Display a summary table:
+Display a summary table following `shared/references/output-conventions.md`:
 
 ```
 ## Sync Report: {owner}/{repo}
@@ -190,7 +259,6 @@ Display a summary table:
 | 3 | Branch Protection | T1 | Updated | #39 |
 | 4 | .editorconfig | T2 | Created | #43 |
 | 5 | CI Workflow Health | T2 | Closed (resolved) | #35 |
-...
 
 ---
 
@@ -206,42 +274,12 @@ To fix items: /ghs-backlog-fix {owner}/{repo}
 To see dashboard: /ghs-backlog-board
 ```
 
-</process>
-
 ## Edge Cases
 
 - **Idempotent**: Title-based dedup prevents duplicate issues. Running sync multiple times is safe.
 - **Issues disabled**: Pre-check in Phase 2 detects this and aborts with a clear message.
-- **User-edited issue bodies**: The hidden `<!-- ghs-sync:metadata ... -->` comment is preserved. Visible content is not overwritten unless the metadata (tier, points, slug) has changed. Use `--force` flag to overwrite all content.
-- **Rate limiting**: Follow `../shared/edge-cases.md` retry pattern. Do not loop — if rate-limited, report progress so far and suggest re-running later.
+- **User-edited issue bodies**: The hidden `<!-- ghs-sync:metadata ... -->` comment is preserved. Visible content is not overwritten unless the metadata (tier, points, slug) has changed.
+- **Rate limiting**: Follow `shared/edge-cases.md` retry pattern. Do not loop — if rate-limited, report progress so far and suggest re-running later.
 - **Missing local items**: If the backlog directory doesn't exist, suggest running `ghs-repo-scan` first.
-- **No FAIL items**: If all items are PASS, report "All checks passing — nothing to sync" and handle any open issues that should be closed.
-- **Large repos**: If there are many health items, process them sequentially to avoid rate limits.
-
-## Examples
-
-**Example 1: First sync**
-User says: "sync backlog phmatray/NewSLN"
-Result: Creates labels, creates GitHub Issues for all FAIL health items, updates local files with issue references, displays report.
-
-**Example 2: Re-sync after fixes**
-User says: "sync backlog phmatray/NewSLN"
-Result: Detects existing issues, closes ones where checks now pass, reopens ones that regressed, creates new ones for new failures.
-
-**Example 3: Sync after backlog-fix**
-User says: "publish backlog"
-Result: Closes synced issues for items that backlog-fix changed to PASS, keeps remaining FAIL issues open.
-
-## Troubleshooting
-
-**"Issues are disabled"**
-Enable Issues in the repo's Settings → General → Features → Issues.
-
-**"Label already exists" warnings**
-These are expected — label creation is idempotent. The `2>&1 || true` suffix suppresses the error.
-
-**Duplicate issues created**
-This shouldn't happen if the title convention is followed. If it does, manually close duplicates and ensure titles match `[Health] {Check Name}` exactly.
-
-**Rate limit errors**
-GitHub's API has rate limits. If hit, the skill reports progress so far. Wait for the rate limit window to reset and re-run.
+- **No FAIL items**: Report "All checks passing — nothing to sync" and handle any open issues that should be closed.
+- **Large repos**: Process items sequentially to avoid rate limits. Do not parallelize API calls.

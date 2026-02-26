@@ -5,14 +5,20 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
 ## Project Structure
 
 ```
-.claude/skills/          — Skill definitions (SKILL.md files)
-backlog/                 — Backlog items per repo (health findings + issues)
+.claude/skills/                  — Skill definitions (SKILL.md files)
+  shared/references/             — Shared reference docs used across skills
+    gh-cli-patterns.md           — Common gh CLI patterns and error handling
+    backlog-format.md            — Backlog item format and directory structure
+    scoring-logic.md             — Health score calculation and tier weights
+    output-conventions.md        — Terminal output formatting conventions
+    agent-spawning.md            — Worktree-based parallel agent patterns
+backlog/                         — Backlog items per repo (health findings + issues)
   {owner}_{repo}/
-    SUMMARY.md           — Unified repo summary
-    health/              — Health check findings
-    issues/              — Open GitHub issues
-repos/                   — Local clones of target repositories (gitignored)
-.gh-skills/backlog-items/ — Ideas and planned skills not yet implemented
+    SUMMARY.md                   — Unified repo summary
+    health/                      — Health check findings
+    issues/                      — Open GitHub issues
+repos/                           — Local clones of target repositories (gitignored)
+.gh-skills/backlog-items/        — Ideas and planned skills not yet implemented
 ```
 
 ## Skill Conventions
@@ -25,6 +31,31 @@ repos/                   — Local clones of target repositories (gitignored)
 - Output should be clean, scannable terminal text — use tables, status indicators (`[PASS]`, `[FAIL]`, `[WARN]`, `[INFO]`), and progress bars where appropriate
 - Skills should detect the current repo from `gh repo view` when no explicit repo is provided
 - Follow the SKILL.md frontmatter format: `name`, `description` (with trigger phrases)
+
+### Prompt Structure (GSD-Inspired)
+
+Skills follow a structured prompt pattern inspired by [get-shit-done](https://github.com/gsd-build/get-shit-done):
+
+- **Anti-Patterns section** — Explicit failure modes the agent must avoid, formatted as a table
+- **Rule/trigger/example triples** — Rules state the imperative, triggers explain when it applies, examples show concrete cases
+- **Tables over prose** — Use markdown tables for check definitions, scoring weights, routing logic, and output specs
+- **Good/bad example pairs** — Show what good output looks like and contrast with bad output
+- **Scope boundaries** — Mutation-capable skills declare what they will and won't modify
+- **Circuit breakers** — Agent-spawning skills limit retry attempts (default: 3) before marking as failed
+- **Context budgets** — Skills that spawn subagents document what context to pass and what to omit
+- **Progressive disclosure** — Load indexes (SUMMARY.md) first, read individual items only when needed
+
+### Shared References
+
+Common patterns are extracted into `shared/references/` to avoid duplication. Skills reference these via `@.claude/skills/shared/references/<file>.md`:
+
+| File | Purpose |
+|------|---------|
+| `gh-cli-patterns.md` | Auth checks, repo detection, issue/PR/label ops, error handling (404/403) |
+| `backlog-format.md` | Directory structure, file naming, metadata fields, status values |
+| `scoring-logic.md` | Tier definitions (T1=4pts, T2=2pts, T3=1pt), formula, priority algorithm |
+| `output-conventions.md` | Status indicators, table patterns, progress bars, summary blocks |
+| `agent-spawning.md` | Repo cloning, worktree creation, parallel execution, cleanup, context budgets |
 
 ## Available Skills
 
@@ -57,5 +88,11 @@ repos/                   — Local clones of target repositories (gitignored)
 
 1. Create `.claude/skills/ghs-<skill-name>/SKILL.md`
 2. Include frontmatter with `name: ghs-<skill-name>`, `description` (with trigger phrases), `allowed-tools`, and `compatibility`
-3. Define: Prerequisites, Input, Checks/Steps, Output Format
+3. Structure the body following the prompt patterns above:
+   - Add an **Anti-Patterns** section with common failure modes
+   - Use **rule/trigger/example triples** instead of prose paragraphs
+   - Use **tables** for structured data (checks, weights, routing, output specs)
+   - Include **good/bad example pairs** for output quality
+   - Add a **Scope Boundary** if the skill modifies anything
+   - Reference **shared files** from `shared/references/` instead of duplicating logic
 4. Update the "Available Skills" list above

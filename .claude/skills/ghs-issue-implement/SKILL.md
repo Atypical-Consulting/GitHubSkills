@@ -15,7 +15,7 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 routes-to:
   - ghs-merge-prs
 routes-from:
@@ -28,51 +28,70 @@ routes-from:
 
 Implement GitHub issues using parallel worktree-based agents. Creates branches, spawns agents to write code, verifies results, and opens PRs with auto-close references.
 
-<context>
-Purpose: Implement GitHub issues by spawning worktree-based agents that write code, run tests, and create PRs.
+## Anti-Patterns
 
-Roles:
-1. **Orchestrator** (you) — fetches issues, prepares repo, creates worktrees, spawns agents, collects results, updates labels, cleans up
-2. **Implementation Agents** (spawned via Task tool) — one per issue, each working in its own worktree
+| Anti-Pattern | Why It Fails | Do Instead |
+|---|---|---|
+| Implement without reading full issue + comments | Misses acceptance criteria, duplicate context, or design decisions discussed in thread | Fetch issue with `--json body,comments` and read everything before planning |
+| Modify files outside issue scope | Causes merge conflicts with other agents, introduces unreviewed changes | Only touch files directly required by the issue — log new discoveries as separate issues |
+| Skip verification before creating PR | Broken PRs waste reviewer time and erode trust in automation | Run tests, lint, and type-check before pushing |
+| Create PR for incomplete work | Incomplete PRs block the merge queue and confuse reviewers | Set `NEEDS_HUMAN` status instead — partial worktree is more useful than a broken PR |
+| Pass entire scan/backlog to subagent | Bloats agent context, causes confusion and hallucination | Pass only: issue details, repo structure, acceptance criteria, tech stack |
 
-Agent prompt: `agents/implementation-agent.md`
+## Scope Boundary
 
-Shared docs:
-- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
-- `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
-- `../shared/edge-cases.md` — rate limiting, content filters, permission errors, bounded retries
-- `../shared/agent-result-contract.md` — universal agent response format
+Only implement what the issue describes. If the agent discovers adjacent problems (outdated deps, missing tests for unrelated code, style inconsistencies), it must **not** fix them inline. Instead, note them in the PR body under a "Discovered Issues" section so they can be filed separately.
 
-The user must have **write access** to the target repository.
-</context>
+## Circuit Breaker
 
-<objective>
-Implement GitHub issues and create PRs with auto-close references.
+| Attempt | Action |
+|---------|--------|
+| 1st failure | Re-run agent with error context appended to prompt |
+| 2nd failure | Re-run with error + stricter constraints (smaller scope, explicit file list) |
+| 3rd failure | Mark `NEEDS_HUMAN`, preserve worktree, report failure details |
 
-Outputs:
-- PRs created on GitHub for each implemented issue
-- Issue labels updated to `status:in-progress`
-- Terminal report with results table
+After 3 failures on the same issue, stop retrying. The worktree is left in place for manual continuation. See `../shared/references/agent-spawning.md` § Bounded Retries.
 
-Next routing:
-- Suggest `ghs-merge-prs` to merge the created PRs — "To merge: `/ghs-merge-prs {owner}/{repo}`"
-- If issues lack type/priority labels, suggest `ghs-issue-triage` first — "Run `/ghs-issue-triage` to classify issues before implementing"
-- For complex issues, suggest `ghs-issue-analyze` first — "Run `/ghs-issue-analyze #{number}` for a detailed breakdown"
-</objective>
+## Context Budget
 
-<process>
+What to pass to each implementation agent:
+
+| Pass | Do Not Pass |
+|------|-------------|
+| `{owner}`, `{repo}`, `{default_branch}` | Other issues in the batch |
+| Issue number, title, body, comments | Full scan/backlog results |
+| Analysis comment (if present from ghs-issue-analyze) | Other agents' output or status |
+| Tech stack detection results | Repository-wide metrics |
+| Worktree path and branch name | Unrelated backlog items |
+| Acceptance criteria extracted from issue | Previous session history |
 
 ## Input
 
-Three invocation modes:
+Three invocation modes — the trigger phrase determines which:
 
-- **Single issue**: `implement issue #42` or `implement #42`
-- **Batch by label**: `implement all triaged issues` — fetches issues with `status:triaged` label
-- **Batch by type**: `implement all bugs` — fetches issues with `type:bug` label
+| Trigger | Mode | What It Fetches |
+|---------|------|-----------------|
+| `implement issue #42`, `fix #42`, `code issue #42` | Single issue | One issue by number |
+| `implement all triaged issues` | Batch by label | Issues with `status:triaged` |
+| `implement all bugs` | Batch by type | Issues with `type:bug` |
+
+### Rule/Trigger/Example Triples
+
+**Rule:** A single issue number resolves to single-issue mode.
+**Trigger:** User says "implement #42" or "fix issue #42".
+**Example:** Fetch issue #42, show single-issue plan, create one worktree, spawn one agent.
+
+**Rule:** "all" + a label keyword resolves to batch mode.
+**Trigger:** User says "implement all triaged issues" or "implement all bugs".
+**Example:** Fetch all open issues matching the label, show batch plan sorted by priority, spawn N agents in parallel.
+
+**Rule:** A closed issue is skipped unless explicitly requested.
+**Trigger:** User says "implement #42" but #42 is closed.
+**Example:** Warn the user and skip. If user insists, proceed with a note.
 
 ## Branch Naming
 
-Branch prefix is determined by the issue's type label — this keeps the git log readable:
+Branch prefix is determined by the issue's type label:
 
 | Type Label | Branch Prefix | Example |
 |-----------|---------------|---------|
@@ -80,54 +99,46 @@ Branch prefix is determined by the issue's type label — this keeps the git log
 | `type:feature` | `feat/` | `feat/15-dark-mode` |
 | `type:docs` | `docs/` | `docs/18-update-readme` |
 | `type:hotfix` | `fix/` | `fix/99-security-vuln` |
-| (default) | `impl/` | `impl/50-misc-task` |
+| (no type label) | `impl/` | `impl/50-misc-task` |
 
-Branch naming pattern: `{prefix}/{issue-number}-{short-slug}`
-Where `{short-slug}` is derived from the issue title: lowercase, non-alphanumeric replaced with `-`, truncated to 40 chars.
+Pattern: `{prefix}/{issue-number}-{short-slug}`
+Where `{short-slug}` = issue title, lowercased, non-alphanumeric replaced with `-`, truncated to 40 chars.
 
-Worktree path per `../shared/implementation-workflow.md` §2:
-```
-repos/{owner}_{repo}--worktrees/{prefix}--{issue-number}-{short-slug}/
-```
+## Process
 
-## Phase 1 — Fetch Issues
+### Phase 1 — Fetch Issues
 
-### Single issue mode
+**Single issue mode:**
 
 ```bash
 gh issue view {number} --repo {owner}/{repo} \
   --json number,title,body,labels,comments,assignees,state
 ```
 
-Skip if the issue is closed (unless user explicitly requests).
+Skip if closed (unless user explicitly requests).
 
-### Batch mode
+**Batch mode:**
 
 ```bash
 gh issue list --repo {owner}/{repo} --state open --label "{filter_label}" \
   --json number,title,body,labels,comments --limit 50
 ```
 
-For each issue, extract:
-- Number, title, body
-- Type label (for branch prefix)
-- Priority label (for ordering — critical first)
-- Comments (check for analysis comments from `ghs-issue-analyze`)
+For each issue, extract: number, title, body, type label (for branch prefix), priority label (for ordering — critical first), comments (check for analysis from `ghs-issue-analyze`).
 
-### Analysis Context
+**Analysis context:** If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract and pass it to the agent. This provides affected files, suggested approach, and complexity assessment.
 
-If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract it and include it as context for the implementation agent. This provides affected files, suggested approach, and complexity assessment — saving the agent significant investigation time.
+### Phase 2 — Prepare Repository
 
-## Phase 2 — Prepare Repository
+Per `../shared/references/agent-spawning.md` § Repository Cloning:
 
-Follow `../shared/implementation-workflow.md` §1:
 1. Clone or pull the repo to `repos/{owner}_{repo}/`
 2. Detect default branch
-3. Detect tech stack
+3. Detect tech stack (language, framework, test runner, linter)
 
-## Phase 3 — Show Plan & Confirm
+### Phase 3 — Show Plan & Confirm
 
-### Batch plan
+**Batch plan:**
 
 ```
 ## Implementation Plan: {owner}/{repo}
@@ -136,14 +147,13 @@ Follow `../shared/implementation-workflow.md` §1:
 |---|-------|------|----------|--------|---------------|
 | 1 | #42 Login crashes | bug | high | fix/42-login-crash | Yes |
 | 2 | #15 Add dark mode | feature | medium | feat/15-dark-mode | No |
-...
 
 Total: {N} issues ({n_bug} bugs, {n_feature} features, {n_docs} docs)
 
 Proceed with all? (y/n/select)
 ```
 
-### Single issue plan
+**Single issue plan:**
 
 ```
 ## Plan: #{number} — {title}
@@ -163,15 +173,23 @@ Analysis:   {Yes — see comment | No — will analyze during implementation}
 Proceed? (y/n)
 ```
 
-Wait for user confirmation.
+Wait for user confirmation before continuing.
 
-### Pre-flight checks
+**Pre-flight checks** (per `../shared/references/agent-spawning.md` § Pre-flight Checks):
 
-Per `../shared/implementation-workflow.md` §5 — check for branch conflicts and existing PRs.
+| Check | Command | If Conflict |
+|-------|---------|-------------|
+| Existing remote branch | `git ls-remote --heads origin 'refs/heads/{prefix}/*'` | Flag in plan, use `-B` if user confirms |
+| Existing PR for branch | `gh pr list --head {prefix}/{slug} --json number,url` | Report existing PR, skip |
 
-## Phase 4 — Create Worktrees
+### Phase 4 — Create Worktrees
 
-Per `../shared/implementation-workflow.md` §2:
+Per `../shared/references/agent-spawning.md` § Worktree Creation:
+
+```
+repos/{owner}_{repo}/                                  <- main clone
+repos/{owner}_{repo}--worktrees/{prefix}--{number}-{slug}/  <- worktree
+```
 
 ```bash
 mkdir -p repos/{owner}_{repo}--worktrees
@@ -181,41 +199,43 @@ git -C repos/{owner}_{repo} worktree add \
   -b {prefix}/{number}-{slug}
 ```
 
-## Phase 5 — Launch Agents in Parallel
+### Phase 5 — Launch Agents in Parallel
 
-Spawn all agents in a **single Task tool message** using `subagent_type: general-purpose`.
+Spawn all agents in a **single Task tool message** using `subagent_type: general-purpose`. See `../shared/references/agent-spawning.md` § Parallel Execution Pattern.
 
-Read `agents/implementation-agent.md` for the prompt template. Substitute `{owner}`, `{repo}`, `{default_branch}`, `{detected_stack}`, `{prefix}`, `{number}`, `{slug}`, `{title}`, `{body}`, and optionally `{analysis_comment_content}` placeholders.
+Read `agents/implementation-agent.md` for the prompt template. Substitute: `{owner}`, `{repo}`, `{default_branch}`, `{detected_stack}`, `{prefix}`, `{number}`, `{slug}`, `{title}`, `{body}`, and optionally `{analysis_comment_content}`.
 
-## Phase 6 — Collect Results & Update Labels
+### Phase 6 — Collect Results & Update Labels
 
-After all agents complete:
+After all agents complete, parse JSON results per `../shared/references/agent-spawning.md` § Agent Result Contract.
 
-1. Parse the JSON result from each agent
+**On success (PASS):**
 
-**Bounded retries**: If an agent returns status FAILED and the error suggests a transient issue (content filter, timeout, malformed output):
-- Retry once with the error message appended to the agent prompt
-- If the retry also fails, mark as NEEDS_HUMAN — two failures on the same item indicate a problem that needs human judgment
-- See `../shared/edge-cases.md` for the full retry protocol
+```bash
+gh issue edit {number} --repo {owner}/{repo} \
+  --remove-label "status:triaged,status:analyzing" \
+  --add-label "status:in-progress"
+```
 
-2. For each successful item (status = PASS):
-   - Update issue label: remove `status:triaged` or `status:analyzing`, add `status:in-progress`
-   ```bash
-   gh issue edit {number} --repo {owner}/{repo} \
-     --remove-label "status:triaged,status:analyzing" \
-     --add-label "status:in-progress"
-   ```
-3. For FAILED items: leave labels unchanged, log the error
-4. For NEEDS_HUMAN items: leave labels unchanged, note worktree is preserved
+**On failure:** Apply the circuit breaker (up to 3 attempts). If still failing, mark `NEEDS_HUMAN`.
 
-## Phase 7 — Cleanup Worktrees
+**Label update rules:**
 
-Per `../shared/implementation-workflow.md` §2 (Cleanup section):
+| Agent Status | Label Action | Worktree |
+|---|---|---|
+| `PASS` | Remove `status:triaged`/`status:analyzing`, add `status:in-progress` | Remove |
+| `FAILED` (retries exhausted) | Leave unchanged | Remove |
+| `NEEDS_HUMAN` | Leave unchanged | Preserve with instructions |
+
+### Phase 7 — Cleanup Worktrees
+
+Per `../shared/references/agent-spawning.md` § Worktree Cleanup:
+
 - Remove worktrees for PASS and FAILED items
-- Leave NEEDS_HUMAN worktrees in place with instructions
-- Prune and remove empty worktree directory
+- Leave NEEDS_HUMAN worktrees in place
+- Prune stale references, remove empty directory
 
-## Phase 8 — Final Report
+### Phase 8 — Final Report
 
 ```
 ## Results: {owner}/{repo}
@@ -233,37 +253,72 @@ Summary:
   PRs created: {n_prs}
   By type: {n_bug} bugs, {n_feature} features, {n_docs} docs
 
-{If any FAILED or NEEDS_HUMAN:}
+{If any NEEDS_HUMAN:}
 Remaining:
   [NEEDS_HUMAN] #15 Add dark mode — worktree at repos/{o}_{r}--worktrees/feat--15-dark-mode/
     Reason: Feature requires design decisions about theme system architecture
 ```
 
-</process>
+**Routing suggestion:** `To merge created PRs: /ghs-merge-prs {owner}/{repo}`
+
+### Verification Checklist
+
+Before marking any issue as PASS, the agent must confirm:
+
+| Check | Required |
+|-------|----------|
+| Implementation matches issue requirements | Always |
+| Code follows project's existing style/patterns | Always |
+| Tests added/updated (if project has test suite) | When testable |
+| Commit message includes `Fixes #{number}` | Always |
+| PR body has Summary, Changes, Testing sections | Always |
+| No files modified outside issue scope | Always |
+| Linter/type-checker passes (if configured) | When available |
+
+### PR Template
+
+```
+## Summary
+{1-2 sentence description of what was implemented}
+
+Fixes #{number}
+
+## Changes
+- {file}: {what changed and why}
+- {file}: {what changed and why}
+
+## Testing
+- {how the changes were verified}
+
+## Discovered Issues
+{Any adjacent problems found but NOT fixed — to be filed separately}
+```
 
 ## Edge Cases
 
-- **Issue is closed**: Skip by default. Warn the user if they explicitly request a closed issue.
-- **Issue is a pull request**: Warn and skip — PRs should be reviewed, not re-implemented.
-- **No type label**: Use `impl/` prefix. Suggest running `ghs-issue-triage` first.
-- **Branch already exists**: Flag in plan table. If confirmed, force-create with `-B`.
-- **PR already exists for branch**: Report existing PR, skip creating a new one.
-- **Issue too complex**: Agent sets NEEDS_HUMAN — worktree left in place for manual work.
-- **Agent failure**: One agent failing doesn't block others. Mark FAILED in report.
-- **Content filter blocks output**: The orchestrator detects content filter failures and retries with a download-based approach. See `../shared/edge-cases.md` for the workaround pattern.
-- **Issue has no analysis**: Agent performs its own investigation — it just takes slightly longer.
-- **Re-running is safe**: Issues already with `status:in-progress` and an open PR are skipped in batch mode.
+| Scenario | Behavior |
+|----------|----------|
+| Issue is closed | Skip by default; warn if user explicitly requests |
+| Issue is a pull request | Warn and skip — PRs are reviewed, not re-implemented |
+| No type label | Use `impl/` prefix; suggest `ghs-issue-triage` first |
+| Branch already exists | Flag in plan; force-create with `-B` if user confirms |
+| PR already exists for branch | Report existing PR, skip creating new one |
+| Issue too complex | Agent sets `NEEDS_HUMAN`; worktree left for manual work |
+| Agent failure | One failure doesn't block others; mark `FAILED` in report |
+| Content filter blocks output | Retry with download-based approach (see `../shared/edge-cases.md`) |
+| Issue has no analysis | Agent investigates on its own — slightly slower |
+| Re-running on existing items | Issues with `status:in-progress` + open PR are skipped in batch |
 
 ## Examples
 
-**Example 1: Implement a single bug fix**
-User says: "implement issue #42"
-Result: Fetches issue (type:bug), clones/pulls repo, shows plan, creates worktree, spawns agent, agent fixes the bug with tests, commits with "Fixes #42", creates PR, label updated.
+**Example 1: Single bug fix**
+User: "implement issue #42"
+Flow: Fetch #42 (type:bug) -> show plan -> create worktree `fix--42-login-crash` -> agent fixes bug with tests -> commit with `Fixes #42` -> create PR -> update label -> cleanup -> report with `[PASS]`.
 
-**Example 2: Implement all triaged issues**
-User says: "implement all triaged issues"
-Result: Fetches issues with status:triaged, shows batch plan ordered by priority, user confirms, creates worktrees, spawns agents in parallel, collects results, shows report.
+**Example 2: Batch triaged issues**
+User: "implement all triaged issues"
+Flow: Fetch issues with `status:triaged` -> show batch plan (priority order) -> user confirms -> create worktrees -> spawn agents in parallel -> collect results -> update labels -> cleanup -> report.
 
-**Example 3: Implement with prior analysis**
-User says: "implement #42" (issue has an analysis comment from ghs-issue-analyze)
-Result: Agent receives the analysis as context, uses suggested approach and affected files. Faster and more targeted.
+**Example 3: Issue with prior analysis**
+User: "implement #42" (has analysis comment from ghs-issue-analyze)
+Flow: Same as Example 1, but agent receives analysis as context (affected files, suggested approach). Faster and more targeted implementation.

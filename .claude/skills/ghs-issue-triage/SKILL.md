@@ -13,7 +13,7 @@ compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 routes-to:
   - ghs-issue-analyze
   - ghs-issue-implement
@@ -33,9 +33,19 @@ Roles:
 
 This skill does not spawn sub-agents — classification benefits from seeing all issues together for consistent calibration.
 
-Shared docs:
-- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+Shared references (see `../shared/references/`):
+- `gh-cli-patterns.md` — authentication, repo detection, error handling, idempotent commands
+- `output-conventions.md` — status indicators, table patterns, summary blocks
 </context>
+
+<anti-patterns>
+- **Don't remove existing valid labels** — only add missing `type:*`, `priority:*`, and `status:triaged` labels. If the user has custom labels (e.g., `enhancement`, `help wanted`), leave them in place.
+- **Don't triage closed issues unless asked** — default scope is open issues only. Only include closed issues when the user explicitly requests them.
+- **Don't override manually-set priority labels** — in batch-unlabeled mode, skip issues that already have a `priority:*` label. In batch-all mode, propose reclassification but flag it clearly.
+- **Don't create labels that already exist** — always append `2>&1 || true` to `gh label create` commands (see `gh-cli-patterns.md` § Idempotent Commands).
+- **Don't treat PRs as issues** — `gh issue list` may include PRs; filter them out by checking the `pullRequest` field in the JSON response.
+- **Don't fail hard on a single API error** — continue with remaining operations (see `gh-cli-patterns.md` § Error Handling Conventions).
+</anti-patterns>
 
 <objective>
 Classify and label open issues with consistent type, priority, and status labels.
@@ -67,9 +77,9 @@ Two confirmation modes:
 
 ## Label Taxonomy
 
-The skill ensures these labels exist on the repo before triaging. Use `gh label create` to create any missing labels. Append `2>&1 || true` to skip labels that already exist — `gh label create` returns non-zero for duplicates, which isn't a real error.
+The skill ensures these labels exist on the repo before triaging. Use `gh label create` to create any missing labels. Append `2>&1 || true` to skip labels that already exist (see `gh-cli-patterns.md` § Idempotent Commands).
 
-### Type Labels (blue shades)
+### Type Labels
 
 | Label | Color | Description |
 |-------|-------|-------------|
@@ -81,16 +91,16 @@ The skill ensures these labels exist on the repo before triaging. Use `gh label 
 | `type:refactor` | `#d4c5f9` | Code refactoring without behavior change |
 | `type:hotfix` | `#b60205` | Urgent production fix |
 
-### Priority Labels (red → green)
+### Priority Labels
 
-| Label | Color | Description |
-|-------|-------|-------------|
-| `priority:critical` | `#b60205` | Must fix immediately — production impact |
-| `priority:high` | `#d93f0b` | Should fix soon — significant impact |
-| `priority:medium` | `#fbca04` | Fix when possible — moderate impact |
-| `priority:low` | `#0e8a16` | Nice to have — minimal impact |
+| Label | Color | Description | Criteria |
+|-------|-------|-------------|----------|
+| `priority:critical` | `#b60205` | Must fix immediately | Security vulnerability, data loss, production down |
+| `priority:high` | `#d93f0b` | Should fix soon | Major feature broken, many users affected, blocks releases |
+| `priority:medium` | `#fbca04` | Fix when possible | Minor bug, improvement, most feature requests |
+| `priority:low` | `#0e8a16` | Nice to have | Cosmetic, very low impact, edge-case only |
 
-### Status Labels (purple shades)
+### Status Labels
 
 | Label | Color | Description |
 |-------|-------|-------------|
@@ -143,26 +153,46 @@ Same fetch, no filtering.
 
 For each issue, analyze the title and body to determine type and priority using the decision tables below. Tables make classification consistent across runs — different phrasing of the same problem should map to the same label.
 
-### Type Classification
+### Type Classification Rules
 
-| Keywords in title/body | Label | Rationale |
-|------------------------|-------|-----------|
-| bug, broken, error, crash, doesn't work, regression | `type:bug` | Something that worked before is now broken |
-| add, feature, request, enhancement, implement, new | `type:feature` | New capability or improvement |
-| docs, documentation, README, typo in docs | `type:docs` | Documentation-only changes |
-| dependency, update, upgrade, bump, CI, tooling | `type:chore` | Maintenance work, no user-facing behavior change |
-| test, coverage, spec | `type:test` | Test improvements without production code changes |
-| refactor, cleanup, reorganize | `type:refactor` | Code restructuring without behavior change |
-| *(none match)* | `type:feature` | Default — most issues request new behavior |
+Each rule includes a trigger pattern, the resulting label, and a concrete example.
 
-### Priority Classification
+| Rule | Trigger (keywords in title/body) | Label | Example |
+|------|----------------------------------|-------|---------|
+| R1 | bug, broken, error, crash, doesn't work, regression, fails, exception | `type:bug` | "Login page crashes on submit" → `type:bug` |
+| R2 | add, feature, request, enhancement, implement, new, support, enable | `type:feature` | "Add dark mode toggle" → `type:feature` |
+| R3 | docs, documentation, README, typo in docs, wiki, guide | `type:docs` | "Update API docs for v2 endpoints" → `type:docs` |
+| R4 | dependency, update, upgrade, bump, CI, tooling, renovate, dependabot | `type:chore` | "Bump lodash from 4.17.20 to 4.17.21" → `type:chore` |
+| R5 | test, coverage, spec, e2e, unit test | `type:test` | "Add unit tests for auth module" → `type:test` |
+| R6 | refactor, cleanup, reorganize, simplify, restructure | `type:refactor` | "Refactor database connection pooling" → `type:refactor` |
+| R7 | *(none match)* | `type:feature` | Default — most issues request new behavior |
 
-| Signal | Label | Rationale |
-|--------|-------|-----------|
-| Security vulnerability, data loss, production down | `priority:critical` | Immediate user/data impact — fix before anything else |
-| Major feature broken, many users affected | `priority:high` | Significant impact but not an emergency |
-| Minor bug, improvement, most feature requests | `priority:medium` | Normal development priority |
-| Nice-to-have, cosmetic, very low impact | `priority:low` | Fix when there's nothing more impactful |
+**Precedence**: When multiple rules match, prefer the more specific rule. If both "bug" and "feature" keywords appear, read the full context to decide. A request to "add error handling" is `type:feature`, not `type:bug`.
+
+### Priority Classification Rules
+
+| Rule | Signal | Label | Example |
+|------|--------|-------|---------|
+| P1 | Security vulnerability, data loss, production outage, auth bypass | `priority:critical` | "SQL injection in search endpoint" → `priority:critical` |
+| P2 | Major feature broken, many users affected, blocks release, data corruption risk | `priority:high` | "Payment processing fails for 50% of users" → `priority:high` |
+| P3 | Minor bug, improvement, most feature requests, usability issues | `priority:medium` | "Add pagination to results page" → `priority:medium` |
+| P4 | Nice-to-have, cosmetic, very low impact, edge-case only | `priority:low` | "Align footer text on mobile landscape" → `priority:low` |
+
+### Good and Bad Classification Examples
+
+These examples clarify boundary cases where the wrong label is commonly assigned.
+
+| Issue Title | GOOD Label | BAD Label | Why |
+|-------------|-----------|-----------|-----|
+| "Add error handling for API timeouts" | `type:feature` | `type:bug` | No existing behavior is broken — this adds a new capability |
+| "Button color doesn't match design spec" | `type:bug` | `type:feature` | The implementation doesn't match the intended design — it's broken |
+| "Upgrade React from 17 to 18" | `type:chore` | `type:feature` | Framework upgrade is maintenance, not a user-facing feature |
+| "Refactor auth to support OAuth" | `type:feature` | `type:refactor` | Adds new OAuth capability — refactor is the method, feature is the goal |
+| "Remove deprecated API endpoints" | `type:chore` | `type:refactor` | Removing dead code is maintenance, not restructuring |
+| "Typo in error message" | `type:bug` | `type:docs` | Error messages are code output, not documentation |
+| "Typo in README installation steps" | `type:docs` | `type:bug` | README is documentation, not runtime code |
+| "App crashes when uploading 10GB file" | `priority:medium` | `priority:critical` | Edge case with workaround — not production-down |
+| "Login fails for all users" | `priority:critical` | `priority:high` | Total auth failure = production outage |
 
 ## Phase 4 — Propose & Confirm
 
@@ -208,7 +238,7 @@ gh issue edit {number} --repo {owner}/{repo} --add-label "type:feature"
 
 ## Phase 6 — Output
 
-Display a before/after summary:
+Display a before/after summary (see `output-conventions.md` § Issue Table, § Summary Block Patterns):
 
 ```
 ## Triage Results: {owner}/{repo}
@@ -235,7 +265,7 @@ Summary:
 - **Closed issues**: Skip by default. Only include if the user explicitly asks.
 - **Pull requests in issue list**: `gh issue list` may include PRs — filter them out by checking the `pullRequest` field.
 - **Label creation fails**: Some repos restrict label creation to maintainers. Report which labels couldn't be created and continue with existing labels.
-- **Very long issue bodies**: Truncate to ~2000 chars for classification — title and first paragraphs are usually sufficient for determining type and priority.
+- **Very long issue bodies**: Truncate to ~2000 chars for classification (see `output-conventions.md` § Issue Display Limits) — title and first paragraphs are usually sufficient for determining type and priority.
 - **No issues to triage**: Report "All open issues are already triaged" and exit cleanly.
 
 ## Examples
