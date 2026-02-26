@@ -9,6 +9,10 @@ description: >
   "is my repo set up properly", "what's missing from my project", "repo audit", "repo scan",
   "repository checklist", "health check", "what issues are open", "organize my issues",
   "save health report", "export audit results", or "create backlog from audit".
+  Do NOT use for managing GitHub Actions workflows, reviewing pull requests, creating repositories, or modifying code.
+metadata:
+  author: phmatray
+  version: 2.0.0
 ---
 
 # Repo Scan
@@ -19,6 +23,8 @@ Scan a GitHub repository for quality best practices and open issues, display a t
 
 - The `gh` CLI must be authenticated (`gh auth status`)
 - The user must have read access to the target repository
+
+For prerequisites, error handling, and repo detection, read `../shared/gh-prerequisites.md`.
 
 ## Input
 
@@ -33,6 +39,16 @@ If neither works, ask the user which repository to scan.
 ## Phase 1 — Health Audit
 
 Run all checks using `gh api` and `gh repo view`. Organize them into three severity tiers that affect scoring.
+
+For the full tier system, check list, and scoring rules, read `../shared/backlog-format.md`.
+
+### Tier Summary
+
+| Tier | Label | Points per check |
+|------|-------|-----------------|
+| 1 | Required | 4 |
+| 2 | Recommended | 2 |
+| 3 | Nice to Have | 1 |
 
 ### Tier 1 — Required (4 points each)
 
@@ -66,17 +82,12 @@ Polish items that signal a mature, well-maintained project.
 |-------|--------------|----------------|
 | **SECURITY.md** | `gh api repos/{owner}/{repo}/contents/SECURITY.md` | Exists |
 | **CONTRIBUTING.md** | `gh api repos/{owner}/{repo}/contents/CONTRIBUTING.md` | Exists |
-| **Dependabot / security alerts** | `gh api repos/{owner}/{repo}/vulnerability-alerts` (check if enabled), `gh api repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=1` | No open critical/high alerts. If alerts API returns 403, report as "not enabled" with a suggestion to enable |
+| **Dependency management / security alerts** | `gh api repos/{owner}/{repo}/vulnerability-alerts` (check if enabled), `gh api repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=1`. Also detect which dependency manager is in use: check for `renovate.json`, `.github/renovate.json`, `.github/renovate.json5`, or a "Dependency Dashboard" issue (Renovate); or `.github/dependabot.yml` (Dependabot). | No open critical/high alerts. If alerts API returns 403, report as "not enabled" with a suggestion to enable. When generating the backlog item, tailor the "How to Fix" advice to the detected dependency manager — do NOT suggest adding `dependabot.yml` if Renovate is already in use, and vice versa. |
 | **Funding** | `gh api repos/{owner}/{repo}/contents/.github/FUNDING.yml` | Exists (purely informational, no penalty) |
 
 ### Execution Strategy
 
 Run API calls in parallel where possible. Group independent checks and execute them concurrently using background subshells.
-
-Handle errors gracefully:
-- **404**: The file/feature doesn't exist — that's a legitimate "fail" result
-- **403**: Insufficient permissions — report as "unable to check (insufficient permissions)" with a note, don't count as fail
-- **Rate limiting**: If hit, wait and retry once
 
 ## Phase 2 — Issue Collection
 
@@ -120,11 +131,13 @@ If there are more than 20 issues, show the 20 most recent in the table and note 
 
 After displaying the terminal report, save all findings as structured markdown files.
 
+For the authoritative backlog directory structure and file naming format, read `../shared/backlog-format.md`.
+
 ### Output Directory
 
 Save files to `backlog/{owner}_{repo}/` in the current working directory.
 
-Structure:
+Structure (quick reference):
 ```
 backlog/{owner}_{repo}/
 ├── SUMMARY.md                          # Unified repo summary
@@ -154,6 +167,8 @@ Read `references/templates.md` for the exact SUMMARY.md, health item, and issue 
 3. Generate issue item files per open issue
 4. Generate unified `SUMMARY.md` covering both sources
 5. Report to the user: show files created, suggest starting with the highest-priority items
+
+You can verify the generated score matches expectations by running: `python ../shared/scripts/calculate_score.py backlog/{owner}_{repo}`
 
 ### Re-running
 
@@ -234,3 +249,34 @@ Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 - **No failures and no issues**: Display a congratulatory message. Create only SUMMARY.md.
 - **Repos with many issues**: Cap the terminal display at 20 issues, but save all of them to the backlog.
 - **Issues with very long bodies**: Truncate the body to 500 characters in the backlog item file, with a link to the full issue.
+
+## Examples
+
+**Example 1: Scan a specific repo**
+User says: "scan phmatray/NewSLN"
+Result: Terminal report showing health score 10/31 (32%), 8 failing health checks, 18 open issues. Backlog files saved to `backlog/phmatray_NewSLN/`.
+
+**Example 2: Scan the current repo**
+User says: "is my repo set up properly?"
+Result: Detects repo from git remote, runs all checks, displays report, saves backlog items for any failures.
+
+**Example 3: Re-scan after fixes**
+User says: "re-scan phmatray/NewSLN"
+Result: Refreshes health checks (asks about overwrite), syncs issues directory with GitHub (removes closed, adds new), updates SUMMARY.md.
+
+## Troubleshooting
+
+**`gh auth status` fails**
+The `gh` CLI is not authenticated. Run `gh auth login` first.
+
+**403 on branch protection check**
+Branch protection requires admin access. The check will report as "unable to check (insufficient permissions)" — this is expected for non-admin users.
+
+**Rate limiting during scan**
+If you hit GitHub's API rate limit, the scan will wait and retry once. For repos with many issues, consider using `--limit` to reduce the number fetched.
+
+**Scan seems slow**
+The skill runs API calls in parallel where possible. Large repos with many issues (500+) will take longer due to pagination.
+
+**Backlog directory already exists**
+The skill will ask whether to overwrite health items or create a timestamped version. Issues are always synced (removed if closed, added if new).

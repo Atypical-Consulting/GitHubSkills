@@ -11,7 +11,7 @@
 
 ## What's Missing
 
-Vulnerability alerts (Dependabot) are not enabled for this repository.
+GitHub vulnerability alerts are not enabled for this repository.
 
 ## Why It Matters
 
@@ -27,28 +27,9 @@ gh api repos/phmatray/BelgiumVatChecker/vulnerability-alerts -X PUT
 
 ### Full Solution
 
-1. Enable vulnerability alerts via the command above or in Settings > Security > Dependabot alerts
-2. Optionally enable Dependabot security updates for automatic PRs:
-   - Settings > Security > Dependabot security updates
-3. Optionally add a `dependabot.yml` config for version updates:
-
-```yaml
-# .github/dependabot.yml
-version: 2
-updates:
-  - package-ecosystem: "nuget"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-```
+1. Enable GitHub vulnerability alerts via the command above or in Settings > Security > Dependabot alerts
+2. This repo already uses **Renovate** for dependency version updates (detected via Dependency Dashboard issue), so there is no need to add a `dependabot.yml` — Renovate already handles update PRs
+3. GitHub vulnerability alerts complement Renovate by providing CVE notifications in the Security tab
 
 ## Acceptance Criteria
 

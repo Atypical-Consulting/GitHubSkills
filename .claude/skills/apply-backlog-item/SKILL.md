@@ -7,6 +7,10 @@ description: >
   backlog item", "fix this issue", "resolve this finding", "work on this backlog item", "apply
   tier-1--readme", or points to any file under backlog/. Also trigger when the user says "apply all
   backlog items", "fix all findings", or "resolve all tier 1 items".
+  Do NOT use for scanning repos (use repo-scan), viewing backlog status (use backlog-dashboard), or general code review.
+metadata:
+  author: phmatray
+  version: 2.0.0
 ---
 
 # Apply Backlog Item
@@ -15,9 +19,9 @@ Read a structured backlog item (health finding or GitHub issue), apply the fix t
 
 ## Prerequisites
 
-- The `gh` CLI must be authenticated (`gh auth status`)
-- The user must have write access to the target repository
-- `git` must be available
+See `../shared/gh-prerequisites.md` for authentication, repo detection, and error handling.
+
+Additionally, the user must have **write access** to the target repository (required for pushing branches and creating PRs).
 
 ## Input
 
@@ -31,34 +35,17 @@ If the user says "apply all" or references multiple items, process them one at a
 
 Read the markdown file and determine the item type from the `Source` field in the metadata table.
 
+For the backlog item format specification, see `../shared/backlog-format.md`.
+
+You can parse backlog items programmatically: `python ../shared/scripts/parse_backlog_item.py <path-to-item.md>`
+
 ### Health items (Source: "Health Check")
 
-Extract these fields:
-
-| Field | Where to find it |
-|-------|-----------------|
-| **Check name** | The `# Title` at the top |
-| **Repository** | The `Repository` row in the metadata table |
-| **Tier** | The `Tier` row (e.g., "1 — Required") |
-| **Points** | The `Points` row |
-| **Current status** | The `Status` row (FAIL or WARN) |
-| **What's missing** | The "What's Missing" section |
-| **Quick fix** | The bash command in "How to Fix > Quick Fix" |
-| **Full solution** | The prose/template in "How to Fix > Full Solution" |
-| **Acceptance criteria** | The checkbox list in "Acceptance Criteria" |
+Key fields: Check name (title), Repository, Tier, Points, Current status, What's missing, Quick fix, Full solution, Acceptance criteria.
 
 ### Issue items (Source: "Issue #N")
 
-Extract these fields:
-
-| Field | Where to find it |
-|-------|-----------------|
-| **Issue title** | The `# Title` at the top |
-| **Repository** | The `Repository` row |
-| **Issue number** | The `Source` row (parse the number from "Issue #N") |
-| **Labels** | The `Labels` row |
-| **Description** | The "Description" section |
-| **GitHub URL** | The "References" section |
+Key fields: Issue title, Repository, Issue number, Labels, Description, GitHub URL.
 
 If the file doesn't match either structure, tell the user and stop.
 
@@ -79,7 +66,7 @@ This directory lives as a sibling to `backlog/` in the working directory.
   gh repo clone {owner}/{repo} repos/{owner}_{repo}
   ```
 
-After cloning/pulling, detect the default branch name and the tech stack by scanning for common project files (e.g., `*.csproj`, `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`).
+After cloning/pulling, detect the default branch name and the tech stack by scanning for common project files (e.g., `*.csproj`, `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`). For tech stack detection details, see `../shared/gh-prerequisites.md#repo-context-detection`.
 
 ## Step 3 — Plan the Fix
 
@@ -91,35 +78,21 @@ Health items fall into two categories:
 
 These don't require file changes in the repo. They use `gh` commands directly.
 
-Examples:
-- **Description**: `gh repo edit {owner}/{repo} --description "..."`
-- **Topics**: `gh repo edit {owner}/{repo} --add-topic ...`
-- **Branch protection**: `gh api repos/{owner}/{repo}/branches/{branch}/protection -X PUT ...`
-- **Security alerts**: `gh api repos/{owner}/{repo}/vulnerability-alerts -X PUT`
+Checks in this category: Description, Topics, Branch protection, Security alerts.
 
 For these, craft the specific command based on the backlog item and the repo context. For description and topics, inspect the repo to propose meaningful values (don't use placeholders).
 
-**Branch protection — solo maintainer awareness**: Before applying branch protection, detect whether the repo is solo-maintained (single owner, no team collaborators). For solo repos, use a lightweight config: enforce admins and block force pushes, but set `"required_pull_request_reviews": null` — requiring PR approvals would lock the sole maintainer out of merging their own PRs. For team repos (multiple collaborators or org-owned), include required reviews.
+**Branch protection — solo maintainer awareness**: Before applying branch protection, detect whether the repo is solo-maintained (single owner, no team collaborators). For solo repos, use a lightweight config that won't lock the maintainer out.
 
 #### Category B — File creation / modification
 
 These require creating or editing files in the local clone, then committing and pushing.
 
-Examples:
-- **README.md**: Generate a real README based on the repo's actual structure, tech stack, and license
-- **.gitignore**: Use the appropriate GitHub template for the detected tech stack
-- **CI/CD workflows**: Generate a workflow matching the detected build system
-- **CODEOWNERS**: Use the repo owner as the default
-- **Issue templates**: Create bug_report.md and feature_request.md
-- **PR template**: Create a pull_request_template.md
-- **SECURITY.md**: Generate with the owner's contact info
-- **CONTRIBUTING.md**: Generate with setup instructions matching the tech stack
+Checks in this category: README, .gitignore, CI/CD workflows, CODEOWNERS, Issue templates, PR template, SECURITY.md, CONTRIBUTING.md, LICENSE.
 
-For file creation items, generate thoughtful, repo-aware content — not just the minimal quick-fix stub. Inspect the repo to understand:
-- Project name and purpose (from existing files, directory structure)
-- Tech stack and build tools
-- Existing documentation patterns
-- License type
+For detailed fix strategies per health check, read `../shared/fix-suggestions.md`.
+
+For file creation items, generate thoughtful, repo-aware content — not just the minimal quick-fix stub. Inspect the repo to understand the project name, purpose, tech stack, build tools, existing documentation patterns, and license type.
 
 ### For issue items
 
@@ -257,3 +230,34 @@ Once verification passes:
 - **Merge conflicts**: If the feature branch can't be created cleanly, report the conflict and let the user decide how to proceed.
 - **PR already exists**: Check if a branch `fix/{slug}` already exists. If so, ask the user whether to update it or create a new one.
 - **Complex issues**: Some issues may require significant code changes. If the issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
+
+## Examples
+
+**Example 1: Apply a single health item**
+User says: "apply backlog/phmatray_NewSLN/health/tier-1--readme.md"
+Result: Reads the item, clones the repo, generates a real README based on the project structure, creates branch `fix/readme`, commits, pushes, opens PR, verifies acceptance criteria, updates backlog item status to PASS.
+
+**Example 2: Apply an issue fix**
+User says: "fix backlog/phmatray_NewSLN/issues/issue-42--login-page-crashes.md"
+Result: Reads the issue details, fetches full issue body from GitHub, plans code changes, creates branch `fix/issue-42--login-page-crashes`, implements fix, opens PR with "Fixes #42", updates backlog status to PR CREATED.
+
+**Example 3: Apply all tier 1 items**
+User says: "apply all tier 1 items for phmatray/NewSLN"
+Result: Processes each Tier 1 FAIL item in order (README, LICENSE, Description, Branch Protection), confirming each before proceeding. API-only fixes applied directly, file changes go through PR workflow.
+
+## Troubleshooting
+
+**Item status is already PASS**
+The fix has already been applied. The skill will skip it and tell you.
+
+**"Permission denied" when pushing branch**
+You need write access to the repository. Check `gh repo view --json viewerPermission`.
+
+**PR creation fails**
+Common causes: branch already exists (skill will ask whether to update or create new), or the default branch is protected and you need to create PRs from forks.
+
+**Complex issue — too many changes needed**
+For issues requiring significant code changes, the skill will present a plan and let you guide the implementation rather than auto-fixing.
+
+**Merge conflict on feature branch**
+If the branch can't be created cleanly from the default branch, the skill reports the conflict and lets you decide how to proceed.

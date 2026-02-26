@@ -11,11 +11,11 @@
 
 ## What's Missing
 
-Vulnerability alerts (Dependabot) are not enabled for this repository.
+GitHub vulnerability alerts were not enabled for this repository (now resolved).
 
 ## Why It Matters
 
-Without vulnerability alerts, you won't be notified when dependencies like Google.OrTools or Microsoft.Extensions packages have known security issues. Dependabot can automatically flag vulnerable packages and even create PRs to update them.
+Without vulnerability alerts, you won't be notified when dependencies like Google.OrTools or Microsoft.Extensions packages have known security issues. GitHub vulnerability alerts provide CVE notifications in the Security tab.
 
 ## How to Fix
 
@@ -28,18 +28,8 @@ gh api repos/phmatray/SudokuSolver/vulnerability-alerts -X PUT
 ### Full Solution
 
 1. Enable vulnerability alerts (command above)
-2. Optionally enable Dependabot security updates in Settings > Code security
-3. Consider adding a `dependabot.yml` for automatic version updates:
-
-```yaml
-# .github/dependabot.yml
-version: 2
-updates:
-  - package-ecosystem: "nuget"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-```
+2. This repo already uses **Renovate** for dependency version updates, so there is no need to add a `dependabot.yml` — Renovate already handles update PRs
+3. GitHub vulnerability alerts complement Renovate by providing CVE notifications in the Security tab
 
 ## Acceptance Criteria
 
