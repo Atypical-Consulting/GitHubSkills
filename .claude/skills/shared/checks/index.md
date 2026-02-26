@@ -48,6 +48,11 @@ checks/
 | Stale PRs | `stale-prs` | maintenance | [stale-prs.md](maintenance/stale-prs.md) | Normal |
 | Stale Branches | `stale-branches` | maintenance | [stale-branches.md](maintenance/stale-branches.md) | Normal |
 | Merge Strategy | `merge-strategy` | repo-settings | [merge-strategy.md](repo-settings/merge-strategy.md) | Normal |
+| README Description | `readme-description` | documentation | [readme-description.md](documentation/readme-description.md) | Normal |
+| README Badges | `readme-badges` | documentation | [readme-badges.md](documentation/readme-badges.md) | Normal |
+| README Installation | `readme-installation` | documentation | [readme-installation.md](documentation/readme-installation.md) | Normal |
+| README Usage Examples | `readme-usage` | documentation | [readme-usage.md](documentation/readme-usage.md) | Normal |
+| README Features | `readme-features` | documentation | [readme-features.md](documentation/readme-features.md) | Normal |
 
 ### Tier 3 — Nice to Have (1 point each)
 
@@ -62,6 +67,8 @@ checks/
 | .gitattributes | `gitattributes` | dev-config | [gitattributes.md](dev-config/gitattributes.md) | Normal |
 | Version Pinning | `version-pinning` | dev-config | [version-pinning.md](dev-config/version-pinning.md) | Normal |
 | Dependency Update Config | `dependency-update-config` | security | [dependency-update-config.md](security/dependency-update-config.md) | Normal |
+| README Table of Contents | `readme-toc` | documentation | [readme-toc.md](documentation/readme-toc.md) | Normal |
+| README License Mention | `readme-license-mention` | documentation | [readme-license-mention.md](documentation/readme-license-mention.md) | Normal |
 | Funding | `funding` | documentation | [funding.md](documentation/funding.md) | **INFO only** |
 | Discussions Enabled | `discussions-enabled` | repo-settings | [discussions-enabled.md](repo-settings/discussions-enabled.md) | **INFO only** |
 | Commit Signoff | `commit-signoff` | repo-settings | [commit-signoff.md](repo-settings/commit-signoff.md) | **INFO only** |
@@ -71,9 +78,9 @@ checks/
 | Tier | Checks | Points each | Subtotal |
 |------|--------|-------------|----------|
 | Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 15 | 2 | 30 |
-| Tier 3 | 9 (excluding Funding, Discussions, Commit Signoff) | 1 | 9 |
-| **Total** | **28** | | **55** |
+| Tier 2 | 20 | 2 | 40 |
+| Tier 3 | 11 (excluding Funding, Discussions, Commit Signoff) | 1 | 11 |
+| **Total** | **35** | | **67** |
 
 - WARN items are excluded from both earned and possible totals.
 - INFO items (Funding, Discussions Enabled, Commit Signoff) carry no points and no penalty.
@@ -83,7 +90,7 @@ checks/
 
 | Category | Checks | Description |
 |----------|--------|-------------|
-| documentation | 6 | Project documentation files (README, LICENSE, CHANGELOG, etc.) |
+| documentation | 13 | Project documentation files (README, LICENSE, CHANGELOG, README content quality, etc.) |
 | repo-settings | 8 | GitHub repository configuration (description, topics, branch protection, merge strategy, etc.) |
 | dev-config | 6 | Developer tooling and config files (.gitignore, .editorconfig, .gitattributes, etc.) |
 | ci-cd | 2 | CI/CD pipelines and workflow health |
@@ -103,6 +110,13 @@ Agents use this table to resolve check file paths from slugs:
 | `contributing-md` | `documentation/contributing-md.md` |
 | `code-of-conduct` | `documentation/code-of-conduct.md` |
 | `funding` | `documentation/funding.md` |
+| `readme-description` | `documentation/readme-description.md` |
+| `readme-badges` | `documentation/readme-badges.md` |
+| `readme-installation` | `documentation/readme-installation.md` |
+| `readme-usage` | `documentation/readme-usage.md` |
+| `readme-features` | `documentation/readme-features.md` |
+| `readme-toc` | `documentation/readme-toc.md` |
+| `readme-license-mention` | `documentation/readme-license-mention.md` |
 | `description` | `repo-settings/description.md` |
 | `topics` | `repo-settings/topics.md` |
 | `homepage-url` | `repo-settings/homepage-url.md` |
