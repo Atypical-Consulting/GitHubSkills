@@ -90,3 +90,4 @@ python3 --version
 
 - [Run your first scan](/getting-started/first-scan) to see GHS in action
 - [Learn the core concepts](/getting-started/concepts) behind the health loop and scoring system
+- [Troubleshooting](/getting-started/troubleshooting) if you run into issues
