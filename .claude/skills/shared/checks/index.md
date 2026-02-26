@@ -45,6 +45,8 @@ checks/
 | Delete Branch on Merge | `delete-branch-on-merge` | repo-settings | [delete-branch-on-merge.md](repo-settings/delete-branch-on-merge.md) | Normal |
 | GitHub Releases | `github-releases` | maintenance | [github-releases.md](maintenance/github-releases.md) | Normal |
 | Stale Issues | `stale-issues` | maintenance | [stale-issues.md](maintenance/stale-issues.md) | Normal |
+| Stale PRs | `stale-prs` | maintenance | [stale-prs.md](maintenance/stale-prs.md) | Normal |
+| Stale Branches | `stale-branches` | maintenance | [stale-branches.md](maintenance/stale-branches.md) | Normal |
 | Merge Strategy | `merge-strategy` | repo-settings | [merge-strategy.md](repo-settings/merge-strategy.md) | Normal |
 
 ### Tier 3 — Nice to Have (1 point each)
@@ -69,9 +71,9 @@ checks/
 | Tier | Checks | Points each | Subtotal |
 |------|--------|-------------|----------|
 | Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 13 | 2 | 26 |
+| Tier 2 | 15 | 2 | 30 |
 | Tier 3 | 9 (excluding Funding, Discussions, Commit Signoff) | 1 | 9 |
-| **Total** | **26** | | **51** |
+| **Total** | **28** | | **55** |
 
 - WARN items are excluded from both earned and possible totals.
 - INFO items (Funding, Discussions Enabled, Commit Signoff) carry no points and no penalty.
@@ -87,7 +89,7 @@ checks/
 | ci-cd | 2 | CI/CD pipelines and workflow health |
 | community | 3 | Community health templates (issue/PR templates, security policy) |
 | security | 2 | Security posture and dependency management |
-| maintenance | 2 | Ongoing project health (releases, stale issues) |
+| maintenance | 4 | Ongoing project health (releases, stale issues, stale PRs, stale branches) |
 
 ## Slug-to-Path Lookup
 
@@ -123,6 +125,8 @@ Agents use this table to resolve check file paths from slugs:
 | `security-alerts` | `security/security-alerts.md` |
 | `dependency-update-config` | `security/dependency-update-config.md` |
 | `stale-issues` | `maintenance/stale-issues.md` |
+| `stale-prs` | `maintenance/stale-prs.md` |
+| `stale-branches` | `maintenance/stale-branches.md` |
 | `github-releases` | `maintenance/github-releases.md` |
 
 ## How Agents Use This Index
