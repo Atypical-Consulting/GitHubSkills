@@ -18,6 +18,7 @@ metadata:
   version: 4.0.0
 routes-to:
   - ghs-backlog-fix
+  - ghs-backlog-sync
   - ghs-backlog-board
   - ghs-issue-triage
 routes-from:
@@ -57,6 +58,7 @@ Outputs:
 - Terminal report with health score, check results, and issue table
 
 Next routing:
+- Suggest `ghs-backlog-sync` to publish findings — "To publish findings as GitHub Issues: `/ghs-backlog-sync {owner}/{repo}`"
 - Suggest `ghs-backlog-fix` for FAIL items — "To fix the highest-impact item: `/ghs-backlog-fix backlog/{owner}_{repo}/health/{top_item}`"
 - Suggest `ghs-backlog-board` for full dashboard view
 - If all checks pass, suggest `ghs-issue-triage` if there are unlabeled issues

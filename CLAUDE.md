@@ -28,11 +28,15 @@ repos/                   — Local clones of target repositories (gitignored)
 
 ## Available Skills
 
-### Core Workflow (scan → view → fix)
+### Core Workflow (scan → sync → view → fix)
 
 - **ghs-repo-scan** — Scan a repository for quality best practices and open issues, produce a scored report, and save all findings as structured markdown backlog items
 - **ghs-backlog-board** — Show a dashboard of all backlog items (health + issues) across audited repositories with scores, progress, and next-action recommendations
 - **ghs-backlog-fix** — Apply backlog item fixes using parallel worktree-based agents: clone the repo once, create worktrees, launch agents simultaneously, verify acceptance criteria, and create PRs
+
+### Sync
+
+- **ghs-backlog-sync** — Sync health backlog items to GitHub Issues for team visibility and tracking
 
 ### Issue Management (triage → analyze → implement)
 

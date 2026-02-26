@@ -17,6 +17,10 @@ Items to fix:
 - Slug: {slug}
   Backlog file: {path}
   Check file: {skills_path}/shared/checks/{category}/{slug}.md (use Slug-to-Path Lookup in index.md)
+  {If synced issue exists:}
+    Synced Issue: #{number}
+    After verifying the fix, close the issue:
+      gh issue close {number} --repo {owner}/{repo} --comment "Applied via GitHub API: {summary}"
 
 <task type="auto">
   <name>Apply API-only fixes in batch via gh CLI</name>

@@ -98,6 +98,9 @@ Why this item: {one sentence — e.g., "Lowest-scoring repo, highest-tier failin
 
 To apply:
   /ghs-backlog-fix backlog/{owner}_{repo}/health/tier-{N}--{slug}.md
+
+{If item has a synced issue:}
+GitHub Issue: https://github.com/{owner}/{repo}/issues/{number}
 ```
 
 If there are multiple repos, also show the runner-up:

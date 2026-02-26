@@ -19,6 +19,10 @@ Item to fix:
   Backlog file: {item_path}
   Check file: {skills_path}/shared/checks/{category}/{slug}.md (use Slug-to-Path Lookup in index.md)
 
+{If synced issue exists:}
+  GitHub Issue: #{github_issue}
+  CRITICAL: Your commit message AND PR body MUST include "Fixes #{github_issue}" — this auto-closes the issue when the PR is merged.
+
 <task type="auto">
   <name>Create or modify files for a single fix in a dedicated worktree</name>
   <files>

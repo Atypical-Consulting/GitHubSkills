@@ -29,6 +29,7 @@ Consistent result formats let the orchestrator handle success, failure, and huma
 | `pr_url` | string\|null | Yes | URL of created PR, or `null` for API-only fixes and failures |
 | `verification` | string[] | Yes | Array of verification steps that passed — gives reviewers confidence the fix works |
 | `error` | string\|null | Yes | Error description if status is `FAILED` or `NEEDS_HUMAN`, otherwise `null` |
+| `github_issue` | number\|null | No | GitHub issue number if synced via `ghs-backlog-sync`, for cross-reference |
 
 ## Status Semantics
 

@@ -119,6 +119,16 @@ def parse_health_item(filepath, text):
     title = extract_h1(text)
     tier_num, tier_label = parse_tier(metadata.get("Tier", ""))
 
+    # Parse optional sync metadata (added by ghs-backlog-sync)
+    synced_issue_raw = metadata.get("Synced Issue", "")
+    synced_issue = None
+    if synced_issue_raw:
+        num_match = re.search(r"#?(\d+)", synced_issue_raw)
+        if num_match:
+            synced_issue = int(num_match.group(1))
+
+    issue_url = metadata.get("Issue URL", "") or None
+
     result = {
         "type": "health",
         "title": title,
@@ -132,6 +142,8 @@ def parse_health_item(filepath, text):
         "whats_missing": extract_section(text, "What's Missing"),
         "quick_fix": extract_quick_fix(text),
         "acceptance_criteria": parse_acceptance_criteria(text),
+        "synced_issue": synced_issue,
+        "issue_url": issue_url,
     }
     return result
 

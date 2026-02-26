@@ -23,6 +23,7 @@ routes-from:
   - ghs-repo-scan
   - ghs-backlog-board
   - ghs-backlog-next
+  - ghs-backlog-sync
 ---
 
 # Apply Backlog Item
@@ -45,6 +46,7 @@ Shared docs:
 - `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
 - `../shared/config.md` — scoring constants
 - `../shared/backlog-format.md` — file formats and status values
+- `../shared/sync-format.md` — sync metadata contract (synced issue fields)
 - `../shared/item-categories.md` — item classification (Category A/B/CI) and routing rules
 - `../shared/edge-cases.md` — rate limiting, content filters, permission errors, bounded retries
 - `../shared/agent-result-contract.md` — universal agent response format
@@ -92,6 +94,12 @@ See `../shared/item-categories.md` for the full classification table (Category A
 
 Parse the provided backlog item file. Determine its type and category. Skip if status is already PASS.
 
+If the item has a `Synced Issue` field (from `ghs-backlog-sync`):
+1. Fetch latest state: `gh issue view {number} --json state,body --repo {owner}/{repo}`
+2. If the issue is closed and the check passes → skip
+3. If the issue is closed but still FAIL → warn the user, process anyway
+4. Store the issue number for agent prompts (Phase 5)
+
 ### Batch mode
 
 Scan `backlog/{owner}_{repo}/health/` for all items. For each file:
@@ -99,6 +107,7 @@ Scan `backlog/{owner}_{repo}/health/` for all items. For each file:
 1. Read the file and check the `Status` field
 2. Skip items with status PASS
 3. Classify each FAIL item into Category A, B, or CI based on its slug
+4. Check for `Synced Issue` field — if present, fetch issue state and store the number for agent prompts
 
 You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
 
@@ -115,11 +124,11 @@ Display a summary table of ALL items to be processed:
 ```
 ## Batch Plan: {owner}/{repo}
 
-| # | Item | Tier | Pts | Category | Branch | Worktree |
-|---|------|------|-----|----------|--------|----------|
-| 1 | LICENSE | T1 | 4 | B (file) | fix/license | repos/{o}_{r}--worktrees/fix--license/ |
-| 2 | Branch Protection | T1 | 4 | A (API) | — | — |
-| 3 | .editorconfig | T2 | 2 | B (file) | fix/editorconfig | repos/{o}_{r}--worktrees/fix--editorconfig/ |
+| # | Item | Tier | Pts | Category | Issue | Branch | Worktree |
+|---|------|------|-----|----------|-------|--------|----------|
+| 1 | LICENSE | T1 | 4 | B (file) | #42 | fix/license | repos/{o}_{r}--worktrees/fix--license/ |
+| 2 | Branch Protection | T1 | 4 | A (API) | #39 | — | — |
+| 3 | .editorconfig | T2 | 2 | B (file) | — | fix/editorconfig | repos/{o}_{r}--worktrees/fix--editorconfig/ |
 ...
 
 Total items: {N} ({cat_a} API-only, {cat_b} file changes, {cat_ci} CI)
@@ -172,6 +181,10 @@ For issue items, use the Category B agent pattern but adapt the prompt:
 - Read the full issue from GitHub: `gh issue view {number} --repo {owner}/{repo}`
 - Include "Fixes #{number}" in the commit message and PR body — this triggers GitHub's auto-close
 
+For items with synced issues (from `ghs-backlog-sync`):
+- Category B agents: Include the `GitHub Issue: #{github_issue}` block from the agent template — the agent's commit message and PR body will contain `Fixes #{github_issue}` for auto-close at merge
+- Category A agent: Include the `Synced Issue: #{number}` block — the agent closes each issue after applying the API fix
+
 All agents use `subagent_type: general-purpose`.
 
 ## Phase 6 — Collect Results & Update Backlog
@@ -189,6 +202,10 @@ After all agents complete:
    - Update the backlog item file: change `| **Status** | FAIL |` to `| **Status** | PASS |`
    - Check all acceptance criteria boxes
    - Add PR URL if one was created
+   - If the item has a synced issue:
+     - Category B: PR already contains "Fixes #N" → auto-close happens at merge, no action needed
+     - Category A: Verify the agent closed the issue; if not, close from orchestrator:
+       `gh issue close {number} --comment "Applied via API: {summary}" --repo {owner}/{repo}`
 3. For failed items (status = FAILED):
    - Leave the backlog item as FAIL
    - Log the error for the final report

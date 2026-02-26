@@ -17,11 +17,13 @@ metadata:
   version: 3.0.0
 routes-to:
   - ghs-backlog-fix
+  - ghs-backlog-sync
   - ghs-repo-scan
   - ghs-backlog-next
 routes-from:
   - ghs-repo-scan
   - ghs-backlog-fix
+  - ghs-backlog-sync
 ---
 
 # Backlog Dashboard
@@ -116,10 +118,10 @@ Progress bar uses `█` and `░`, 8 chars wide (see `../shared/config.md` for d
 
 ### Health — Remaining Items (by priority)
 
-| # | Item | Tier | Points | Status | PR |
-|---|------|------|--------|--------|----|
-| 1 | README | 1 | 4 | FAIL | — |
-| 2 | Branch Protection | 1 | 4 | FAIL | — |
+| # | Item | Tier | Points | Status | Issue | PR |
+|---|------|------|--------|--------|-------|----|
+| 1 | README | 1 | 4 | FAIL | #42 | — |
+| 2 | Branch Protection | 1 | 4 | FAIL | — | — |
 ...
 
 ### Health — Completed Items
@@ -145,6 +147,8 @@ Progress bar uses `█` and `░`, 8 chars wide (see `../shared/config.md` for d
 
 Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 ```
+
+The "Issue" column shows `#{number}` for items synced via `ghs-backlog-sync`, or `—` for non-synced items. Only display this column when at least one item has a synced issue.
 
 Order health items by tier (1 first), then by points (highest first). Order issues by creation date (oldest first).
 

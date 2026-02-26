@@ -114,6 +114,22 @@ Fields:
 - **Status**: `FAIL` or `WARN` at creation. Updated to `PASS` when the fix is applied.
 - **Detected**: Date the scan was run, in `YYYY-MM-DD` format.
 
+### Sync Metadata (optional)
+
+After `ghs-backlog-sync` runs, two additional rows may appear in the health item metadata table:
+
+```markdown
+| **Synced Issue** | #{number} |
+| **Issue URL** | {url} |
+```
+
+These are appended after the `Detected` row. They are backward-compatible — items that have not been synced simply lack these rows. Skills that parse health items should treat these fields as optional.
+
+- **Synced Issue**: The GitHub issue number (prefixed with `#`) created by `ghs-backlog-sync`.
+- **Issue URL**: The full URL to the GitHub issue.
+
+See `sync-format.md` for the full sync contract including label taxonomy and issue body template.
+
 ### Issue item metadata
 
 ```markdown
