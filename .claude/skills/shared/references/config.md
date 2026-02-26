@@ -9,7 +9,7 @@ Centralized configuration values used across multiple skills. Reference this fil
 | Tier 1 points | 4 | ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, ghs-backlog-next |
 | Tier 2 points | 2 | ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, ghs-backlog-next |
 | Tier 3 points | 1 | ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, ghs-backlog-next |
-| Max possible points | 36 | ghs-backlog-score |
+| Max possible points | 74 | ghs-backlog-score |
 
 ## Display
 

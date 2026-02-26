@@ -1,6 +1,6 @@
 # Scoring Logic Reference
 
-Health score calculation rules used by ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, and ghs-backlog-next. For canonical values, see `../config.md`.
+Health score calculation rules used by ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, and ghs-backlog-next. For canonical values, see `config.md`.
 
 ## Tier Definitions and Weights
 
@@ -15,9 +15,9 @@ Health score calculation rules used by ghs-repo-scan, ghs-backlog-score, ghs-bac
 | Tier | Checks | Points Each | Subtotal |
 |------|--------|-------------|----------|
 | 1 | 4 | 4 | 16 |
-| 2 | 8 | 2 | 16 |
-| 3 | 4 (excluding Funding) | 1 | 4 |
-| **Total** | **16** | | **36** |
+| 2 | 22 | 2 | 44 |
+| 3 | 14 (excluding Funding, Discussions, Commit Signoff) | 1 | 14 |
+| **Total** | **40** | | **74** |
 
 ## Score Calculation Formula
 

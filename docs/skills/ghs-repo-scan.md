@@ -3,7 +3,7 @@
 Scans a GitHub repository against 38 health checks and fetches open issues, producing a scored report and structured backlog.
 
 ::: info Skill Info
-**Version:** 4.0.0
+**Version:** 6.0.0
 **Trigger phrases:** "scan my repo", "audit phmatray/my-project", "run a health check", "is my repo set up properly?", "what's missing from my project", "repo audit", "repository checklist"
 :::
 

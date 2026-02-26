@@ -3,7 +3,7 @@
 Applies backlog item fixes using parallel worktree-based agents -- clones the repo once, creates worktrees for each fix, launches agents simultaneously, verifies acceptance criteria, and creates PRs.
 
 ::: info Skill Info
-**Version:** 5.0.0
+**Version:** 7.0.0
 **Trigger phrases:** "fix the backlog", "fix phmatray/my-project", "fix the failing checks", "apply this backlog item", "resolve all tier 1 items", "apply all for {repo}"
 :::
 

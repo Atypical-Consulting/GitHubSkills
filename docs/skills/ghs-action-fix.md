@@ -3,7 +3,7 @@
 Fix failing GitHub Actions pipelines directly — detect broken workflows, diagnose from run logs, apply fixes, and create PRs. No prior scan or backlog required.
 
 ::: info Skill Info
-**Version:** 1.0.0
+**Version:** 2.0.0
 **Trigger phrases:** "fix my pipeline", "fix CI", "my actions are failing", "fix my workflows", "repair my build", "CI is broken", "fix GitHub Actions", "debug my workflow", "why is my build failing", "action fix"
 :::
 

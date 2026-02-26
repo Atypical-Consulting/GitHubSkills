@@ -23,12 +23,13 @@ compatibility: claude-code-v1
 
 ## Step 3: Structure the Skill
 
-Follow this structure:
-1. **Prerequisites** --- what the skill needs
-2. **Input** --- what the user provides
-3. **Phases** --- numbered steps the skill performs
-4. **Output Format** --- terminal output specification
-5. **Routing** --- what skills to suggest next
+Wrap major sections in XML tags following GSD conventions:
+
+1. **`<context>`** --- purpose, roles, shared references table
+2. **`<anti-patterns>`** --- 3-column table: `Do NOT | Do Instead | Why`
+3. **`<objective>`** --- expected outputs and routing
+4. **`<process>`** --- phased execution steps
+5. **`<rules>`** --- rule/trigger/example triples (if applicable)
 
 ## Step 4: Register the Skill
 
@@ -44,4 +45,4 @@ Open Claude Code and trigger the skill with one of its trigger phrases.
 - Handle errors gracefully: 404 = missing, 403 = insufficient permissions
 - Follow the status indicator convention: `[PASS]`, `[FAIL]`, `[WARN]`, `[INFO]`
 - Use the `Task` tool for parallel agent work
-- Reference shared configs from `.claude/skills/shared/`
+- Reference shared docs from `.claude/skills/shared/references/`

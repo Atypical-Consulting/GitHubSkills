@@ -2,7 +2,7 @@
 
 ## Skills
 
-GHS is a collection of **10 Claude Code skills**. Skills are markdown files in `.claude/skills/` that define how Claude Code performs specific tasks. Each skill has a name, trigger phrases, allowed tools, and a structured process.
+GHS is a collection of **12 Claude Code skills**. Skills are markdown files in `.claude/skills/` that define how Claude Code performs specific tasks. Each skill has a name, trigger phrases, allowed tools, and a structured process.
 
 You invoke skills with natural language. Saying "scan my repo" triggers `ghs-repo-scan`. Saying "fix the backlog" triggers `ghs-backlog-fix`. Claude Code matches your intent to the right skill automatically.
 
@@ -23,7 +23,7 @@ flowchart LR
     B --> F[ghs-backlog-score]
 ```
 
-1. **Scan** — `ghs-repo-scan` audits the repo against 38 checks and saves findings as backlog items
+1. **Scan** — `ghs-repo-scan` audits the repo against 43 checks and saves findings as backlog items
 2. **Sync** (optional) — `ghs-backlog-sync` publishes findings as GitHub Issues for team visibility
 3. **Review** — `ghs-backlog-board` shows a dashboard of all findings with scores and progress
 4. **Fix** — `ghs-backlog-fix` spawns parallel agents to fix failing items and create PRs (auto-closes synced issues)
@@ -65,13 +65,13 @@ Each backlog item has metadata (tier, points, status, category) and acceptance c
 
 ## Tiers and Scoring
 
-GHS uses a 3-tier scoring system with a maximum of **67 points**:
+GHS uses a 3-tier scoring system with a maximum of **74 points**:
 
 | Tier | Label | Checks | Points Each | Subtotal |
 |------|-------|--------|-------------|----------|
 | 1 | Required | 4 | 4 | 16 |
-| 2 | Recommended | 20 | 2 | 40 |
-| 3 | Nice to Have | 11 scored + 3 INFO | 1 | 11 |
+| 2 | Recommended | 22 | 2 | 44 |
+| 3 | Nice to Have | 14 scored + 3 INFO | 1 | 14 |
 
 **Scoring rules:**
 

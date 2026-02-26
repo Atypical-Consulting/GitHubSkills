@@ -3,7 +3,7 @@
 Verifies and applies proper labels (type, priority, status) to GitHub issues using a consistent 15-label taxonomy.
 
 ::: info Skill Info
-**Version:** 2.0.0
+**Version:** 4.0.0
 **Trigger phrases:** "triage my issues", "label the issues", "triage phmatray/my-project", "classify open issues", "auto-triage", "set up issue labels"
 :::
 

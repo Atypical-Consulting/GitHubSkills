@@ -3,7 +3,7 @@
 Recommends the single highest-impact backlog item to fix across all audited repositories.
 
 ::: info Skill Info
-**Version:** 2.0.0
+**Version:** 4.0.0
 **Trigger phrases:** "what should I fix next?", "what's the highest impact fix?", "next item", "priority item", "next action", "recommend something to fix"
 :::
 

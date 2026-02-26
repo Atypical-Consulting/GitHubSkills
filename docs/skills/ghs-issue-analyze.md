@@ -3,7 +3,7 @@
 Deep-analyzes a GitHub issue by inspecting the codebase and posts a structured analysis comment with feasibility, complexity, affected files, and suggested approach.
 
 ::: info Skill Info
-**Version:** 2.0.0
+**Version:** 4.0.0
 **Trigger phrases:** "analyze issue #123", "deep dive on this issue", "what would it take to fix #42", "assess this issue", "how complex is issue #42", "break down issue #42"
 :::
 

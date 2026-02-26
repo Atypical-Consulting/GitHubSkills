@@ -3,7 +3,7 @@
 Merges open pull requests with CI-aware confirmation, batch support, and automatic branch cleanup.
 
 ::: info Skill Info
-**Version:** 2.0.0
+**Version:** 4.0.0
 **Trigger phrases:** "merge my PRs", "merge the Renovate PRs", "merge all PRs", "merge PR #42", "batch merge", "merge bot PRs", "merge passing PRs"
 :::
 
