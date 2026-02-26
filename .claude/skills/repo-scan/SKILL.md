@@ -43,7 +43,7 @@ These are non-negotiable for any public or team-shared repository.
 | **README** | `gh api repos/{owner}/{repo}/readme` | Exists AND response size > 500 bytes (not just a title) |
 | **LICENSE** | `gh api repos/{owner}/{repo}/license` | Exists (any recognized license) |
 | **Description** | `gh repo view --json description -q '.description'` | Non-empty string |
-| **Default branch protection** | `gh api repos/{owner}/{repo}/branches/{default_branch}/protection` | Returns 200 (not 404). Note: may require admin access — if 403/404, report as "unable to check" rather than fail |
+| **Default branch protection** | `gh api repos/{owner}/{repo}/branches/{default_branch}/protection` | Returns 200 (not 404). Note: may require admin access — if 403/404, report as "unable to check" rather than fail. **Solo maintainer awareness**: detect if the repo has a single owner/contributor (check collaborators count or org membership). For solo repos, branch protection is still recommended but the backlog item should suggest a lightweight config (no required reviews, just force-push protection and enforce admins) since requiring PR approvals blocks the sole maintainer from merging. |
 
 ### Tier 2 — Recommended (2 points each)
 

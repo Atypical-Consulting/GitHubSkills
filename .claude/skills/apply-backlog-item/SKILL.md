@@ -99,6 +99,8 @@ Examples:
 
 For these, craft the specific command based on the backlog item and the repo context. For description and topics, inspect the repo to propose meaningful values (don't use placeholders).
 
+**Branch protection — solo maintainer awareness**: Before applying branch protection, detect whether the repo is solo-maintained (single owner, no team collaborators). For solo repos, use a lightweight config: enforce admins and block force pushes, but set `"required_pull_request_reviews": null` — requiring PR approvals would lock the sole maintainer out of merging their own PRs. For team repos (multiple collaborators or org-owned), include required reviews.
+
 #### Category B — File creation / modification
 
 These require creating or editing files in the local clone, then committing and pushing.

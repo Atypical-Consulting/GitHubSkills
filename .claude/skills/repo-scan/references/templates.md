@@ -162,7 +162,8 @@ When filling out the "How to Fix" section for health items, here are recommended
 
 ### Branch Protection (Tier 1)
 - Quick: `gh api repos/{owner}/{repo}/branches/{branch}/protection -X PUT --input <json>`
-- Full: Include require reviews, enforce admins, require status checks
+- **Solo maintainer repos** (single owner, no team collaborators): Use a lightweight config — enforce admins, block force pushes, but do NOT require PR reviews (`"required_pull_request_reviews": null`). Requiring approvals locks the sole maintainer out of merging their own PRs.
+- **Team repos** (multiple collaborators or org-owned): Include require reviews (1+ approver), enforce admins, require status checks
 - Note: If default branch name is unusual, suggest renaming to `main`
 - Acceptance: Protection API returns 200
 
