@@ -15,6 +15,11 @@ license: MIT
 metadata:
   author: phmatray
   version: 2.0.0
+routes-to:
+  - ghs-issue-implement
+  - ghs-issue-triage
+routes-from:
+  - ghs-issue-triage
 ---
 
 # Issue Analysis

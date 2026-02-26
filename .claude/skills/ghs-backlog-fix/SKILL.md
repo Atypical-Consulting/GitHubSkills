@@ -15,6 +15,14 @@ license: MIT
 metadata:
   author: phmatray
   version: 5.0.0
+routes-to:
+  - ghs-merge-prs
+  - ghs-backlog-board
+  - ghs-repo-scan
+routes-from:
+  - ghs-repo-scan
+  - ghs-backlog-board
+  - ghs-backlog-next
 ---
 
 # Apply Backlog Item
@@ -37,6 +45,9 @@ Shared docs:
 - `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
 - `../shared/config.md` — scoring constants
 - `../shared/backlog-format.md` — file formats and status values
+- `../shared/item-categories.md` — item classification (Category A/B/CI) and routing rules
+- `../shared/edge-cases.md` — rate limiting, content filters, permission errors, bounded retries
+- `../shared/agent-result-contract.md` — universal agent response format
 
 The user must have **write access** to the target repository — required for pushing branches and creating PRs.
 </context>
@@ -73,15 +84,7 @@ Two invocation modes:
 
 ## Item Categories
 
-Each health check falls into one of these categories:
-
-| Category | Description | Worktree? | Checks |
-|----------|-------------|-----------|--------|
-| **A** (API-only) | Uses `gh` commands directly, no file changes | No | branch-protection, security-alerts, description, topics, delete-branch-on-merge, merge-strategy, homepage-url, stale-branches, github-releases |
-| **B** (file changes) | Creates/modifies files, commits, pushes, creates PR | Yes — one per item | license, editorconfig, codeowners, issue-templates, pr-template, security-md, contributing-md, code-of-conduct, readme, gitignore, ci-cd-workflows, changelog, gitattributes, version-pinning, dependency-update-config |
-| **CI** (special) | Diagnoses CI failures before fixing | Yes | ci-workflow-health |
-
-Issue items are always Category B.
+See `../shared/item-categories.md` for the full classification table (Category A/B/CI) and routing rules. Issue items are always Category B.
 
 ## Phase 1 — Discover & Classify
 
@@ -176,6 +179,12 @@ All agents use `subagent_type: general-purpose`.
 After all agents complete:
 
 1. Parse the JSON result from each agent
+
+**Bounded retries**: If an agent returns status FAILED and the error suggests a transient issue (content filter, timeout, malformed output):
+- Retry once with the error message appended to the agent prompt
+- If the retry also fails, mark as NEEDS_HUMAN — two failures on the same item indicate a problem that needs human judgment
+- See `../shared/edge-cases.md` for the full retry protocol
+
 2. For each successful item (status = PASS):
    - Update the backlog item file: change `| **Status** | FAIL |` to `| **Status** | PASS |`
    - Check all acceptance criteria boxes
@@ -255,7 +264,7 @@ When a single file path is provided:
 - **Complex issues**: If an issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
 - **Merge conflicts**: If a worktree branch has conflicts, report and let the user decide.
 - **PR already exists for branch**: Check with `gh pr list --head fix/{slug}` before creating a new one.
-- **Content filtering blocks agent output**: See `../shared/implementation-workflow.md` §6.
+- **Content filtering blocks agent output**: The orchestrator detects content filter failures and retries with a download-based approach. See `../shared/edge-cases.md` for the workaround pattern.
 
 ## Examples
 

@@ -16,6 +16,12 @@ license: MIT
 metadata:
   author: phmatray
   version: 2.0.0
+routes-to:
+  - ghs-merge-prs
+routes-from:
+  - ghs-issue-triage
+  - ghs-issue-analyze
+  - ghs-backlog-board
 ---
 
 # Issue Implementation
@@ -34,6 +40,8 @@ Agent prompt: `agents/implementation-agent.md`
 Shared docs:
 - `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
 - `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
+- `../shared/edge-cases.md` — rate limiting, content filters, permission errors, bounded retries
+- `../shared/agent-result-contract.md` — universal agent response format
 
 The user must have **write access** to the target repository.
 </context>
@@ -184,6 +192,12 @@ Read `agents/implementation-agent.md` for the prompt template. Substitute `{owne
 After all agents complete:
 
 1. Parse the JSON result from each agent
+
+**Bounded retries**: If an agent returns status FAILED and the error suggests a transient issue (content filter, timeout, malformed output):
+- Retry once with the error message appended to the agent prompt
+- If the retry also fails, mark as NEEDS_HUMAN — two failures on the same item indicate a problem that needs human judgment
+- See `../shared/edge-cases.md` for the full retry protocol
+
 2. For each successful item (status = PASS):
    - Update issue label: remove `status:triaged` or `status:analyzing`, add `status:in-progress`
    ```bash
@@ -236,7 +250,7 @@ Remaining:
 - **PR already exists for branch**: Report existing PR, skip creating a new one.
 - **Issue too complex**: Agent sets NEEDS_HUMAN — worktree left in place for manual work.
 - **Agent failure**: One agent failing doesn't block others. Mark FAILED in report.
-- **Content filter blocks output**: Orchestrator handles per §6 of implementation-workflow.md.
+- **Content filter blocks output**: The orchestrator detects content filter failures and retries with a download-based approach. See `../shared/edge-cases.md` for the workaround pattern.
 - **Issue has no analysis**: Agent performs its own investigation — it just takes slightly longer.
 - **Re-running is safe**: Issues already with `status:in-progress` and an open PR are skipped in batch mode.
 

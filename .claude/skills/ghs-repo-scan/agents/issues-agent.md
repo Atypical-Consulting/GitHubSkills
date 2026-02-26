@@ -12,25 +12,44 @@ Output directory: backlog/{owner}_{repo}/issues/
 Date: {YYYY-MM-DD}
 Skills path: {path to .claude/skills}
 
-Your job:
-1. Fetch all open issues:
-   gh issue list --repo {owner}/{repo} --state open --json number,title,labels,assignees,createdAt,updatedAt,body --limit 500
+<task type="auto">
+  <name>Fetch open issues, filter bot noise, and write issue backlog items</name>
+  <files>
+    - Read: GitHub Issues API via gh CLI
+    - Read: {skills_path}/ghs-repo-scan/references/templates.md (issue item template)
+    - Write: backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md (per issue)
+    - Delete: stale issue files for closed issues (sync step)
+  </files>
+  <action>
+    1. Fetch all open issues:
+       gh issue list --repo {owner}/{repo} --state open --json number,title,labels,assignees,createdAt,updatedAt,body --limit 500
 
-2. Filter out bot-generated issues — they add noise to the backlog and aren't actionable:
-   - Issues with title containing "Dependency Dashboard" (Renovate bot)
-   - Issues with title containing "renovate" AND a bot label
+    2. Filter out bot-generated issues — they add noise to the backlog and aren't actionable:
+       - Issues with title containing "Dependency Dashboard" (Renovate bot)
+       - Issues with title containing "renovate" AND a bot label
 
-3. For each remaining issue, write a backlog item file to `backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md`
-   using the issue item template from `{skills_path}/ghs-repo-scan/references/templates.md`
-   - Title kebab-case, truncated to 50 chars max (cut at last complete word — avoids ugly trailing fragments)
-   - Truncate issue body to 500 characters in the file (with link to full issue for context)
+    3. For each remaining issue, write a backlog item file to `backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md`
+       using the issue item template from `{skills_path}/ghs-repo-scan/references/templates.md`
+       - Title kebab-case, truncated to 50 chars max (cut at last complete word — avoids ugly trailing fragments)
+       - Truncate issue body to 500 characters in the file (with link to full issue for context)
 
-4. If `backlog/{owner}_{repo}/issues/` already has files, sync to keep the local backlog in step with GitHub:
-   - Remove files for issues that are now closed
-   - Add files for newly opened issues
-   - Update files if title/labels/assignees changed
+    4. If `backlog/{owner}_{repo}/issues/` already has files, sync to keep the local backlog in step with GitHub:
+       - Remove files for issues that are now closed
+       - Add files for newly opened issues
+       - Update files if title/labels/assignees changed
+  </action>
+  <verify>
+    - No bot-generated issues (Dependency Dashboard, Renovate) appear in output
+    - Every issue file has a valid kebab-case filename, truncated to 50 chars at a word boundary
+    - Issue body in each file is truncated to 500 chars with a link to the full issue
+    - Stale files (for closed issues) have been removed
+  </verify>
+  <done>
+    All open issues written as backlog items, bot noise filtered, stale files cleaned up, and a JSON summary returned.
+  </done>
+</task>
 
-5. Return a JSON summary:
+Result format: this agent uses a custom JSON summary (specific to issue collection, not the standard agent result contract):
 {
   "total": 18,
   "labels": {"bug": 5, "enhancement": 8, "docs": 2, "unlabeled": 3},

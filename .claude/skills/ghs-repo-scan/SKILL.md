@@ -16,6 +16,12 @@ license: MIT
 metadata:
   author: phmatray
   version: 4.0.0
+routes-to:
+  - ghs-backlog-fix
+  - ghs-backlog-board
+  - ghs-issue-triage
+routes-from:
+  - ghs-backlog-board
 ---
 
 # Repo Scan
@@ -35,6 +41,8 @@ Shared docs:
 - `../shared/checks/index.md` — full check registry with tier assignments, slugs, and links
 - `../shared/config.md` — scoring constants and display settings
 - `../shared/backlog-format.md` — file naming, metadata formats, scoring rules
+- `../shared/edge-cases.md` — rate limiting, content filters, permission errors
+- `../shared/agent-result-contract.md` — universal agent response format
 
 Check definitions: Each health check lives in its own file under `../shared/checks/`. Read the index for the full registry.
 </context>
@@ -100,6 +108,7 @@ Use the Task tool to spawn all 4 agents in a **single message** (parallel execut
 After all agents complete:
 
 1. Parse the JSON results from each health check agent
+   > If an agent returns malformed JSON or errors out, retry once with the error appended to the prompt. If it fails again, mark all checks in that tier as WARN with detail "Agent failed after retry" — this preserves the scan for other tiers rather than failing the entire skill.
 2. Combine all check results into a unified list
 3. Calculate the health score (see `../shared/config.md` for tier point values):
    - WARN items are **excluded** from both earned and possible totals — they indicate permission issues, not real failures
@@ -217,7 +226,7 @@ The `gh` CLI is not authenticated. Run `gh auth login` first.
 Branch protection requires admin access. The check agent will report as WARN — this is expected.
 
 **Rate limiting during scan**
-If you hit GitHub's API rate limit, the agents will encounter errors. Wait and retry.
+If you hit GitHub's API rate limit, the agents will encounter errors. See `../shared/edge-cases.md` for handling. Do not retry in a loop — the rate limit window needs to reset first.
 
 **Scan seems slow**
 The skill runs 4 agents in parallel. Most scans complete quickly. Large repos with many issues (500+) will take longer.

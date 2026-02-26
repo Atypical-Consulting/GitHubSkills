@@ -13,6 +13,12 @@ license: MIT
 metadata:
   author: phmatray
   version: 2.0.0
+routes-to:
+  - ghs-backlog-board
+  - ghs-backlog-next
+  - ghs-repo-scan
+routes-from:
+  - ghs-backlog-fix
 ---
 
 # Backlog Score
@@ -53,7 +59,7 @@ The user provides a repository identifier:
 - Explicit: "score for phmatray/Formidable" or "score phmatray_Formidable"
 - If not provided, scan `backlog/` for all repos and show scores for each
 
-## Step 1 — Collect Health Items
+## Phase 1 — Collect Health Items
 
 Scan `backlog/{owner}_{repo}/health/` for all `tier-*--*.md` files.
 
@@ -68,7 +74,7 @@ Also read `backlog/{owner}_{repo}/SUMMARY.md` for checks that passed at scan tim
 
 For a complete score, use: `python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}`
 
-## Step 2 — Calculate Score
+## Phase 2 — Calculate Score
 
 Apply the scoring rules from `../shared/backlog-format.md#scoring-rules`:
 
@@ -77,7 +83,7 @@ Apply the scoring rules from `../shared/backlog-format.md#scoring-rules`:
 3. **INFO items** (Funding): excluded entirely — no points, no penalty
 4. **Percentage**: `earned_points / possible_points * 100`, rounded to nearest integer
 
-## Step 3 — Display Score
+## Phase 3 — Display Score
 
 ### Single-repo view
 

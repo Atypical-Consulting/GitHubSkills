@@ -14,6 +14,11 @@ license: MIT
 metadata:
   author: phmatray
   version: 2.0.0
+routes-to:
+  - ghs-issue-analyze
+  - ghs-issue-implement
+routes-from:
+  - ghs-repo-scan
 ---
 
 # Issue Triage
@@ -136,22 +141,28 @@ Same fetch, no filtering.
 
 ## Phase 3 — Classify Issues
 
-For each issue, analyze the title and body to determine:
+For each issue, analyze the title and body to determine type and priority using the decision tables below. Tables make classification consistent across runs — different phrasing of the same problem should map to the same label.
 
-1. **Type**: Match against the type taxonomy. Use these heuristics:
-   - Contains "bug", "broken", "error", "crash", "doesn't work", "regression" → `type:bug`
-   - Contains "add", "feature", "request", "enhancement", "implement", "new" → `type:feature`
-   - Contains "docs", "documentation", "README", "typo in docs" → `type:docs`
-   - Contains "dependency", "update", "upgrade", "bump", "CI", "tooling" → `type:chore`
-   - Contains "test", "coverage", "spec" → `type:test`
-   - Contains "refactor", "cleanup", "reorganize" → `type:refactor`
-   - If unclear, default to `type:feature`
+### Type Classification
 
-2. **Priority**: Assess impact and urgency:
-   - Security vulnerability, data loss, production down → `priority:critical`
-   - Major feature broken, many users affected → `priority:high`
-   - Minor bug, improvement, most feature requests → `priority:medium`
-   - Nice-to-have, cosmetic, very low impact → `priority:low`
+| Keywords in title/body | Label | Rationale |
+|------------------------|-------|-----------|
+| bug, broken, error, crash, doesn't work, regression | `type:bug` | Something that worked before is now broken |
+| add, feature, request, enhancement, implement, new | `type:feature` | New capability or improvement |
+| docs, documentation, README, typo in docs | `type:docs` | Documentation-only changes |
+| dependency, update, upgrade, bump, CI, tooling | `type:chore` | Maintenance work, no user-facing behavior change |
+| test, coverage, spec | `type:test` | Test improvements without production code changes |
+| refactor, cleanup, reorganize | `type:refactor` | Code restructuring without behavior change |
+| *(none match)* | `type:feature` | Default — most issues request new behavior |
+
+### Priority Classification
+
+| Signal | Label | Rationale |
+|--------|-------|-----------|
+| Security vulnerability, data loss, production down | `priority:critical` | Immediate user/data impact — fix before anything else |
+| Major feature broken, many users affected | `priority:high` | Significant impact but not an emergency |
+| Minor bug, improvement, most feature requests | `priority:medium` | Normal development priority |
+| Nice-to-have, cosmetic, very low impact | `priority:low` | Fix when there's nothing more impactful |
 
 ## Phase 4 — Propose & Confirm
 

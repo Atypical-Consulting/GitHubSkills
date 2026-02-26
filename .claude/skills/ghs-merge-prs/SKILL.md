@@ -14,6 +14,12 @@ license: MIT
 metadata:
   author: phmatray
   version: 2.0.0
+routes-to:
+  - ghs-repo-scan
+  - ghs-backlog-board
+routes-from:
+  - ghs-backlog-fix
+  - ghs-issue-implement
 ---
 
 # Merge PRs
@@ -60,11 +66,16 @@ If no filter is given, default to showing all open PRs and letting the user choo
 
 ## Merge Strategy
 
-- **Renovate / bot PRs**: Squash merge (`--squash`) — keeps history clean since each PR is a single dependency bump
-- **User's own PRs**: Regular merge (`--merge`) — preserves the full commit history from the feature branch
-- The user can override the strategy if they ask for something specific
+The merge method is chosen based on the PR author — each strategy optimizes for the most common case of that PR type:
 
-## Step 1 — Detect Repository and List PRs
+| PR Author | Strategy | Flag | Rationale |
+|-----------|----------|------|-----------|
+| Renovate / Dependabot / bot | Squash merge | `--squash` | Each PR is a single dependency bump — squashing keeps history clean |
+| User's own PRs | Regular merge | `--merge` | Preserves the full commit history from the feature branch |
+| External contributors | Regular merge | `--merge` | Preserves attribution and commit history |
+| User override | As requested | varies | User explicitly asks for a specific strategy |
+
+## Phase 1 — Detect Repository and List PRs
 
 1. Detect the repository (`owner/repo`) from input or git remote
 2. Fetch all open PRs with relevant metadata:
@@ -78,7 +89,7 @@ gh pr list --repo {owner}/{repo} --state open --json number,title,author,headRef
    - **Own PRs**: author login matches the authenticated user (`gh api user --jq '.login'`)
    - **Other**: any remaining PRs from external contributors
 
-## Step 2 — Display PR Overview
+## Phase 2 — Display PR Overview
 
 Present a clear summary table:
 
@@ -112,7 +123,7 @@ CI status is derived from `statusCheckRollup`:
 - **PENDING**: any check has `status: "IN_PROGRESS"` or `"QUEUED"`
 - **NONE**: empty `statusCheckRollup` array
 
-## Step 3 — Determine What to Merge
+## Phase 3 — Determine What to Merge
 
 Based on the user's request:
 
@@ -129,7 +140,7 @@ Skip PRs that are:
 - **Draft**: always skip — drafts aren't ready for review, let alone merging
 - **CONFLICTING**: cannot be merged — report and skip
 
-## Step 4 — Confirm Before Merging
+## Phase 4 — Confirm Before Merging
 
 Always show what will be merged before doing it:
 
@@ -154,7 +165,7 @@ WARNING: {N} PRs have failing CI checks. Merging will bypass status checks.
 
 Wait for user confirmation. This is the critical safety gate.
 
-## Step 5 — Merge PRs Sequentially
+## Phase 5 — Merge PRs Sequentially
 
 Merge one at a time — sequential prevents race conditions when multiple PRs touch the same base branch:
 
@@ -179,7 +190,7 @@ Report progress as each PR merges:
 [3/3] Merging #32 (chore(deps): update opentelemetry...) ... FAILED: merge conflict
 ```
 
-## Step 6 — Summary Report
+## Phase 6 — Summary Report
 
 ```
 ## Merge Summary: {owner}/{repo}

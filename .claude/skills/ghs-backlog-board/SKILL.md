@@ -15,6 +15,13 @@ license: MIT
 metadata:
   author: phmatray
   version: 3.0.0
+routes-to:
+  - ghs-backlog-fix
+  - ghs-repo-scan
+  - ghs-backlog-next
+routes-from:
+  - ghs-repo-scan
+  - ghs-backlog-fix
 ---
 
 # Backlog Dashboard
@@ -60,7 +67,7 @@ Optional filters the user might provide:
 - A specific tier: "show tier 1 items"
 - Only failures: "show remaining failures"
 
-## Step 1 — Discover Repositories
+## Phase 1 — Discover Repositories
 
 Scan `backlog/` for all `{owner}_{repo}/` directories. For the backlog directory structure and file formats, see `../shared/backlog-format.md`.
 
@@ -71,7 +78,7 @@ For each repo, read `SUMMARY.md` to extract:
 - Generated date
 - Visibility (Public / Private)
 
-## Step 2 — Collect Item Status
+## Phase 2 — Collect Item Status
 
 For each repo, scan both `health/` and `issues/` directories.
 
@@ -83,7 +90,7 @@ Count totals per repo:
 - Health: items total, passed, failed, warned; points earned vs possible
 - Issues: total, open, with PRs, closed
 
-## Step 3 — Display the Dashboard
+## Phase 3 — Display the Dashboard
 
 ### Multi-repo overview (when multiple repos exist)
 
@@ -141,7 +148,7 @@ Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 
 Order health items by tier (1 first), then by points (highest first). Order issues by creation date (oldest first).
 
-## Step 4 — Recommend Next Action
+## Phase 4 — Recommend Next Action
 
 After the dashboard, suggest the highest-impact next action:
 
@@ -173,7 +180,7 @@ If the scan date is more than 30 days old (see `../shared/config.md` for thresho
 >   /ghs-repo-scan {owner}/{repo}
 ```
 
-## Step 5 — Quick-apply prompt
+## Phase 5 — Quick-Apply Prompt
 
 If the user says something like "apply it" or "fix it" after seeing the recommendation, treat that as a trigger for the `ghs-backlog-fix` skill with the recommended item's path.
 

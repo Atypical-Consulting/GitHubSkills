@@ -27,49 +27,60 @@ Previous Analysis:
 Issue Comments:
 {relevant_comments}
 
-Your job:
-1. Understand the issue and what needs to change
-2. Inspect the repo in the worktree to understand existing patterns, architecture, and conventions — matching project style prevents review friction
-3. Implement the fix/feature following the project's existing style and patterns
-4. Write/update tests if the project has a test suite and the change is testable
-5. Stage, commit, and push:
-   git -C {worktree_path} add {files}
-   git -C {worktree_path} commit -m "{type}: {descriptive message}
+<task type="auto">
+  <name>Implement a GitHub issue in a dedicated worktree and open a PR</name>
+  <files>
+    - Read: repo files in worktree (architecture, patterns, conventions)
+    - Read: issue body and comments (requirements)
+    - Write: implementation files in {worktree_path} only
+  </files>
+  <action>
+    1. Understand the issue and what needs to change
+    2. Inspect the repo in the worktree to understand existing patterns, architecture, and conventions — matching project style prevents review friction
+    3. Implement the fix/feature following the project's existing style and patterns
+    4. Write/update tests if the project has a test suite and the change is testable
+    5. Stage, commit, and push:
+       git -C {worktree_path} add {files}
+       git -C {worktree_path} commit -m "{type}: {descriptive message}
 
-   Fixes #{number}"
-   git -C {worktree_path} push -u origin {prefix}/{number}-{slug}
-6. Create a PR:
-   gh pr create --repo {owner}/{repo} \
-     --head {prefix}/{number}-{slug} --base {default_branch} \
-     --title "{type}: {concise title}" \
-     --body "## Summary
+       Fixes #{number}"
+       git -C {worktree_path} push -u origin {prefix}/{number}-{slug}
+    6. Create a PR:
+       gh pr create --repo {owner}/{repo} \
+         --head {prefix}/{number}-{slug} --base {default_branch} \
+         --title "{type}: {concise title}" \
+         --body "## Summary
 
-   {description of changes}
+       {description of changes}
 
-   Fixes #{number}
+       Fixes #{number}
 
-   ## Changes
-   {list of changes}
+       ## Changes
+       {list of changes}
 
-   ## Testing
-   {testing notes}"
+       ## Testing
+       {testing notes}"
+  </action>
+  <verify>
+    - Implementation matches the project's existing code style and patterns
+    - Tests added/updated if the project has a test suite
+    - Commit message includes "Fixes #{number}" for auto-close
+    - PR body includes Summary, Changes, and Testing sections
+  </verify>
+  <done>
+    Issue implemented in worktree, PR created with auto-close reference, and result returned as a fenced JSON object.
+  </done>
+</task>
+
+Result format: return a fenced JSON object per `{skills_path}/shared/agent-result-contract.md`.
+Set "source" to "issue".
 
 Important:
-- Work ONLY in your worktree path — modifying the main clone would corrupt other agents' worktrees
-- Follow the project's existing code style, patterns, and conventions — if the project uses TypeScript, write TypeScript; if it uses Python typing, use type hints
-- Write meaningful commit messages that explain WHY, not just WHAT — "fix: prevent null reference when user has no avatar" not "fix: fix bug"
-- If the issue is too complex or ambiguous, set status to NEEDS_HUMAN and explain why — partial work in the worktree is more useful than a broken implementation
-- For content filter issues, see §6 of implementation-workflow.md
-
-Return a fenced JSON object:
-{
-  "source": "issue",
-  "slug": "{number}-{short_slug}",
-  "status": "PASS",
-  "pr_url": "https://github.com/{owner}/{repo}/pull/N",
-  "verification": ["List of checks performed"],
-  "error": null
-}
+- Work ONLY in your worktree path — modifying the main clone would corrupt other agents' worktrees because git worktrees share the same .git directory and cross-worktree writes cause index conflicts.
+- Follow the project's existing code style, patterns, and conventions — if the project uses TypeScript, write TypeScript; if it uses Python typing, use type hints. Consistency reduces review friction and keeps the codebase coherent.
+- Write meaningful commit messages that explain WHY, not just WHAT — "fix: prevent null reference when user has no avatar" not "fix: fix bug". Good messages make git blame useful months later.
+- If the issue is too complex or ambiguous, set status to NEEDS_HUMAN and explain why — partial work in the worktree is more useful than a broken implementation.
+- For content filter issues, see §6 of implementation-workflow.md.
 ```
 
 ## Anti-Examples

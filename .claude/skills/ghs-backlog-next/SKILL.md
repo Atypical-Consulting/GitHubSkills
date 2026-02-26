@@ -14,6 +14,11 @@ license: MIT
 metadata:
   author: phmatray
   version: 2.0.0
+routes-to:
+  - ghs-backlog-fix
+  - ghs-repo-scan
+routes-from:
+  - ghs-backlog-board
 ---
 
 # Backlog Next
@@ -52,7 +57,7 @@ No input required. Scans all `backlog/` subdirectories automatically.
 
 Optional: the user may specify a repo to limit the search: "next for phmatray/Formidable"
 
-## Step 1 — Discover Failing Items
+## Phase 1 — Discover Failing Items
 
 Scan `backlog/{owner}_{repo}/health/` across all repos (or the specified repo) for items with status FAIL.
 
@@ -67,7 +72,7 @@ Also check `backlog/{owner}_{repo}/issues/` for items with status OPEN — issue
 
 You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
 
-## Step 2 — Select the Highest-Impact Item
+## Phase 2 — Select the Highest-Impact Item
 
 Apply this priority algorithm:
 
@@ -79,7 +84,7 @@ Apply this priority algorithm:
 5. **Oldest issue** — for issues, pick the oldest (by creation date)
 6. **Alphabetical** — final tiebreaker
 
-## Step 3 — Display Recommendation
+## Phase 3 — Display Recommendation
 
 ```
 ## Next: {Check Name}
