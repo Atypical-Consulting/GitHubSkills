@@ -1,16 +1,18 @@
 ---
 name: repo-health-check
 description: >
-  Audits a GitHub repository for quality essentials and produces a health report with actionable suggestions.
-  Use this skill whenever the user wants to check repository quality, audit a repo's setup, verify best practices
-  are followed, or asks about missing files like README, LICENSE, CODEOWNERS, CI/CD, branch protection, templates,
-  or security policies. Also trigger when users say things like "is my repo set up properly", "what's missing from
-  my project", "repo audit", "repository checklist", or "health check".
+  Audits a GitHub repository for quality essentials, produces a scored health report, and saves each
+  actionable finding as a structured markdown backlog item. Use this skill whenever the user wants to
+  check repository quality, audit a repo's setup, verify best practices are followed, or asks about
+  missing files like README, LICENSE, CODEOWNERS, CI/CD, branch protection, templates, or security
+  policies. Also trigger when users say things like "is my repo set up properly", "what's missing from
+  my project", "repo audit", "repository checklist", "health check", "save health report", "export
+  audit results", or "create backlog from audit".
 ---
 
 # Repo Health Check
 
-Audit a GitHub repository against quality best practices and produce an actionable health report.
+Audit a GitHub repository against quality best practices, display a terminal report, and save actionable findings as structured markdown backlog items.
 
 ## Prerequisites
 
@@ -27,7 +29,7 @@ gh repo view --json nameWithOwner -q '.nameWithOwner'
 
 If neither works, ask the user which repository to audit.
 
-## Checks
+## Phase 1 — Audit
 
 Run all checks using `gh api` and `gh repo view`. Organize them into three severity tiers that affect scoring.
 
@@ -66,18 +68,18 @@ Polish items that signal a mature, well-maintained project.
 | **Dependabot / security alerts** | `gh api repos/{owner}/{repo}/vulnerability-alerts` (check if enabled), `gh api repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=1` | No open critical/high alerts. If alerts API returns 403, report as "not enabled" with a suggestion to enable |
 | **Funding** | `gh api repos/{owner}/{repo}/contents/.github/FUNDING.yml` | Exists (purely informational, no penalty) |
 
-## Execution Strategy
+### Execution Strategy
 
-To keep the audit fast, run API calls in parallel where possible. Group independent checks and execute them concurrently using background subshells or parallel `gh api` calls.
+Run API calls in parallel where possible. Group independent checks and execute them concurrently using background subshells.
 
 Handle errors gracefully:
 - **404**: The file/feature doesn't exist — that's a legitimate "fail" result
 - **403**: Insufficient permissions — report as "unable to check (insufficient permissions)" with a note, don't count as fail
 - **Rate limiting**: If hit, wait and retry once
 
-## Output Format
+### Terminal Report
 
-Present results as a clean, scannable terminal report. Use this structure:
+Present results as a clean, scannable terminal report using this structure:
 
 ```
 ## Repository Health Report: {owner}/{repo}
@@ -109,21 +111,6 @@ Present results as a clean, scannable terminal report. Use this structure:
   Tier 1:  8/16  ████░░░░ (50%)
   Tier 2:  6/12  █████░░░ (50%)
   Tier 3:  0/3   ░░░░░░░░ (0%)
-
----
-
-### Suggested Next Steps (ordered by impact)
-
-1. **Add a LICENSE file** (Tier 1)
-   Run: `gh repo edit --add-topic <topic>` or add manually.
-   Consider MIT, Apache-2.0, or GPL-3.0 depending on your needs.
-   Quick start: `curl -o LICENSE https://choosealicense.com/licenses/mit/`
-
-2. **Add CODEOWNERS** (Tier 2)
-   Create `.github/CODEOWNERS` to define code ownership for PR reviews.
-   Example: `* @your-team` assigns your team as default reviewers.
-
-3. ...
 ```
 
 ### Scoring Rules
@@ -133,12 +120,40 @@ Present results as a clean, scannable terminal report. Use this structure:
 - INFO items (like FUNDING.yml) are purely informational and don't affect the score
 - The percentage is `earned_points / possible_points * 100`, rounded to the nearest integer
 
-### Suggestions
+## Phase 2 — Save Backlog Items
 
-Order suggestions by impact (Tier 1 failures first, then Tier 2, then Tier 3). For each:
-- Explain **why** it matters (not just what's missing)
-- Provide a **concrete command or template** to fix it
-- Keep it to 2-3 lines max per suggestion
+After displaying the terminal report, save each actionable finding as a structured markdown file.
+
+### Output Directory
+
+Save files to `backlog/{owner}/{repo}/health-report/` in the current working directory. Replace `/` in the repo name with `_`.
+
+Structure:
+```
+backlog/{owner}_{repo}/health-report/
+├── SUMMARY.md                          # Overall report snapshot
+├── tier-1--readme.md                   # One file per failed/warn item
+├── tier-1--description.md
+├── tier-2--gitignore.md
+└── ...
+```
+
+File naming: `tier-{N}--{check-name-kebab}.md`. Only create files for `[FAIL]` or `[WARN]` items — not `[PASS]` or `[INFO]`.
+
+### Templates
+
+Read `references/templates.md` for the exact SUMMARY.md and action item file templates. The key principle: each file should be self-contained and actionable — someone reading it should understand what's missing, why it matters, and exactly how to fix it, with real commands using the actual `owner/repo`.
+
+### Execution
+
+1. Create the output directory
+2. Generate one action item file per `[FAIL]`/`[WARN]` item using the template
+3. Generate `SUMMARY.md` linking to all items and listing passing checks
+4. Report to the user: show files created and suggest starting with the highest-tier items
+
+### Re-running
+
+If `backlog/{owner}_{repo}/health-report/` already exists, ask the user whether to overwrite or create a timestamped version (e.g., `health-report-2026-02-26/`).
 
 ## Edge Cases
 
@@ -146,3 +161,4 @@ Order suggestions by impact (Tier 1 failures first, then Tier 2, then Tier 3). F
 - **Org-level settings**: Branch protection and security alerts may be managed at the org level. If checks fail with 403, mention this possibility.
 - **Forks**: Note if the repo is a fork, since forks often inherit settings from upstream and may not need all checks.
 - **Empty/new repos**: If the repo has zero commits, several checks will naturally fail. Add a note: "This appears to be a new repository — focus on Tier 1 items first."
+- **No failures**: If all checks pass, create only SUMMARY.md with a congratulatory note. No action item files needed.
