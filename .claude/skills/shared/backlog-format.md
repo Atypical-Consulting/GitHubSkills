@@ -1,6 +1,6 @@
 # Backlog Format Reference
 
-Canonical reference for backlog directory structure, file naming, metadata formats, scoring rules, and status values. Consumed by: repo-scan, apply-backlog-item, backlog-dashboard.
+Canonical reference for backlog directory structure, file naming, metadata formats, scoring rules, and status values. Consumed by: ghs:repo-scan, ghs:backlog-fix, ghs:backlog-board, ghs:backlog-score, ghs:backlog-next.
 
 For the full list of health checks (verification commands, pass conditions, fix suggestions), see `checks/index.md` and the individual check files in `checks/`.
 

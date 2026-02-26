@@ -1,5 +1,5 @@
 ---
-name: repo-scan
+name: ghs:repo-scan
 description: >
   Scans a GitHub repository for quality essentials and open issues, produces a scored report, and
   saves all findings as structured markdown backlog items. Use this skill whenever the user wants to
@@ -12,7 +12,7 @@ description: >
   Do NOT use for managing GitHub Actions workflows, reviewing pull requests, creating repositories, or modifying code.
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 3.1.0
 ---
 
 # Repo Scan
@@ -68,7 +68,7 @@ Launch **4 agents simultaneously** using the Task tool. Each agent works indepen
 Each health check agent receives a prompt like this (adapt for the specific tier):
 
 ```
-You are a health check agent for the repo-scan skill.
+You are a health check agent for the ghs:repo-scan skill.
 
 Repository: {owner}/{repo}
 Default branch: {default_branch}
@@ -84,7 +84,7 @@ Your job:
    b. Run the verification command from the "Verification" section (substitute {owner}/{repo} and {default_branch})
    c. Determine PASS/FAIL/WARN based on the "Status Rules" section
    d. If FAIL or WARN: write a backlog item file to `backlog/{owner}_{repo}/health/tier-{N}--{slug}.md`
-      using the health item template from `{skills_path}/repo-scan/references/templates.md`
+      using the health item template from `{skills_path}/ghs-repo-scan/references/templates.md`
       and the "Backlog Content" section from the check file for What's Missing, Why It Matters, How to Fix, and Acceptance Criteria
    e. Record the result
 
@@ -103,7 +103,7 @@ Important:
 #### Issues Agent Prompt
 
 ```
-You are an issues collection agent for the repo-scan skill.
+You are an issues collection agent for the ghs:repo-scan skill.
 
 Repository: {owner}/{repo}
 Output directory: backlog/{owner}_{repo}/issues/
@@ -119,7 +119,7 @@ Your job:
    - Issues with title containing "renovate" AND a bot label
 
 3. For each remaining issue, write a backlog item file to `backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md`
-   using the issue item template from `{skills_path}/repo-scan/references/templates.md`
+   using the issue item template from `{skills_path}/ghs-repo-scan/references/templates.md`
    - Title kebab-case, truncated to 50 chars max (cut at last complete word)
    - Truncate issue body to 500 characters in the file
 

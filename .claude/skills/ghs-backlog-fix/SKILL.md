@@ -1,5 +1,5 @@
 ---
-name: apply-backlog-item
+name: ghs:backlog-fix
 description: >
   Applies backlog item fixes to a GitHub repository using parallel worktree-based agents — clones
   the repo once, creates git worktrees for each fix, launches agents simultaneously, verifies
@@ -8,10 +8,10 @@ description: >
   backlog item", "fix this issue", "resolve this finding", "work on this backlog item", "apply
   tier-1--license", or points to any file under backlog/. Also trigger when the user says "apply all
   backlog items", "fix all findings", "resolve all tier 1 items", or "apply all for {repo}".
-  Do NOT use for scanning repos (use repo-scan), viewing backlog status (use backlog-dashboard), or general code review.
+  Do NOT use for scanning repos (use ghs:repo-scan), viewing backlog status (use ghs:backlog-board), or general code review.
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 3.1.0
 ---
 
 # Apply Backlog Item
@@ -187,7 +187,7 @@ Spawn all agents in a **single Task tool message** for parallel execution. Each 
 If there are Category A items, spawn **one** agent to handle all of them:
 
 ```
-You are an apply-backlog-item agent handling API-only fixes.
+You are an ghs:backlog-fix agent handling API-only fixes.
 
 Repository: {owner}/{repo}
 Default branch: {default_branch}
@@ -226,7 +226,7 @@ Return a fenced JSON array with one object per item:
 ### Category B Agent Prompt (one per item)
 
 ```
-You are an apply-backlog-item agent handling a file-change fix.
+You are an ghs:backlog-fix agent handling a file-change fix.
 
 Repository: {owner}/{repo}
 Default branch: {default_branch}
@@ -279,7 +279,7 @@ If the fix requires human judgment, set status to "NEEDS_HUMAN" and explain why 
 Same as Category B, but with an additional diagnostic step:
 
 ```
-You are an apply-backlog-item agent handling CI workflow health fixes.
+You are an ghs:backlog-fix agent handling CI workflow health fixes.
 
 {Same header as Category B agent}
 

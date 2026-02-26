@@ -18,7 +18,8 @@ repos/                   — Local clones of target repositories (gitignored)
 ## Skill Conventions
 
 - Each skill lives in `.claude/skills/<skill-name>/SKILL.md`
-- Skill names use `kebab-case`
+- Skill names use the `ghs:` prefix with `kebab-case` (e.g., `ghs:repo-scan`)
+- Directory names mirror the skill name without the colon (e.g., `ghs-repo-scan/`)
 - Skills must use the `gh` CLI for all GitHub API interactions (never raw `curl` to api.github.com)
 - Skills should handle errors gracefully: 404 = missing, 403 = insufficient permissions (don't fail hard)
 - Output should be clean, scannable terminal text — use tables, status indicators (`[PASS]`, `[FAIL]`, `[WARN]`, `[INFO]`), and progress bars where appropriate
@@ -27,13 +28,20 @@ repos/                   — Local clones of target repositories (gitignored)
 
 ## Available Skills
 
-- **repo-scan** — Scan a repository for quality best practices and open issues, produce a scored report, and save all findings as structured markdown backlog items
-- **apply-backlog-item** — Apply a backlog item fix (health finding or GitHub issue) to a repository: clone the repo, generate quality content, verify acceptance criteria, and create a PR
-- **backlog-dashboard** — Show a dashboard of all backlog items (health + issues) across audited repositories with scores, progress, and next-action recommendations
+### Core Workflow (scan → view → fix)
+
+- **ghs:repo-scan** — Scan a repository for quality best practices and open issues, produce a scored report, and save all findings as structured markdown backlog items
+- **ghs:backlog-board** — Show a dashboard of all backlog items (health + issues) across audited repositories with scores, progress, and next-action recommendations
+- **ghs:backlog-fix** — Apply backlog item fixes using parallel worktree-based agents: clone the repo once, create worktrees, launch agents simultaneously, verify acceptance criteria, and create PRs
+
+### Utilities
+
+- **ghs:backlog-score** — Calculate and display the health score for a repository from its backlog items
+- **ghs:backlog-next** — Recommend the highest-impact next item to fix across all audited repositories
 
 ## Adding New Skills
 
-1. Create `.claude/skills/<skill-name>/SKILL.md`
-2. Include frontmatter with `name` and `description` (include trigger phrases in the description)
+1. Create `.claude/skills/ghs-<skill-name>/SKILL.md`
+2. Include frontmatter with `name: ghs:<skill-name>` and `description` (include trigger phrases in the description)
 3. Define: Prerequisites, Input, Checks/Steps, Output Format
 4. Update the "Available Skills" list above

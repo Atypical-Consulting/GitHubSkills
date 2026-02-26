@@ -1,8 +1,8 @@
 # Health Checks Index
 
-Registry of all health checks used by the repo-scan skill. Each check has its own file in this directory containing verification commands, pass conditions, and backlog content.
+Registry of all health checks used by the ghs:repo-scan skill. Each check has its own file in this directory containing verification commands, pass conditions, and backlog content.
 
-Consumed by: repo-scan (orchestrator and check agents), apply-backlog-item, backlog-dashboard.
+Consumed by: ghs:repo-scan (orchestrator and check agents), ghs:backlog-fix, ghs:backlog-board, ghs:backlog-score.
 
 ## Check Registry
 
