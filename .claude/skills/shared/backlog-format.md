@@ -173,9 +173,9 @@ Fields:
 | Tier | Checks | Points each | Subtotal |
 |------|--------|-------------|----------|
 | Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 6 | 2 | 12 |
-| Tier 3 | 3 (excluding Funding) | 1 | 3 |
-| **Total** | **13** | | **31** |
+| Tier 2 | 8 | 2 | 16 |
+| Tier 3 | 4 (excluding Funding) | 1 | 4 |
+| **Total** | **16** | | **36** |
 
 ### Progress bar format
 
@@ -202,6 +202,8 @@ Example: 50% = `████░░░░`
 |-------|------|---------------|----------------|
 | **.gitignore** | `gitignore` | `gh api repos/{owner}/{repo}/contents/.gitignore` | Exists |
 | **CI/CD Workflows** | `ci-cd-workflows` | `gh api repos/{owner}/{repo}/contents/.github/workflows` | Directory exists with >= 1 `.yml`/`.yaml` file |
+| **CI Workflow Health** | `ci-workflow-health` | `gh run list --repo {owner}/{repo} --limit 10 --json conclusion,workflowName,status` | No workflow with its most recent completed run in `failure` state. INFO if no workflows exist. |
+| **.editorconfig** | `editorconfig` | `gh api repos/{owner}/{repo}/contents/.editorconfig` | Exists. Detect tech stack and suggest matching shared reference. |
 | **CODEOWNERS** | `codeowners` | Check `CODEOWNERS`, `.github/CODEOWNERS`, `docs/CODEOWNERS` | Exists in any standard location |
 | **Issue Templates** | `issue-templates` | `gh api repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE` | Directory exists with >= 1 file |
 | **PR Template** | `pr-template` | Check `.github/pull_request_template.md`, case variations, and `.github/PULL_REQUEST_TEMPLATE/` | Exists in any standard location |
@@ -214,4 +216,5 @@ Example: 50% = `████░░░░`
 | **SECURITY.md** | `security-md` | `gh api repos/{owner}/{repo}/contents/SECURITY.md` | Exists | Normal |
 | **CONTRIBUTING.md** | `contributing-md` | `gh api repos/{owner}/{repo}/contents/CONTRIBUTING.md` | Exists | Normal |
 | **Security Alerts** | `security-alerts` | `gh api repos/{owner}/{repo}/vulnerability-alerts` + check for open critical/high | Alerts enabled, no open critical/high | Normal |
+| **.editorconfig Drift** | `editorconfig-drift` | Download repo `.editorconfig`, compare against shared reference for detected tech stack | Content matches shared reference, or no reference for the stack | Normal |
 | **Funding** | `funding` | `gh api repos/{owner}/{repo}/contents/.github/FUNDING.yml` | Exists | **INFO only** -- no penalty, no points |

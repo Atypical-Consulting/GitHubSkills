@@ -5,14 +5,14 @@ description: >
   saves all findings as structured markdown backlog items. Use this skill whenever the user wants to
   check repository quality, audit a repo's setup, see open issues organized as backlog, verify best
   practices are followed, or asks about missing files like README, LICENSE, CODEOWNERS, CI/CD, branch
-  protection, templates, or security policies. Also trigger when users say things like "scan my repo",
+  protection, templates, security policies, .editorconfig, or failing CI workflows. Also trigger when users say things like "scan my repo",
   "is my repo set up properly", "what's missing from my project", "repo audit", "repo scan",
   "repository checklist", "health check", "what issues are open", "organize my issues",
   "save health report", "export audit results", or "create backlog from audit".
   Do NOT use for managing GitHub Actions workflows, reviewing pull requests, creating repositories, or modifying code.
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 2.1.0
 ---
 
 # Repo Scan
@@ -69,6 +69,8 @@ Important for maintainability and collaboration.
 |-------|--------------|----------------|
 | **.gitignore** | `gh api repos/{owner}/{repo}/contents/.gitignore` | Exists |
 | **CI/CD workflows** | `gh api repos/{owner}/{repo}/contents/.github/workflows` | Directory exists and contains at least one `.yml` or `.yaml` file |
+| **CI Workflow Health** | `gh run list --repo {owner}/{repo} --limit 10 --json conclusion,workflowName,status` | No workflow with its most recent completed run in `failure` state. If workflows exist but all recent runs succeed (or are `skipped`/`cancelled`), this passes. If no workflows exist at all, mark as `[INFO]` (the separate CI/CD check covers existence). |
+| **.editorconfig** | `gh api repos/{owner}/{repo}/contents/.editorconfig` | Exists. When generating the backlog item, detect the tech stack and suggest the matching shared `.editorconfig` from `../shared/editorconfigs/`. |
 | **CODEOWNERS** | Check `gh api repos/{owner}/{repo}/contents/CODEOWNERS`, also `.github/CODEOWNERS` and `docs/CODEOWNERS` | Exists in any standard location |
 | **Issue templates** | `gh api repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE` | Directory exists with at least one file |
 | **PR template** | Check `gh api repos/{owner}/{repo}/contents/.github/pull_request_template.md`, also `.github/PULL_REQUEST_TEMPLATE.md` (case variations) and `.github/PULL_REQUEST_TEMPLATE/` directory | Exists in any standard location |
@@ -83,11 +85,32 @@ Polish items that signal a mature, well-maintained project.
 | **SECURITY.md** | `gh api repos/{owner}/{repo}/contents/SECURITY.md` | Exists |
 | **CONTRIBUTING.md** | `gh api repos/{owner}/{repo}/contents/CONTRIBUTING.md` | Exists |
 | **Dependency management / security alerts** | `gh api repos/{owner}/{repo}/vulnerability-alerts` (check if enabled), `gh api repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=1`. Also detect which dependency manager is in use: check for `renovate.json`, `.github/renovate.json`, `.github/renovate.json5`, or a "Dependency Dashboard" issue (Renovate); or `.github/dependabot.yml` (Dependabot). | No open critical/high alerts. If alerts API returns 403, report as "not enabled" with a suggestion to enable. When generating the backlog item, tailor the "How to Fix" advice to the detected dependency manager — do NOT suggest adding `dependabot.yml` if Renovate is already in use, and vice versa. |
+| **.editorconfig Drift** | If `.editorconfig` exists, download its content (`gh api repos/{owner}/{repo}/contents/.editorconfig --jq '.content'`, base64-decode) and compare it against the matching shared reference file in `../shared/editorconfigs/` (select by detected tech stack). | Content matches the shared reference, OR no shared reference exists for the detected tech stack. If the repo's `.editorconfig` differs from the shared reference, create a backlog item showing the diff and suggesting alignment. If no `.editorconfig` exists, skip this check (the Tier 2 `.editorconfig` check already covers that). |
 | **Funding** | `gh api repos/{owner}/{repo}/contents/.github/FUNDING.yml` | Exists (purely informational, no penalty) |
 
 ### Execution Strategy
 
-Run API calls in parallel where possible. Group independent checks and execute them concurrently using background subshells.
+Run all health checks in **two sequential Bash calls** to avoid cascading failures from parallel tool calls. Many `gh api` calls return non-zero exit codes for expected 404s (missing files), which causes "sibling tool call errored" if other Bash tool calls are running in parallel.
+
+**Call 1 — Repo metadata + all health checks:**
+
+Combine all API checks into a single Bash command. Append `2>&1 || true` to each `gh api` sub-command so that expected 404s don't produce a non-zero exit code for the overall script. Use `echo` delimiters between checks to parse results.
+
+Example pattern:
+```bash
+echo "=== README ===" && (gh api repos/{owner}/{repo}/readme --jq '.size' 2>&1 || true)
+echo "=== LICENSE ===" && (gh api repos/{owner}/{repo}/license --jq '.license.spdx_id' 2>&1 || true)
+# ... all remaining checks in the same command ...
+```
+
+**Call 2 — Issue collection:**
+
+Run the `gh issue list` command separately since it can return large payloads:
+```bash
+gh issue list --repo {owner}/{repo} --state open --json number,title,labels,assignees,createdAt,updatedAt,body --limit 500 2>&1 || true
+```
+
+These two calls can run in parallel as separate Bash tool invocations since each is individually error-tolerant (the `|| true` ensures neither exits non-zero). Parse results from the output text, treating any `gh api` response containing `"status":"404"` or `"message":"Not Found"` as a missing item.
 
 ## Phase 2 — Issue Collection
 
@@ -194,6 +217,8 @@ Present the combined results as a clean, scannable terminal report:
 #### Tier 2 — Recommended
   [PASS] .gitignore — Found
   [PASS] CI/CD workflows — 3 workflow files found
+  [FAIL] CI Workflow Health — 1 workflow failing (build.yml)
+  [FAIL] .editorconfig — Not found
   [FAIL] CODEOWNERS — Not found
   [FAIL] Issue templates — Not found
   [PASS] PR template — Found at .github/pull_request_template.md
@@ -203,15 +228,16 @@ Present the combined results as a clean, scannable terminal report:
   [FAIL] SECURITY.md — Not found
   [FAIL] CONTRIBUTING.md — Not found
   [PASS] Security alerts — No open alerts
+  [PASS] .editorconfig Drift — N/A (no .editorconfig to compare)
   [INFO] FUNDING.yml — Not found (optional)
 
 ---
 
-### Health Score: 14/28 (50%)
+### Health Score: 14/36 (39%)
 
   Tier 1:  8/16  ████░░░░ (50%)
-  Tier 2:  6/12  █████░░░ (50%)
-  Tier 3:  0/3   ░░░░░░░░ (0%)
+  Tier 2:  4/16  ██░░░░░░ (25%)
+  Tier 3:  2/4   ████░░░░ (50%)
 
 ---
 
@@ -254,7 +280,7 @@ Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 
 **Example 1: Scan a specific repo**
 User says: "scan phmatray/NewSLN"
-Result: Terminal report showing health score 10/31 (32%), 8 failing health checks, 18 open issues. Backlog files saved to `backlog/phmatray_NewSLN/`.
+Result: Terminal report showing health score 10/36 (28%), 10 failing health checks, 18 open issues. Backlog files saved to `backlog/phmatray_NewSLN/`.
 
 **Example 2: Scan the current repo**
 User says: "is my repo set up properly?"

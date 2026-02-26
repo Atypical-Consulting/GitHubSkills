@@ -278,6 +278,9 @@ def main():
         "Topics": {"tier": 2, "points": 2},
         "CI/CD workflows": {"tier": 2, "points": 2},
         "CI/CD Workflows": {"tier": 2, "points": 2},
+        "CI Workflow Health": {"tier": 2, "points": 2},
+        "CI workflow health": {"tier": 2, "points": 2},
+        ".editorconfig": {"tier": 2, "points": 2},
         "Issue templates": {"tier": 2, "points": 2},
         "Issue Templates": {"tier": 2, "points": 2},
         "CODEOWNERS": {"tier": 2, "points": 2},
@@ -285,6 +288,8 @@ def main():
         "SECURITY.md": {"tier": 3, "points": 1},
         "CONTRIBUTING.md": {"tier": 3, "points": 1},
         "Security Alerts": {"tier": 3, "points": 1},
+        ".editorconfig Drift": {"tier": 3, "points": 1},
+        "EditorConfig Drift": {"tier": 3, "points": 1},
     }
 
     # Collect names already in action items (case-insensitive match)

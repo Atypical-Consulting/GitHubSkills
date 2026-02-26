@@ -10,14 +10,17 @@ Per-check fix strategies including quick fixes, full solutions, acceptance crite
 4. [Branch Protection](#branch-protection-tier-1--4-points)
 5. [.gitignore](#gitignore-tier-2--2-points)
 6. [CI/CD Workflows](#cicd-workflows-tier-2--2-points)
-7. [CODEOWNERS](#codeowners-tier-2--2-points)
-8. [Issue Templates](#issue-templates-tier-2--2-points)
-9. [PR Template](#pr-template-tier-2--2-points)
-10. [Topics](#topics-tier-2--2-points)
-11. [SECURITY.md](#securitymd-tier-3--1-point)
-12. [CONTRIBUTING.md](#contributingmd-tier-3--1-point)
-13. [Security Alerts](#security-alerts-tier-3--1-point)
-14. [Funding](#funding-tier-3--info-only)
+7. [CI Workflow Health](#ci-workflow-health-tier-2--2-points)
+8. [.editorconfig](#editorconfig-tier-2--2-points)
+9. [CODEOWNERS](#codeowners-tier-2--2-points)
+10. [Issue Templates](#issue-templates-tier-2--2-points)
+11. [PR Template](#pr-template-tier-2--2-points)
+12. [Topics](#topics-tier-2--2-points)
+13. [SECURITY.md](#securitymd-tier-3--1-point)
+14. [CONTRIBUTING.md](#contributingmd-tier-3--1-point)
+15. [Security Alerts](#security-alerts-tier-3--1-point)
+16. [.editorconfig Drift](#editorconfig-drift-tier-3--1-point)
+17. [Funding](#funding-tier-3--info-only)
 
 ---
 
@@ -378,6 +381,109 @@ Adjust the default branch name in `branches:` to match the actual default branch
 
 - If CI already exists but is broken, fixing it is out of scope for this check -- the check only verifies existence.
 - For multi-stack repos, consider a single workflow with multiple jobs or a matrix strategy.
+
+---
+
+## CI Workflow Health (Tier 2 -- 2 points)
+
+### Quick Fix
+
+Investigate the failing workflow run and fix the root cause. Start by viewing the failure logs:
+
+```bash
+gh run list --repo {owner}/{repo} --status failure --limit 5
+gh run view {run-id} --repo {owner}/{repo} --log-failed
+```
+
+### Full Solution
+
+1. Identify which workflows are failing by checking the most recent run per workflow:
+   ```bash
+   gh run list --repo {owner}/{repo} --limit 20 --json conclusion,workflowName,status,databaseId
+   ```
+2. For each failing workflow, view the failed logs to diagnose the issue:
+   ```bash
+   gh run view {run-id} --repo {owner}/{repo} --log-failed
+   ```
+3. Common causes of CI failures:
+   - **Outdated dependencies**: lock file out of sync, removed packages
+   - **Broken tests**: flaky tests, missing test fixtures, environment differences
+   - **Deprecated actions**: using `actions/checkout@v2` when `v4` is available
+   - **Expired secrets/tokens**: API keys or tokens that need rotation
+   - **Platform changes**: runtime version no longer available (e.g., Node 16 EOL)
+4. Fix the root cause in the workflow file or the codebase, and push to trigger a re-run.
+
+### Acceptance Criteria
+
+- [ ] All workflows have their most recent completed run with a `success` or `skipped` conclusion
+- [ ] No workflow has its latest completed run in `failure` state
+
+### Notes
+
+- This check looks at the most recent completed run per workflow, not all historical runs.
+- If a workflow is intentionally broken or unused, consider deleting or disabling it rather than leaving it in a failed state.
+- Workflow failures are often a sign of neglected maintenance — fixing them frequently uncovers other issues.
+
+---
+
+## .editorconfig (Tier 2 -- 2 points)
+
+### Quick Fix
+
+Copy the matching shared `.editorconfig` for the detected tech stack:
+
+```bash
+# For .NET projects:
+cp {skills-path}/shared/editorconfigs/dotnet.editorconfig .editorconfig
+
+# For JS/TS projects:
+cp {skills-path}/shared/editorconfigs/javascript.editorconfig .editorconfig
+
+# For Python projects:
+cp {skills-path}/shared/editorconfigs/python.editorconfig .editorconfig
+```
+
+### Full Solution
+
+Select the shared `.editorconfig` template based on the detected tech stack:
+
+| Tech Stack | Shared Reference |
+|-----------|-----------------|
+| .NET (`.csproj`, `.sln`) | `shared/editorconfigs/dotnet.editorconfig` |
+| JavaScript/TypeScript (`package.json`, `tsconfig.json`) | `shared/editorconfigs/javascript.editorconfig` |
+| Python (`pyproject.toml`, `setup.py`) | `shared/editorconfigs/python.editorconfig` |
+| Rust (`Cargo.toml`) | `shared/editorconfigs/rust.editorconfig` |
+| Go (`go.mod`) | `shared/editorconfigs/go.editorconfig` |
+
+For multi-stack repos, start with the primary language's template and merge relevant sections from others.
+
+If no matching shared reference exists, create a minimal `.editorconfig`:
+
+```ini
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
+```
+
+### Acceptance Criteria
+
+- [ ] `.editorconfig` file exists in the repository root
+- [ ] The file contains `root = true`
+
+### Notes
+
+- EditorConfig standardizes formatting across editors (VS Code, Rider, vim, etc.), reducing noise in diffs.
+- Most editors have built-in or plugin support for `.editorconfig`.
+- The shared references are stored in `.claude/skills/shared/editorconfigs/` and should be treated as the canonical style for each tech stack.
 
 ---
 
@@ -781,6 +887,46 @@ Map ecosystems from the tech stack:
 - This check has **two parts**: alerts enabled (quick fix) and no open critical/high alerts (may require actual dependency updates).
 - Enabling alerts is an API-only fix. Resolving open alerts may require dependency updates, which is a separate effort.
 - The `vulnerability-alerts` endpoint requires admin access. If 403, report as WARN.
+
+---
+
+## .editorconfig Drift (Tier 3 -- 1 point)
+
+### Quick Fix
+
+Replace the repo's `.editorconfig` with the shared reference for the detected tech stack:
+
+```bash
+cp {skills-path}/shared/editorconfigs/{stack}.editorconfig .editorconfig
+```
+
+### Full Solution
+
+1. Download the repo's current `.editorconfig` and compare it against the matching shared reference from `.claude/skills/shared/editorconfigs/`.
+2. Review the diff to understand what's different — the repo may have intentional customizations.
+3. If the differences are unintentional drift (e.g., inconsistent indentation settings, missing sections), replace with the shared reference.
+4. If the repo has legitimate project-specific overrides, merge them into the shared reference as additional sections, keeping the shared base intact.
+
+Tech stack detection for selecting the reference file:
+
+| Indicator | Shared Reference |
+|-----------|-----------------|
+| `.csproj`, `.sln` | `dotnet.editorconfig` |
+| `package.json`, `tsconfig.json` | `javascript.editorconfig` |
+| `pyproject.toml`, `setup.py` | `python.editorconfig` |
+| `Cargo.toml` | `rust.editorconfig` |
+| `go.mod` | `go.editorconfig` |
+
+### Acceptance Criteria
+
+- [ ] `.editorconfig` content matches the shared reference for the detected tech stack
+- [ ] Any project-specific overrides are documented with comments in the file
+
+### Notes
+
+- This check only runs if `.editorconfig` already exists — if it's missing, the Tier 2 `.editorconfig` check handles that.
+- The shared references live in `.claude/skills/shared/editorconfigs/` and represent the canonical style per tech stack.
+- When the repo has customizations that should be preserved, add them as additional sections after the shared base content, clearly commented.
 
 ---
 
