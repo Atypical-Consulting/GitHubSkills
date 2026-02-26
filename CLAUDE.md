@@ -69,6 +69,10 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 
 - **ghs-backlog-sync** — Sync health backlog items to GitHub Issues for team visibility and tracking
 
+### Profile
+
+- **ghs-profile** — Display a full 360-degree view of a GitHub user: profile, repos, contributions, open work, orgs, and activity
+
 ### Issue Management (triage → analyze → implement)
 
 - **ghs-issue-triage** — Verify and apply proper labels (type, priority, status) to GitHub issues

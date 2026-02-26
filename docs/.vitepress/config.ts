@@ -64,6 +64,12 @@ export default withMermaid(
             ],
           },
           {
+            text: 'Profile',
+            items: [
+              { text: 'ghs-profile', link: '/skills/ghs-profile' },
+            ],
+          },
+          {
             text: 'Issue Loop',
             items: [
               { text: 'ghs-issue-triage', link: '/skills/ghs-issue-triage' },

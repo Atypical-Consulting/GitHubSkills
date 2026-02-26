@@ -1,6 +1,6 @@
 # Skills Reference
 
-GHS provides **11 skills** organized into two workflow loops plus action skills.
+GHS provides **12 skills** organized into two workflow loops, a profile viewer, and action skills.
 
 ::: tip Start Here
 New to GHS? Start with [ghs-repo-scan](/skills/ghs-repo-scan) — it's the entry point for everything else.
@@ -44,6 +44,7 @@ The issue loop classifies GitHub issues with labels, investigates the codebase f
 | [ghs-backlog-fix](/skills/ghs-backlog-fix) | <Badge type="health" text="Health" /> | 5.0.0 | Fix backlog items using parallel worktree agents |
 | [ghs-backlog-score](/skills/ghs-backlog-score) | <Badge type="health" text="Health" /> | 2.0.0 | Calculate and display health score |
 | [ghs-backlog-next](/skills/ghs-backlog-next) | <Badge type="health" text="Health" /> | 2.0.0 | Recommend highest-impact next fix |
+| [ghs-profile](/skills/ghs-profile) | <Badge type="info" text="Profile" /> | 1.0.0 | 360-degree view of a GitHub user's presence |
 | [ghs-issue-triage](/skills/ghs-issue-triage) | <Badge type="issue" text="Issue" /> | 2.0.0 | Apply proper labels to GitHub issues |
 | [ghs-issue-analyze](/skills/ghs-issue-analyze) | <Badge type="issue" text="Issue" /> | 2.0.0 | Deep-analyze an issue, post analysis comment |
 | [ghs-issue-implement](/skills/ghs-issue-implement) | <Badge type="issue" text="Issue" /> | 2.0.0 | Implement an issue, create a PR |
