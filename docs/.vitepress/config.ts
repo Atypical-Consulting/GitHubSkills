@@ -5,9 +5,10 @@ export default withMermaid(
   defineConfig({
     title: 'GHS — GitHub Skills',
     description: 'Claude Code skills for auditing, managing, and improving GitHub repositories',
+    base: '/GitHubSkills/',
 
     head: [
-      ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+      ['link', { rel: 'icon', type: 'image/svg+xml', href: '/GitHubSkills/logo.svg' }],
     ],
 
     themeConfig: {
