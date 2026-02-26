@@ -14,7 +14,7 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-issue-implement
   - ghs-issue-triage
@@ -34,25 +34,27 @@ Roles:
 
 This skill does not spawn sub-agents — the analysis requires accumulated context from file reads that doesn't parallelize well.
 
-Shared references (see `../shared/references/`):
-- `gh-cli-patterns.md` — authentication, repo detection, error handling, issue/label operations
-- `output-conventions.md` — status indicators, table formats, routing suggestions
+Shared references:
 
-Other shared docs:
-- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
-- `../shared/implementation-workflow.md` §1 — repository clone/pull logic
+| Reference | Purpose |
+|-----------|---------|
+| `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling, issue/label operations |
+| `../shared/references/output-conventions.md` | Status indicators, table formats, routing suggestions |
+| `../shared/references/implementation-workflow.md` | Repository clone/pull logic (§1) |
 </context>
 
-## Anti-Patterns
+<anti-patterns>
 
-| Do NOT | Why |
-|--------|-----|
-| Implement the fix during analysis | This skill is analysis-only — code changes belong in `ghs-issue-implement` |
-| Guess affected files — verify by reading code | Guessed file lists erode trust; always confirm with Grep/Glob/Read |
-| Post analysis if issue is already closed | Closed issues don't need analysis; warn the user and ask before proceeding |
-| Duplicate existing analysis comments | Check for `## Issue Analysis` in existing comments before posting a new one |
-| Create branches, PRs, or modify code | Scope boundary: analyze only — never touch the codebase |
-| Skip codebase investigation | An analysis without reading code is just speculation — always clone and read |
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Implement the fix during analysis | Route to `ghs-issue-implement` for code changes | This skill is analysis-only — code changes belong in `ghs-issue-implement` |
+| Guess affected files | Verify by reading code with Grep/Glob/Read | Guessed file lists erode trust; always confirm with actual code inspection |
+| Post analysis if issue is already closed | Warn the user and ask before proceeding | Closed issues don't need analysis |
+| Duplicate existing analysis comments | Check for `## Issue Analysis` in existing comments before posting a new one | Avoids cluttering the issue with redundant analysis |
+| Create branches, PRs, or modify code | Limit writes to posting a comment and updating labels | Scope boundary: analyze only — never touch the codebase |
+| Skip codebase investigation | Always clone and read the actual code | An analysis without reading code is just speculation |
+
+</anti-patterns>
 
 ## Scope Boundary
 
@@ -106,7 +108,7 @@ Extract:
 
 ## Phase 2 — Prepare Repository
 
-Follow `../shared/implementation-workflow.md` §1 — clone or pull the repo to `repos/{owner}_{repo}/`.
+Follow `../shared/references/implementation-workflow.md` §1 — clone or pull the repo to `repos/{owner}_{repo}/`.
 
 Detect the default branch and tech stack.
 
@@ -154,6 +156,25 @@ Assess complexity using the criteria table below.
 | New API endpoint = Medium/M or higher | Issue requests a new route, controller, or handler | "Add GET /api/health endpoint" → Medium complexity, M effort |
 | Cross-module refactor = High/L | Issue affects shared utilities, types, or interfaces used across modules | "Refactor auth middleware to support OAuth2" → High complexity, L effort |
 | Database migration = Very High/XL | Issue requires schema changes, data migration, or ORM model updates | "Split user table into users and profiles" → Very High complexity, XL effort |
+
+### Cognitive Bias Guards
+
+| Bias | Antidote |
+|------|----------|
+| Anchoring | Don't let the issue title dictate complexity — read the code |
+| Confirmation | Search for counter-evidence to your initial assessment |
+| Availability | Check actual file imports, not just commonly-known patterns |
+| Optimism | Default to one complexity level higher if uncertain |
+
+### Confidence Levels
+
+Include a confidence indicator in the complexity assessment:
+
+| Confidence | Criteria |
+|------------|----------|
+| High | Inspected relevant source files, clear scope, no unknowns |
+| Medium | Partial code inspection, some assumptions about impact |
+| Low | Limited visibility into affected areas, significant unknowns |
 
 ## Phase 5 — Produce Analysis
 

@@ -13,7 +13,7 @@ compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-issue-analyze
   - ghs-issue-implement
@@ -34,17 +34,24 @@ Roles:
 This skill does not spawn sub-agents — classification benefits from seeing all issues together for consistent calibration.
 
 Shared references (see `../shared/references/`):
-- `gh-cli-patterns.md` — authentication, repo detection, error handling, idempotent commands
-- `output-conventions.md` — status indicators, table patterns, summary blocks
+
+| Reference | Purpose |
+|-----------|---------|
+| `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling, idempotent commands |
+| `../shared/references/output-conventions.md` | Status indicators, table patterns, summary blocks |
 </context>
 
 <anti-patterns>
-- **Don't remove existing valid labels** — only add missing `type:*`, `priority:*`, and `status:triaged` labels. If the user has custom labels (e.g., `enhancement`, `help wanted`), leave them in place.
-- **Don't triage closed issues unless asked** — default scope is open issues only. Only include closed issues when the user explicitly requests them.
-- **Don't override manually-set priority labels** — in batch-unlabeled mode, skip issues that already have a `priority:*` label. In batch-all mode, propose reclassification but flag it clearly.
-- **Don't create labels that already exist** — always append `2>&1 || true` to `gh label create` commands (see `gh-cli-patterns.md` § Idempotent Commands).
-- **Don't treat PRs as issues** — `gh issue list` may include PRs; filter them out by checking the `pullRequest` field in the JSON response.
-- **Don't fail hard on a single API error** — continue with remaining operations (see `gh-cli-patterns.md` § Error Handling Conventions).
+
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Remove existing valid labels | Only add missing `type:*`, `priority:*`, and `status:triaged` labels; leave custom labels (e.g., `enhancement`, `help wanted`) in place | Removing user-created labels destroys existing workflows |
+| Triage closed issues unless asked | Default scope is open issues only; include closed issues only when user explicitly requests | Closed issues are resolved — triaging them adds noise |
+| Override manually-set priority labels | In batch-unlabeled mode, skip issues that already have a `priority:*` label; in batch-all mode, propose reclassification but flag it clearly | Respects manual curation by maintainers |
+| Create labels that already exist | Always append `2>&1 \|\| true` to `gh label create` commands (see `gh-cli-patterns.md` § Idempotent Commands) | Avoids errors on duplicate creation |
+| Treat PRs as issues | Filter out PRs by checking the `pullRequest` field in the JSON response from `gh issue list` | PRs have different workflows and labeling needs |
+| Fail hard on a single API error | Continue with remaining operations (see `gh-cli-patterns.md` § Error Handling Conventions) | One failure should not abort the entire triage batch |
+
 </anti-patterns>
 
 <objective>
@@ -193,6 +200,16 @@ These examples clarify boundary cases where the wrong label is commonly assigned
 | "Typo in README installation steps" | `type:docs` | `type:bug` | README is documentation, not runtime code |
 | "App crashes when uploading 10GB file" | `priority:medium` | `priority:critical` | Edge case with workaround — not production-down |
 | "Login fails for all users" | `priority:critical` | `priority:high` | Total auth failure = production outage |
+
+### Confidence Levels
+
+When proposing labels, indicate confidence for each:
+
+| Confidence | Meaning | Action |
+|------------|---------|--------|
+| High | Strong signal from title + body + code context | Apply automatically in `--auto` mode |
+| Medium | Reasonable inference but ambiguous signals | Apply in `--auto`, flag for review |
+| Low | Insufficient signal, multiple valid options | Skip in `--auto`, propose to user |
 
 ## Phase 4 — Propose & Confirm
 

@@ -14,7 +14,7 @@ compatibility: "Requires gh CLI (authenticated), git, python3, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 6.0.0
+  version: 7.0.0
 routes-to:
   - ghs-merge-prs
   - ghs-backlog-board
@@ -30,13 +30,17 @@ routes-from:
 
 Read structured backlog items (health findings or GitHub issues), apply fixes using parallel worktree-based agents, verify acceptance criteria, and update item statuses.
 
-## Anti-Patterns
+<anti-patterns>
 
-- Do NOT modify files outside the fix scope — only touch what the backlog item describes
-- Do NOT chain fixes — one backlog item per agent, no side-quests
-- Do NOT retry failed fixes more than 3 times — mark as failed and move on
-- Do NOT skip verification before creating a PR — every fix must pass its acceptance criteria
-- Do NOT create PRs for incomplete fixes — partial work stays local until complete
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Modify files outside the fix scope | Only touch what the backlog item describes | Out-of-scope changes cause merge conflicts and unreviewed modifications |
+| Chain fixes — one backlog item per agent, no side-quests | Keep each agent focused on its single assigned item | Side-quests bloat diffs and bypass acceptance criteria |
+| Retry failed fixes more than 3 times | Mark as failed and move on after 3 attempts | Infinite retry loops waste time and API quota |
+| Skip verification before creating a PR | Every fix must pass its acceptance criteria before PR creation | Broken PRs waste reviewer time and erode trust |
+| Create PRs for incomplete fixes | Partial work stays local until complete | Incomplete PRs block the merge queue and confuse reviewers |
+
+</anti-patterns>
 
 ## Scope Boundary
 
@@ -88,18 +92,20 @@ Roles:
 
 Agent prompts: `agents/category-a-agent.md`, `agents/category-b-agent.md`, `agents/category-ci-agent.md`
 
-Shared docs:
-- `../shared/references/agent-spawning.md` — worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup
-- `../shared/references/backlog-format.md` — file formats and status values
-- `../shared/references/gh-cli-patterns.md` — authentication, repo detection, error handling
-- `../shared/references/output-conventions.md` — status indicators, table formats, summary blocks
-- `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
-- `../shared/config.md` — scoring constants
-- `../shared/backlog-format.md` — file formats and status values
-- `../shared/sync-format.md` — sync metadata contract (synced issue fields)
-- `../shared/item-categories.md` — item classification (Category A/B/CI) and routing rules
-- `../shared/edge-cases.md` — rate limiting, content filters, permission errors, bounded retries
-- `../shared/agent-result-contract.md` — universal agent response format
+### Shared References
+
+| Reference | Path | Use For |
+|-----------|------|---------|
+| Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup |
+| Backlog format | `../shared/references/backlog-format.md` | File formats and status values |
+| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
+| Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
+| Implementation workflow | `../shared/references/implementation-workflow.md` | Repo prep, worktree mgmt, branch/commit/push/PR, agent result contract, pre-flight, content filter |
+| Config | `../shared/references/config.md` | Scoring constants |
+| Sync format | `../shared/references/sync-format.md` | Sync metadata contract (synced issue fields) |
+| Item categories | `../shared/references/item-categories.md` | Item classification (Category A/B/CI) and routing rules |
+| Edge cases | `../shared/references/edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
+| Agent result contract | `../shared/references/agent-result-contract.md` | Universal agent response format |
 
 The user must have **write access** to the target repository — required for pushing branches and creating PRs.
 </context>
@@ -136,7 +142,7 @@ Two invocation modes:
 
 ## Item Categories
 
-See `../shared/item-categories.md` for the full classification table (Category A/B/CI) and routing rules. Issue items are always Category B.
+See `../shared/references/item-categories.md` for the full classification table (Category A/B/CI) and routing rules. Issue items are always Category B.
 
 ## Phase 1 — Discover & Classify
 
@@ -165,7 +171,7 @@ For detailed fix strategies per check, read `../shared/checks/index.md` for the 
 
 ## Phase 2 — Prepare Repository
 
-Follow `../shared/implementation-workflow.md` §1 to clone or pull the repo and detect the default branch and tech stack.
+Follow `../shared/references/implementation-workflow.md` §1 to clone or pull the repo and detect the default branch and tech stack.
 
 See `../shared/references/agent-spawning.md` (Repository Cloning section) for the clone/pull pattern.
 
@@ -212,7 +218,7 @@ Wait for user confirmation before continuing.
 
 ### Pre-flight checks
 
-Per `../shared/implementation-workflow.md` §5 — check for branch conflicts and existing PRs. Flag any conflicts in the plan table.
+Per `../shared/references/implementation-workflow.md` §5 — check for branch conflicts and existing PRs. Flag any conflicts in the plan table.
 
 See `../shared/references/agent-spawning.md` (Pre-flight Checks section) for the exact commands.
 
@@ -232,7 +238,7 @@ See `../shared/references/agent-spawning.md` (Worktree Creation section) for the
 
 ## Phase 5 — Launch Agents in Parallel
 
-Spawn all agents in a **single Task tool message** for parallel execution. Each agent gets a self-contained prompt and returns structured JSON per `../shared/implementation-workflow.md` §4.
+Spawn all agents in a **single Task tool message** for parallel execution. Each agent gets a self-contained prompt and returns structured JSON per `../shared/references/implementation-workflow.md` §4.
 
 Read the agent prompt templates and substitute placeholders:
 - `agents/category-a-agent.md` — for Category A items (one agent handles all)
@@ -258,7 +264,7 @@ After all agents complete:
 **Circuit breaker applies here**: If an agent returns status FAILED:
 - Retry up to 2 more times (3 total attempts) per the circuit breaker table above
 - If all 3 attempts fail, mark as NEEDS_HUMAN — do not retry further
-- See `../shared/edge-cases.md` for the full retry protocol
+- See `../shared/references/edge-cases.md` for the full retry protocol
 
 2. For each successful item (status = PASS):
    - Update the backlog item file: change `| **Status** | FAIL |` to `| **Status** | PASS |`
@@ -283,7 +289,7 @@ You can verify the score with: `python .claude/skills/shared/scripts/calculate_s
 
 ## Phase 7 — Cleanup Worktrees
 
-Per `../shared/implementation-workflow.md` §2 (Cleanup section) and `../shared/references/agent-spawning.md` (Worktree Cleanup section):
+Per `../shared/references/implementation-workflow.md` §2 (Cleanup section) and `../shared/references/agent-spawning.md` (Worktree Cleanup section):
 
 - Remove worktrees for PASS and FAILED items
 - Leave NEEDS_HUMAN worktrees in place with instructions
@@ -340,6 +346,14 @@ Before creating a PR, every agent must verify:
 | Tests pass (if applicable) | Run test command from tech stack detection |
 | PR body includes issue reference | Contains `Fixes #{number}` when synced issue exists |
 
+### Goal-Backward Verification
+
+| Level | Check | Method |
+|-------|-------|--------|
+| Existence | Output artifact exists | File/PR/API response check |
+| Substance | Contains correct content | Diff review, body inspection |
+| Wiring | Properly connected | Correct branch target, auto-close refs |
+
 </process>
 
 ## Single-Item Fast Path
@@ -365,7 +379,7 @@ When a single file path is provided:
 - **Complex issues**: If an issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
 - **Merge conflicts**: If a worktree branch has conflicts, report and let the user decide.
 - **PR already exists for branch**: Check with `gh pr list --head fix/{slug}` before creating a new one.
-- **Content filtering blocks agent output**: The orchestrator detects content filter failures and retries with a download-based approach. See `../shared/edge-cases.md` for the workaround pattern.
+- **Content filtering blocks agent output**: The orchestrator detects content filter failures and retries with a download-based approach. See `../shared/references/edge-cases.md` for the workaround pattern.
 
 ## Examples
 

@@ -15,7 +15,7 @@ compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 routes-to:
   - ghs-repo-scan
   - ghs-issue-triage
@@ -35,22 +35,31 @@ Roles:
 
 No sub-agents — this is a read-only skill that renders API data.
 
-Shared references (use these, do not duplicate their logic):
-- `../shared/references/gh-cli-patterns.md` — auth checks, API calls, error handling (404/403)
-- `../shared/references/output-conventions.md` — status indicators, progress bars, table patterns
+### Shared References
+
+| Reference | Path | Purpose |
+|-----------|------|---------|
+| GH CLI Patterns | `../shared/references/gh-cli-patterns.md` | Auth checks, API calls, error handling (404/403) |
+| Output Conventions | `../shared/references/output-conventions.md` | Status indicators, progress bars, table patterns |
 </context>
+
+<anti-patterns>
 
 ## Anti-Patterns
 
-| Do NOT | Do Instead |
-|--------|-----------|
-| Use raw `curl` to api.github.com | Use `gh api` for all GitHub API calls — it handles auth and rate limits |
-| Fail hard when viewing another user's private data | Set IS_VIEWER flag; show `[INFO] Contribution stats are only available for the authenticated user` for non-@me targets |
-| Show all repositories in the terminal | Cap at top 5 by stars; note total count (e.g., "showing 5 of 42 repos") |
-| Show absolute timestamps for events | Use relative timestamps (e.g., "2d ago", "3h ago") or short dates (YYYY-MM-DD) |
-| Paginate through all events | Fetch first page only (up to 30), slice to 10 with `--jq '.[:10]'` |
-| Call `viewer` GraphQL queries for other users | Gate contribution stats and review requests behind the IS_VIEWER flag |
-| Render rows for null/empty profile fields | Only render non-null fields — skip bio/company/twitter/blog rows if empty |
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Use raw `curl` to api.github.com | Use `gh api` for all GitHub API calls | `gh api` handles auth and rate limits automatically |
+| Use GraphQL `$variables` in shell commands | Inline values directly in the query | `$var` gets eaten by the shell and `String!` triggers zsh history expansion |
+| Run all API calls in one parallel batch | Split into 2-3 batches | A GraphQL failure can cascade-cancel REST calls |
+| Fail hard when viewing another user's private data | Set IS_VIEWER flag; show `[INFO]` for non-@me targets | Private data is expected to be unavailable for other users |
+| Show all repositories in the terminal | Cap at top 5 by stars; note total count | Terminal output becomes unreadable with too many repos |
+| Show absolute timestamps for events | Use relative timestamps (e.g., "2d ago") or short dates (YYYY-MM-DD) | Relative times are more scannable |
+| Paginate through all events | Fetch first page only (up to 30), slice to 10 with `--jq '.[:10]'` | Avoids unnecessary API calls and output bloat |
+| Call `viewer` GraphQL queries for other users | Gate contribution stats and review requests behind IS_VIEWER flag | `viewer` queries only work for the authenticated user |
+| Render rows for null/empty profile fields | Only render non-null fields — skip empty rows | Empty rows add noise without information |
+
+</anti-patterns>
 
 <objective>
 Display a comprehensive GitHub profile report with the following sections:
@@ -106,6 +115,18 @@ Optional argument: a GitHub username (e.g., `phmatray`, `torvalds`).
 >
 > **Example:** User says "show profile for torvalds" → target = `torvalds`, IS_VIEWER = false → skip contribution stats and review requests.
 
+## API Call Batching Strategy
+
+Split API calls into batches to prevent a single failure from cascading and cancelling all sibling calls:
+
+| Batch | Calls | Why separate |
+|-------|-------|-------------|
+| **Batch 1** (Phase 1) | `gh auth status`, `gh api user` | Must complete before anything else — sets IS_VIEWER flag |
+| **Batch 2** (Phases 2-4) | Profile data, repo list, pinned repos (GraphQL), contribution stats (GraphQL) | Can run in parallel; GraphQL calls may fail but REST calls should survive |
+| **Batch 3** (Phases 6-8) | Open PRs, assigned issues, review requests, orgs, events | All REST calls — safe to parallelize |
+
+If a GraphQL call fails in Batch 2, show a `[WARN]` for that section and continue — do not retry or re-run the entire batch.
+
 ## Phase 2 — Profile Data
 
 Fetch the user's profile information:
@@ -140,7 +161,7 @@ Render the profile header. Only include non-null, non-empty fields:
 Fetch the user's repositories (up to 30 for analysis, display top 5):
 
 ```bash
-gh repo list {username} --limit 30 --json name,nameWithOwner,description,stargazerCount,forkCount,primaryLanguage,isFork,isArchived,updatedAt --sort stars
+gh repo list {username} --limit 30 --json name,nameWithOwner,description,stargazerCount,forkCount,primaryLanguage,isFork,isArchived,updatedAt --jq 'sort_by(-.stargazerCount)'
 ```
 
 ### Top Repos by Stars
@@ -183,25 +204,10 @@ Only show fork/archived lines if count > 0.
 
 ## Phase 4 — Pinned Repositories
 
-Fetch pinned repos via GraphQL:
+Fetch pinned repos via GraphQL. Inline the username directly in the query — do NOT use GraphQL `$variables` because `$` gets eaten by the shell and `String!` triggers zsh history expansion:
 
 ```bash
-gh api graphql -f query='
-  query($login: String!) {
-    user(login: $login) {
-      pinnedItems(first: 6, types: REPOSITORY) {
-        nodes {
-          ... on Repository {
-            nameWithOwner
-            description
-            stargazerCount
-            primaryLanguage { name }
-          }
-        }
-      }
-    }
-  }
-' -f login='{username}' --jq '.data.user.pinnedItems.nodes'
+gh api graphql -f query='{ user(login: "{username}") { pinnedItems(first: 6, types: REPOSITORY) { nodes { ... on Repository { nameWithOwner description stargazerCount primaryLanguage { name } } } } } }' --jq '.data.user.pinnedItems.nodes'
 ```
 
 Display if any pinned repos exist:
@@ -224,19 +230,7 @@ If no pinned repos, skip this section entirely (do not show an empty heading).
 > **Example:** IS_VIEWER = false → display `[INFO] Contribution stats are only available for the authenticated user (@me)` and skip this phase.
 
 ```bash
-gh api graphql -f query='
-  query {
-    viewer {
-      contributionsCollection {
-        totalCommitContributions
-        totalPullRequestContributions
-        totalIssueContributions
-        totalPullRequestReviewContributions
-        restrictedContributionsCount
-      }
-    }
-  }
-' --jq '.data.viewer.contributionsCollection'
+gh api graphql -f query='{ viewer { contributionsCollection { totalCommitContributions totalPullRequestContributions totalIssueContributions totalPullRequestReviewContributions restrictedContributionsCount } } }' --jq '.data.viewer.contributionsCollection'
 ```
 
 Display with relative progress bars (largest value gets full 16-char bar, others scale proportionally):
@@ -260,13 +254,13 @@ If all values are 0, show: `  No contributions recorded for {year} yet.`
 ### Open PRs Authored
 
 ```bash
-gh pr list --author @me --state open --json number,title,repository,createdAt --limit 10
+gh search prs --author=@me --state=open --json number,title,repository,createdAt --limit 10
 ```
 
 ### Issues Assigned
 
 ```bash
-gh issue list --assignee @me --state open --json number,title,repository,createdAt --limit 10
+gh search issues --assignee=@me --state=open --json number,title,repository,createdAt --limit 10
 ```
 
 ### Review Requests

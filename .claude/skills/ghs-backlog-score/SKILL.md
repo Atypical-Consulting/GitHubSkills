@@ -12,7 +12,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-backlog-board
   - ghs-backlog-next
@@ -25,22 +25,37 @@ routes-from:
 
 Calculate and display the health score for a repository from its backlog health items. This is a lightweight, read-only view -- just the score, tier breakdown, and points summary.
 
+<context>
+Purpose: Read-only score renderer that calculates and displays health scores from existing backlog data.
+
+Roles:
+1. **Score Calculator** (you) — reads backlog items, computes scores using shared scripts, renders the output
+
+No sub-agents — this is a lightweight, read-only skill.
+
+### Shared References
+
+| Reference | Path | Purpose |
+|-----------|------|---------|
+| Scoring Logic | `../shared/references/scoring-logic.md` | Tier weights, formula, status rules, progress bar format |
+| Backlog Format | `../shared/references/backlog-format.md` | Directory structure, file naming, metadata parsing |
+| Output Conventions | `../shared/references/output-conventions.md` | Terminal output patterns, table formats, routing suggestions |
+</context>
+
+<anti-patterns>
+
 ## Anti-Patterns
 
-- **Do NOT re-scan the repo.** This skill reads existing backlog data only. If no data exists, tell the user to run `/ghs-repo-scan` first.
-- **Do NOT modify backlog items.** This skill is strictly read-only. Never update statuses, points, or metadata during scoring.
-- **Do NOT invent scores for missing items.** If a health file is missing or unparseable, skip it and note the gap -- never fabricate data.
-- **Do NOT show full issue lists.** That is `ghs-backlog-board`'s job. This skill shows only the numeric score and tier breakdown.
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Re-scan the repo | Read existing backlog data only; if no data exists, tell the user to run `/ghs-repo-scan` first | This skill is read-only — scanning is `ghs-repo-scan`'s job |
+| Modify backlog items | Never update statuses, points, or metadata during scoring | This skill is strictly read-only |
+| Invent scores for missing items | Skip unparseable files and note the gap | Fabricated data produces misleading scores |
+| Show full issue lists | Show only the numeric score and tier breakdown | Full item lists are `ghs-backlog-board`'s job |
 
-## References
+</anti-patterns>
 
-This skill is intentionally thin. The core scoring logic lives in shared references:
-
-| Reference | What It Provides |
-|-----------|-----------------|
-| `../shared/references/scoring-logic.md` | Tier weights, formula, status rules, progress bar format |
-| `../shared/references/backlog-format.md` | Directory structure, file naming, metadata parsing |
-| `../shared/references/output-conventions.md` | Terminal output patterns, table formats, routing suggestions |
+<rules>
 
 ## Rules
 
@@ -132,6 +147,8 @@ After displaying the score, if there are FAIL items:
 To see full details: /ghs-backlog-board {owner}/{repo}
 To fix the highest-impact item: /ghs-backlog-next
 ```
+
+</rules>
 
 ## Good and Bad Examples
 

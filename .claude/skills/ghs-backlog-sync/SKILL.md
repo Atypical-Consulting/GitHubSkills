@@ -12,7 +12,7 @@ compatibility: "Requires gh CLI (authenticated), python3, network access. Target
 license: MIT
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-board
@@ -25,30 +25,52 @@ routes-from:
 
 Sync local health backlog items to GitHub Issues for team visibility and tracking.
 
-## Anti-Patterns
+<context>
+Purpose: One-way publisher — local backlog health findings go to GitHub Issues. Creates issues for FAIL items, updates existing synced issues, closes resolved ones.
 
-- **Never create duplicate issues.** Title-based dedup (`[Health] {Check Name}`) is the sole guard — always check existing issues before creating.
-- **Never close issues manually reopened by users.** If a PASS item's synced issue was reopened by a human after the skill closed it, leave it open.
-- **Never sync PASS items as new issues.** Only FAIL items become issues. PASS items only trigger closing of their previously-synced issue.
-- **Never modify backlog item content during sync.** Only add/update `Synced Issue` and `Issue URL` metadata rows. The backlog files are owned by `ghs-repo-scan`.
-- **Never retry in a loop on rate limits.** Report progress so far and tell the user to re-run later.
+### Shared References
+
+| Reference | Path | Use For |
+|-----------|------|---------|
+| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Auth check, repo detection, issue CRUD, label creation, error codes |
+| Backlog format | `../shared/references/backlog-format.md` | Directory layout, file naming, metadata table schema, status values |
+| Sync format | `../shared/references/sync-format.md` | Label taxonomy, issue title convention, body template, hidden metadata comment |
+| Item categories | `../shared/references/item-categories.md` | Category A/B/CI classification for label assignment |
+| Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary block pattern |
+| Edge cases | `../shared/references/edge-cases.md` | Rate limiting, permission errors, bounded retries |
+
+The user must have **write access** to the target repository and Issues must be enabled.
+</context>
+
+<anti-patterns>
+
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Create duplicate issues | Title-based dedup (`[Health] {Check Name}`) — always check existing issues before creating | Duplicates confuse teams and break tracking |
+| Close issues manually reopened by users | If a PASS item's synced issue was reopened by a human, leave it open | Respect human overrides — they may have context the skill lacks |
+| Sync PASS items as new issues | Only FAIL items become issues; PASS items only trigger closing of previously-synced issues | Creating issues for passing checks is noise |
+| Modify backlog item content during sync | Only add/update `Synced Issue` and `Issue URL` metadata rows | Backlog files are owned by `ghs-repo-scan` |
+| Retry in a loop on rate limits | Report progress so far and tell the user to re-run later | Tight retry loops hit secondary rate limits |
+
+</anti-patterns>
 
 ## Scope Boundary
 
 This skill is a **one-way publisher**: local backlog health findings go to GitHub Issues. It does not pull issue state back into backlog files, change item statuses, or apply fixes. The only local writes are the two sync metadata rows (`Synced Issue`, `Issue URL`).
 
-## References
+<objective>
+Sync local health backlog items to GitHub Issues.
 
-> Shared docs consumed by this skill — read them for full field definitions and patterns.
+Outputs:
+- GitHub Issues created for FAIL items
+- Existing synced issues updated or closed as appropriate
+- Local backlog files updated with sync metadata (`Synced Issue`, `Issue URL`)
+- Terminal report with sync results
 
-| Reference | What It Provides |
-|-----------|-----------------|
-| `shared/references/gh-cli-patterns.md` | Auth check, repo detection, issue CRUD, label creation, error codes |
-| `shared/references/backlog-format.md` | Directory layout, file naming, metadata table schema, status values |
-| `shared/sync-format.md` | Label taxonomy, issue title convention, body template, hidden metadata comment |
-| `shared/item-categories.md` | Category A/B/CI classification for label assignment |
-| `shared/references/output-conventions.md` | Status indicators, table formats, summary block pattern |
-| `shared/edge-cases.md` | Rate limiting, permission errors, bounded retries |
+Next routing:
+- Suggest `ghs-backlog-fix` to fix items — "To fix items: `/ghs-backlog-fix {owner}/{repo}`"
+- Suggest `ghs-backlog-board` to see dashboard — "To see dashboard: `/ghs-backlog-board`"
+</objective>
 
 ## Sync Status Mapping
 
@@ -64,14 +86,14 @@ This skill is a **one-way publisher**: local backlog health findings go to GitHu
 
 ## Issue Template Fields
 
-Issues created by this skill follow the body template in `shared/sync-format.md`:
+Issues created by this skill follow the body template in `../shared/references/sync-format.md`:
 
 | Field | Source | Example |
 |-------|--------|---------|
 | Hidden metadata comment | Slug, tier, points, category, detected date | `<!-- ghs-sync:metadata slug:license tier:1 ... -->` |
 | Tier | Backlog item metadata | `1 — Required` |
 | Points | Backlog item metadata | `4` |
-| Category | `shared/item-categories.md` lookup | `B (file changes)` |
+| Category | `../shared/references/item-categories.md` lookup | `B (file changes)` |
 | Detected | Backlog item metadata | `2026-01-15` |
 | What's Missing | Backlog item section | Content from item |
 | Why It Matters | Backlog item section | Content from item |
@@ -127,13 +149,13 @@ Add a LICENSE file matching the project's declared license.
 This repo needs a license. Please add one.
 ```
 
-## Process
+<process>
 
 ### Input
 
 The user provides a repo identifier: `owner/repo` or `owner_repo`.
 
-If not provided, detect from the current git remote (see `shared/references/gh-cli-patterns.md` — Repo Detection).
+If not provided, detect from the current git remote (see `../shared/references/gh-cli-patterns.md` — Repo Detection).
 
 ### Phase 1 — Discover Local Items
 
@@ -161,14 +183,14 @@ If all items are PASS, report: `All checks passing — nothing to sync.` Then ha
 
 ### Phase 2 — Ensure Labels Exist
 
-Pre-check: verify the target repo has issues enabled (see `shared/references/gh-cli-patterns.md` — Issues enabled).
+Pre-check: verify the target repo has issues enabled (see `../shared/references/gh-cli-patterns.md` — Issues enabled).
 
 If issues are disabled, abort:
 ```
 Issues are disabled on {owner}/{repo}. Enable them in Settings > General > Features > Issues, then re-run sync.
 ```
 
-Create labels from the taxonomy in `shared/sync-format.md` using idempotent commands (see `shared/references/gh-cli-patterns.md` — Label Operations):
+Create labels from the taxonomy in `../shared/references/sync-format.md` using idempotent commands (see `../shared/references/gh-cli-patterns.md` — Label Operations):
 
 ```bash
 gh label create "ghs:health-check" --color "7057ff" --description "Health check finding from ghs-repo-scan" --repo {owner}/{repo} 2>&1 || true
@@ -182,7 +204,7 @@ gh label create "category:ci" --color "d4c5f9" --description "Fix requires CI wo
 
 ### Phase 3 — Fetch Existing Synced Issues
 
-Query GitHub for all issues with the `ghs:health-check` label (see `shared/references/gh-cli-patterns.md` — Issue Operations):
+Query GitHub for all issues with the `ghs:health-check` label (see `../shared/references/gh-cli-patterns.md` — Issue Operations):
 
 ```bash
 gh issue list --label "ghs:health-check" --state all --json number,title,state,body --limit 500 --repo {owner}/{repo}
@@ -190,7 +212,7 @@ gh issue list --label "ghs:health-check" --state all --json number,title,state,b
 
 Build a lookup map: `title -> {number, state, body}`.
 
-This enables title-based dedup per the convention in `shared/sync-format.md`.
+This enables title-based dedup per the convention in `../shared/references/sync-format.md`.
 
 ### Phase 4 — Sync Loop
 
@@ -200,8 +222,8 @@ For each item, apply the action from the **Sync Status Mapping** table above.
 
 **Rule:** Only create when no matching `[Health] {Check Name}` title exists in any state.
 
-1. Build the issue body from `shared/sync-format.md` — Issue Body Template
-2. Classify the item using `shared/item-categories.md` to determine the `category:*` label
+1. Build the issue body from `../shared/references/sync-format.md` — Issue Body Template
+2. Classify the item using `../shared/references/item-categories.md` to determine the `category:*` label
 3. Create:
    ```bash
    gh issue create --title "[Health] {Check Name}" --body "{body}" --label "ghs:health-check,tier:{N},category:{cat}" --repo {owner}/{repo}
@@ -234,7 +256,7 @@ gh issue close {number} --comment "Check now passes as of {date}. Closing." --re
 
 ### Phase 5 — Update Local Files
 
-For each item that was created or matched to an issue, add or update the sync metadata rows in the local backlog item (see `shared/references/backlog-format.md` — Health Item Metadata):
+For each item that was created or matched to an issue, add or update the sync metadata rows in the local backlog item (see `../shared/references/backlog-format.md` — Health Item Metadata):
 
 ```markdown
 | **Synced Issue** | #{number} |
@@ -247,7 +269,7 @@ Update `SUMMARY.md` if any statuses changed during the sync.
 
 ### Phase 6 — Report
 
-Display a summary table following `shared/references/output-conventions.md`:
+Display a summary table following `../shared/references/output-conventions.md`:
 
 ```
 ## Sync Report: {owner}/{repo}
@@ -274,12 +296,14 @@ To fix items: /ghs-backlog-fix {owner}/{repo}
 To see dashboard: /ghs-backlog-board
 ```
 
+</process>
+
 ## Edge Cases
 
 - **Idempotent**: Title-based dedup prevents duplicate issues. Running sync multiple times is safe.
 - **Issues disabled**: Pre-check in Phase 2 detects this and aborts with a clear message.
 - **User-edited issue bodies**: The hidden `<!-- ghs-sync:metadata ... -->` comment is preserved. Visible content is not overwritten unless the metadata (tier, points, slug) has changed.
-- **Rate limiting**: Follow `shared/edge-cases.md` retry pattern. Do not loop — if rate-limited, report progress so far and suggest re-running later.
+- **Rate limiting**: Follow `../shared/references/edge-cases.md` retry pattern. Do not loop — if rate-limited, report progress so far and suggest re-running later.
 - **Missing local items**: If the backlog directory doesn't exist, suggest running `ghs-repo-scan` first.
 - **No FAIL items**: Report "All checks passing — nothing to sync" and handle any open issues that should be closed.
 - **Large repos**: Process items sequentially to avoid rate limits. Do not parallelize API calls.

@@ -125,3 +125,127 @@ Append `2>&1 || true` to `gh` commands that may return non-zero for expected con
 - Never fail hard on a single API error — continue with remaining operations
 - Distinguish "doesn't exist" (404 = FAIL) from "can't check" (403 = WARN)
 - If authentication errors occur, stop and tell the user to re-authenticate
+
+## Git Requirement
+
+Git must be available for any skill that clones or modifies repositories.
+
+```bash
+git --version
+```
+
+## Repo Context Detection
+
+After identifying the target repository, gather context to tailor checks and fixes.
+
+### Tech Stack Detection
+
+Scan the repository root for common project files to determine the tech stack:
+
+| File(s) | Tech Stack | Relevant Templates |
+|---------|------------|-------------------|
+| `*.csproj`, `*.sln`, `*.fsproj` | .NET | VisualStudio.gitignore, dotnet CI |
+| `package.json` | Node.js / JavaScript | Node.gitignore, npm CI |
+| `Cargo.toml` | Rust | Rust.gitignore, cargo CI |
+| `pyproject.toml`, `setup.py`, `requirements.txt` | Python | Python.gitignore, pip/pytest CI |
+| `go.mod` | Go | Go.gitignore, go CI |
+| `pom.xml`, `build.gradle` | Java / JVM | Java.gitignore, maven/gradle CI |
+| `Gemfile` | Ruby | Ruby.gitignore, bundler CI |
+| `composer.json` | PHP | Composer.gitignore, php CI |
+
+If multiple indicators are found, the repo is multi-stack. Tailor .gitignore and CI suggestions to cover all detected stacks.
+
+### Default Branch Name
+
+```bash
+gh repo view {owner}/{repo} --json defaultBranchRef -q '.defaultBranchRef.name'
+```
+
+Common values: `main`, `master`, `develop`. Always detect — assuming `main` breaks repos that use `master` or custom branch names.
+
+### Visibility
+
+```bash
+gh repo view {owner}/{repo} --json isPrivate -q '.isPrivate'
+```
+
+Returns `true` (private) or `false` (public). Note this in reports and tailor advice accordingly (e.g., private repos may not need FUNDING.yml).
+
+### Fork Status
+
+```bash
+gh repo view {owner}/{repo} --json isFork,parent -q '{fork: .isFork, parent: .parent.nameWithOwner}'
+```
+
+Forks inherit settings from upstream. If the repo is a fork, note this in reports — some checks (like branch protection) may not apply.
+
+### Solo vs Team Repo
+
+Detect whether the repository has a single maintainer or multiple collaborators:
+
+```bash
+gh api repos/{owner}/{repo}/collaborators --jq 'length'
+```
+
+- **Solo repo** (1 collaborator or API returns 403 on a personal repo): Adjust branch protection suggestions to not require PR reviews.
+- **Team repo** (2+ collaborators or org-owned): Full branch protection with required reviews is appropriate.
+
+If the collaborators API returns 403 (common for non-admin users), fall back to checking if the repo is org-owned:
+
+```bash
+gh repo view {owner}/{repo} --json owner -q '.owner.type'
+```
+
+- `User` = likely solo (unless collaborators were added)
+- `Organization` = likely team
+
+### Dependency Manager Detection
+
+Check which dependency management tool is in use:
+
+| Check | Tool |
+|-------|------|
+| `renovate.json`, `.github/renovate.json`, `.github/renovate.json5` exists | **Renovate** |
+| Open issue titled "Dependency Dashboard" | **Renovate** |
+| `.github/dependabot.yml` exists | **Dependabot** |
+| Neither found | No automated dependency management |
+
+This detection is critical for the Security Alerts check — do not suggest conflicting tools.
+
+## Common Edge Cases
+
+### Private Repositories
+
+All `gh` checks work for private repos as long as the authenticated user has access. Note in the report header whether the repo is public or private, since some recommendations differ (e.g., FUNDING.yml is less relevant for private repos).
+
+### Organization-Level Settings
+
+Branch protection and security alert settings may be managed at the organization level. If API calls return 403 for these checks:
+- Report the check as WARN (not FAIL).
+- Add a note: "This setting may be managed at the organization level."
+
+### Forks
+
+Forks often inherit settings from the upstream repository. When the repo is a fork:
+- Note it prominently in the report header.
+- Branch protection, security settings, and issue templates may come from the parent repo.
+- Some checks (like description and topics) are independent and should still be evaluated.
+
+### Empty or New Repositories
+
+If the repository has zero commits or was very recently created:
+- Several checks will naturally fail (README, LICENSE, .gitignore, CI/CD).
+- Add a note: "This appears to be a new repository — focus on Tier 1 items first."
+- Branch protection may not be possible until there is at least one commit on the default branch.
+
+### Archived Repositories
+
+If `gh repo view` shows the repo is archived, warn the user that changes cannot be pushed. Health scanning is still useful for informational purposes, but ghs-backlog-fix will not work.
+
+### Repos with Many Issues
+
+Cap the terminal display at 20 issues (most recent), but save all issues to the backlog. Note in the output: "(+N more — see backlog/issues/ for full list)".
+
+### Issues with Very Long Bodies
+
+Truncate the issue body to 500 characters in backlog item files. Append "..." and include a link to the full issue on GitHub.

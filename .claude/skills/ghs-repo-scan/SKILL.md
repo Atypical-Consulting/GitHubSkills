@@ -15,7 +15,7 @@ compatibility: "Requires gh CLI (authenticated), git, python3, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 5.0.0
+  version: 6.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-sync
@@ -42,16 +42,51 @@ Route users to `ghs-backlog-fix` for applying fixes.
 | **Health Check Agents** (3x, spawned via Task) | One per tier — run all checks in the tier, write backlog items for failures |
 | **Issues Agent** (1x, spawned via Task) | Fetch open issues, write issue backlog items |
 
-## Shared References
+<context>
+Purpose: Scan a GitHub repository for quality best practices and open issues, produce a scored report, and save all findings as structured markdown backlog items.
+
+### Shared References
 
 | Reference | Path | Use For |
 |-----------|------|---------|
-| Scoring logic | `@.claude/skills/shared/references/scoring-logic.md` | Score calculation, tier weights, priority algorithm |
-| Backlog format | `@.claude/skills/shared/references/backlog-format.md` | File naming, metadata, status values |
-| Output conventions | `@.claude/skills/shared/references/output-conventions.md` | Terminal formatting, progress bars, tables |
-| gh CLI patterns | `@.claude/skills/shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
-| Agent spawning | `@.claude/skills/shared/references/agent-spawning.md` | Task tool patterns, result contract, retries |
-| Check registry | `@.claude/skills/shared/checks/index.md` | Full list of checks with tier assignments and slugs |
+| Scoring logic | `../shared/references/scoring-logic.md` | Score calculation, tier weights, priority algorithm |
+| Backlog format | `../shared/references/backlog-format.md` | File naming, metadata, status values |
+| Output conventions | `../shared/references/output-conventions.md` | Terminal formatting, progress bars, tables |
+| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
+| Agent spawning | `../shared/references/agent-spawning.md` | Task tool patterns, result contract, retries |
+| Check registry | `../shared/checks/index.md` | Full list of checks with tier assignments and slugs |
+
+The user must have **read access** to the target repository.
+</context>
+
+<anti-patterns>
+
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Fail hard on API errors (404/403) | Degrade gracefully: 404 = FAIL finding, 403 = WARN with "Unable to check (requires admin access)" | API errors are expected for some checks — crashing loses all progress |
+| Re-scan checks that already passed | Load SUMMARY.md first; if user chooses to overwrite, scan all checks fresh | Wastes time and API calls on known-good checks |
+| Create duplicate backlog items for the same finding | Overwrite existing `tier-1--license.md` rather than creating `tier-1--license-2.md` | Duplicates confuse the backlog board and scoring |
+| Auto-fix findings during scan | Report `[FAIL] LICENSE -- Not found` and route to `ghs-backlog-fix` | Scan is read-only — fixing is a separate skill's job |
+| Skip network-dependent checks if offline | Mark as WARN: `[WARN] CI Workflow Health -- Unable to check (network unavailable)` | Skipping silently hides potential failures |
+
+</anti-patterns>
+
+<objective>
+Scan a GitHub repository, produce a scored terminal report, and save all findings as structured markdown backlog items.
+
+Outputs:
+- Terminal report with health score, failing checks, and open issues
+- Backlog items saved to `backlog/{owner}_{repo}/health/` and `backlog/{owner}_{repo}/issues/`
+- `SUMMARY.md` with score breakdown and action items
+
+Next routing:
+- Suggest `ghs-backlog-sync` to publish findings as GitHub Issues
+- Suggest `ghs-backlog-fix` to fix the highest-impact item
+- Suggest `ghs-backlog-board` to view the full dashboard
+- Suggest `ghs-issue-triage` for unlabeled issues
+</objective>
+
+<process>
 
 ## Prerequisites
 
@@ -59,7 +94,7 @@ Route users to `ghs-backlog-fix` for applying fixes.
 **Trigger:** Start of every scan.
 **Example:** Run `gh auth status`; if it fails, tell the user to run `gh auth login`.
 
-See `@.claude/skills/shared/references/gh-cli-patterns.md` for authentication and repo detection patterns.
+See `../shared/references/gh-cli-patterns.md` for authentication and repo detection patterns.
 
 ## Input
 
@@ -91,7 +126,16 @@ Launch **4 agents simultaneously** using the Task tool. Each agent works indepen
 
 All agents use `subagent_type: general-purpose`. Spawn all 4 in a **single message** for parallel execution.
 
-See `@.claude/skills/shared/references/agent-spawning.md` for spawning patterns and the agent result contract.
+See `../shared/references/agent-spawning.md` for spawning patterns and the agent result contract.
+
+### Context Budget
+
+| Pass to Agent | Omit |
+|---------------|------|
+| Check definition (from checks/*.md) | Other check definitions |
+| Repo owner/name, default branch | Full SUMMARY.md |
+| Tech stack detection result | Previous scan results |
+| Scoring logic for the check's tier | Full scoring-logic.md |
 
 ## Phase 3 — Collect Results and Compute Score
 
@@ -99,7 +143,7 @@ After all agents complete:
 
 1. Parse JSON results from each health check agent
 2. Combine all check results into a unified list
-3. Calculate health score per `@.claude/skills/shared/references/scoring-logic.md`
+3. Calculate health score per `../shared/references/scoring-logic.md`
 4. Parse the issues summary from the issues agent
 
 **Rule:** Retry failed agents once before marking as WARN.
@@ -118,7 +162,7 @@ Verify score: `python .claude/skills/shared/scripts/calculate_score.py backlog/{
 
 ## Phase 5 — Display Terminal Report
 
-Present combined results as a clean, scannable terminal report. See `@.claude/skills/shared/references/output-conventions.md` for full format specification.
+Present combined results as a clean, scannable terminal report. See `../shared/references/output-conventions.md` for full format specification.
 
 Report structure:
 
@@ -168,6 +212,16 @@ Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 
 If there are more than 20 issues, show the 20 most recent and note: "(+N more -- see backlog/issues/ for full list)".
 
+### Goal-Backward Verification
+
+| Level | Check | Method |
+|-------|-------|--------|
+| Existence | Output artifact exists | File/PR/API response check |
+| Substance | Contains correct content | Diff review, body inspection |
+| Wiring | Properly connected | Correct branch target, auto-close refs |
+
+</process>
+
 ## Next Routing
 
 | Condition | Suggestion |
@@ -196,28 +250,6 @@ If there are more than 20 issues, show the 20 most recent and note: "(+N more --
 | `health/` | Ask user: overwrite or create timestamped version |
 | `issues/` | Always refresh: remove closed, add new, update changed |
 
-## Anti-Patterns
-
-**Rule:** Never fail hard on API errors — degrade gracefully.
-**Trigger:** A `gh` command returns 404 or 403.
-**Example:** 404 = legitimate FAIL finding; 403 = WARN with "Unable to check (requires admin access)".
-
-**Rule:** Never re-scan checks that already passed.
-**Trigger:** Re-running scan on a repo with existing backlog.
-**Example:** Load SUMMARY.md first; if user chooses to overwrite, scan all checks fresh.
-
-**Rule:** Never create duplicate backlog items for the same finding.
-**Trigger:** Writing backlog files for a re-scan.
-**Example:** Overwrite existing `tier-1--license.md` rather than creating `tier-1--license-2.md`.
-
-**Rule:** Never auto-fix findings during scan — scan is read-only.
-**Trigger:** Temptation to create missing files while scanning.
-**Example:** Report `[FAIL] LICENSE -- Not found` and route to `ghs-backlog-fix`.
-
-**Rule:** Never skip checks that require network if offline — mark as WARN.
-**Trigger:** Network-dependent check fails due to connectivity.
-**Example:** `[WARN] CI Workflow Health -- Unable to check (network unavailable)`.
-
 ## Finding Description Quality
 
 | Quality | Example |
@@ -243,5 +275,5 @@ Descriptions must state **what** is wrong and **why** it matters.
 |---------|---------|
 | `gh auth status` fails | `gh` CLI not authenticated. Run `gh auth login`. |
 | 403 on branch protection | Requires admin access. Check agent reports as WARN -- expected. |
-| Rate limiting during scan | See `@.claude/skills/shared/references/gh-cli-patterns.md`. Do not retry in a loop. |
+| Rate limiting during scan | See `../shared/references/gh-cli-patterns.md`. Do not retry in a loop. |
 | Scan seems slow | 4 agents run in parallel. Large repos with many issues (500+) take longer. |

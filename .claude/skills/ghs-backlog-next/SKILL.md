@@ -13,7 +13,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-repo-scan
@@ -27,22 +27,36 @@ Quickly find and recommend the **single** highest-impact backlog item to work on
 
 No sub-agents — this is a lightweight, read-only skill.
 
-## References
+<context>
+Purpose: Read-only recommendation engine that selects the single highest-impact backlog item using the priority algorithm.
 
-- `../shared/references/scoring-logic.md` — tier weights, priority algorithm, score formula
-- `../shared/references/backlog-format.md` — directory layout, file naming, metadata format
-- `../shared/references/output-conventions.md` — status indicators, table patterns, progress bars
-- `../shared/config.md` — tier point values, stale scan threshold
+Roles:
+1. **Recommender** (you) — scans backlog items, applies priority algorithm, displays the top recommendation
+
+No sub-agents — this is a lightweight, read-only skill.
+
+### Shared References
+
+| Reference | Path | Purpose |
+|-----------|------|---------|
+| Scoring Logic | `../shared/references/scoring-logic.md` | Tier weights, priority algorithm, score formula |
+| Backlog Format | `../shared/references/backlog-format.md` | Directory layout, file naming, metadata format |
+| Output Conventions | `../shared/references/output-conventions.md` | Status indicators, table patterns, progress bars |
+</context>
+
+<anti-patterns>
 
 ## Anti-Patterns
 
-| Anti-Pattern | Why It Fails | Do Instead |
-|-------------|-------------|------------|
-| Recommend an already-fixed (PASS) item | Wastes the user's time on completed work | Always check current status from backlog files before recommending |
-| Recommend without verifying item still exists | File may have been deleted after a fix | Confirm the backlog file is present and status is FAIL or OPEN |
-| Show multiple recommendations as a list | Defeats the purpose of "next ONE item" — causes decision paralysis | Return exactly one item; show a single runner-up line only if multiple repos exist |
-| Guess the score instead of calculating | Produces wrong priority ordering | Always run `calculate_score.py` for accurate scores |
-| Recommend WARN items as actionable | WARN means permission-blocked, user cannot fix it | Skip WARN items; only mention them if nothing else remains |
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Recommend an already-fixed (PASS) item | Always check current status from backlog files before recommending | Wastes the user's time on completed work |
+| Recommend without verifying item still exists | Confirm the backlog file is present and status is FAIL or OPEN | File may have been deleted after a fix |
+| Show multiple recommendations as a list | Return exactly one item; show a single runner-up line only if multiple repos exist | Defeats the purpose of "next ONE item" — causes decision paralysis |
+| Guess the score instead of calculating | Always run `calculate_score.py` for accurate scores | Produces wrong priority ordering |
+| Recommend WARN items as actionable | Skip WARN items; only mention them if nothing else remains | WARN means permission-blocked, user cannot fix it |
+
+</anti-patterns>
 
 ## Input
 
@@ -55,6 +69,8 @@ Optional: the user may specify a repo to limit the search — "next for phmatray
 | General next | "what should I work on next?" | Scan all repos, pick the single best item |
 | Repo-scoped next | "next for phmatray/Formidable" | Limit search to that repo only |
 | After a fix | "next" | Previous fix is now PASS, pick the next best item |
+
+<process>
 
 ## Process
 
@@ -138,6 +154,8 @@ If all health items are PASS and all issues are CLOSED or have PRs:
 All health checks are passing and all issues have been addressed.
 To re-scan for changes: /ghs-repo-scan {owner}/{repo}
 ```
+
+</process>
 
 ## Good and Bad Examples
 

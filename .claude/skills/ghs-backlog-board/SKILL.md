@@ -14,7 +14,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 4.0.0
+  version: 5.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-sync
@@ -39,20 +39,25 @@ Roles:
 No sub-agents — this is a read-only skill that renders local data.
 
 Shared references (use these, do not duplicate their logic):
-- `../shared/references/scoring-logic.md` — tier weights, score formula, priority algorithm, progress bar format
-- `../shared/references/backlog-format.md` — directory structure, file naming, metadata formats, status values
-- `../shared/references/output-conventions.md` — dashboard tables, status indicators, recommendation block
+
+| Reference | Purpose |
+|-----------|---------|
+| `../shared/references/scoring-logic.md` | Tier weights, score formula, priority algorithm, progress bar format |
+| `../shared/references/backlog-format.md` | Directory structure, file naming, metadata formats, status values |
+| `../shared/references/output-conventions.md` | Dashboard tables, status indicators, recommendation block |
 </context>
 
-## Anti-Patterns
+<anti-patterns>
 
-| Do NOT | Do Instead |
-|--------|-----------|
-| Re-read every backlog item when SUMMARY.md exists | Use SUMMARY.md as the index — it has scores, tier breakdowns, and item lists |
-| Recalculate scores from scratch | Use the score from SUMMARY.md, or `python ../shared/scripts/calculate_score.py` |
-| Suggest fixes inline in the dashboard | Route to `ghs-backlog-fix` for any fix action |
-| Show resolved/PASS items by default | Only show FAIL and WARN items; show PASS items only when user drills down |
-| Read individual health/issue files unprompted | Only read individual files when the user asks for detail on a specific item |
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Re-read every backlog item when SUMMARY.md exists | Use SUMMARY.md as the index — it has scores, tier breakdowns, and item lists | Avoids unnecessary file I/O and keeps rendering fast |
+| Recalculate scores from scratch | Use the score from SUMMARY.md, or `python ../shared/scripts/calculate_score.py` | SUMMARY.md is the single source of truth for scores |
+| Suggest fixes inline in the dashboard | Route to `ghs-backlog-fix` for any fix action | Dashboard is read-only; fixes belong in a separate skill |
+| Show resolved/PASS items by default | Only show FAIL and WARN items; show PASS items only when user drills down | Keeps the dashboard focused on actionable items |
+| Read individual health/issue files unprompted | Only read individual files when the user asks for detail on a specific item | Progressive disclosure — load detail on demand |
+
+</anti-patterns>
 
 <objective>
 Display a dashboard of all backlog items with health scores, issue counts, and progress.

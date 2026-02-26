@@ -15,7 +15,7 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-merge-prs
 routes-from:
@@ -28,15 +28,32 @@ routes-from:
 
 Implement GitHub issues using parallel worktree-based agents. Creates branches, spawns agents to write code, verifies results, and opens PRs with auto-close references.
 
-## Anti-Patterns
+<context>
+Purpose: Implement GitHub issues using parallel worktree-based agents — creates branches, spawns agents to write code, verifies results, and opens PRs with auto-close references.
 
-| Anti-Pattern | Why It Fails | Do Instead |
-|---|---|---|
-| Implement without reading full issue + comments | Misses acceptance criteria, duplicate context, or design decisions discussed in thread | Fetch issue with `--json body,comments` and read everything before planning |
-| Modify files outside issue scope | Causes merge conflicts with other agents, introduces unreviewed changes | Only touch files directly required by the issue — log new discoveries as separate issues |
-| Skip verification before creating PR | Broken PRs waste reviewer time and erode trust in automation | Run tests, lint, and type-check before pushing |
-| Create PR for incomplete work | Incomplete PRs block the merge queue and confuse reviewers | Set `NEEDS_HUMAN` status instead — partial worktree is more useful than a broken PR |
-| Pass entire scan/backlog to subagent | Bloats agent context, causes confusion and hallucination | Pass only: issue details, repo structure, acceptance criteria, tech stack |
+### Shared References
+
+| Reference | Path | Use For |
+|-----------|------|---------|
+| Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup |
+| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
+| Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
+| Edge cases | `../shared/references/edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
+
+The user must have **write access** to the target repository.
+</context>
+
+<anti-patterns>
+
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Implement without reading full issue + comments | Fetch issue with `--json body,comments` and read everything before planning | Misses acceptance criteria, duplicate context, or design decisions discussed in thread |
+| Modify files outside issue scope | Only touch files directly required by the issue — log new discoveries as separate issues | Causes merge conflicts with other agents, introduces unreviewed changes |
+| Skip verification before creating PR | Run tests, lint, and type-check before pushing | Broken PRs waste reviewer time and erode trust in automation |
+| Create PR for incomplete work | Set `NEEDS_HUMAN` status instead — partial worktree is more useful than a broken PR | Incomplete PRs block the merge queue and confuse reviewers |
+| Pass entire scan/backlog to subagent | Pass only: issue details, repo structure, acceptance criteria, tech stack | Bloats agent context, causes confusion and hallucination |
+
+</anti-patterns>
 
 ## Scope Boundary
 
@@ -64,6 +81,19 @@ What to pass to each implementation agent:
 | Tech stack detection results | Repository-wide metrics |
 | Worktree path and branch name | Unrelated backlog items |
 | Acceptance criteria extracted from issue | Previous session history |
+
+<objective>
+Implement GitHub issues and create PRs with auto-close references.
+
+Outputs:
+- PRs created on GitHub for each implemented issue
+- Labels updated on implemented issues (`status:in-progress`)
+- Terminal report with implementation results
+- NEEDS_HUMAN items listed with failure details
+
+Next routing:
+- Suggest `ghs-merge-prs` to merge the created PRs — "To merge: `/ghs-merge-prs {owner}/{repo}`"
+</objective>
 
 ## Input
 
@@ -104,7 +134,7 @@ Branch prefix is determined by the issue's type label:
 Pattern: `{prefix}/{issue-number}-{short-slug}`
 Where `{short-slug}` = issue title, lowercased, non-alphanumeric replaced with `-`, truncated to 40 chars.
 
-## Process
+<process>
 
 ### Phase 1 — Fetch Issues
 
@@ -275,6 +305,14 @@ Before marking any issue as PASS, the agent must confirm:
 | No files modified outside issue scope | Always |
 | Linter/type-checker passes (if configured) | When available |
 
+### Goal-Backward Verification
+
+| Level | Check | Method |
+|-------|-------|--------|
+| Existence | Output artifact exists | File/PR/API response check |
+| Substance | Contains correct content | Diff review, body inspection |
+| Wiring | Properly connected | Correct branch target, auto-close refs |
+
 ### PR Template
 
 ```
@@ -294,6 +332,8 @@ Fixes #{number}
 {Any adjacent problems found but NOT fixed — to be filed separately}
 ```
 
+</process>
+
 ## Edge Cases
 
 | Scenario | Behavior |
@@ -305,7 +345,7 @@ Fixes #{number}
 | PR already exists for branch | Report existing PR, skip creating new one |
 | Issue too complex | Agent sets `NEEDS_HUMAN`; worktree left for manual work |
 | Agent failure | One failure doesn't block others; mark `FAILED` in report |
-| Content filter blocks output | Retry with download-based approach (see `../shared/edge-cases.md`) |
+| Content filter blocks output | Retry with download-based approach (see `../shared/references/edge-cases.md`) |
 | Issue has no analysis | Agent investigates on its own — slightly slower |
 | Re-running on existing items | Issues with `status:in-progress` + open PR are skipped in batch |
 

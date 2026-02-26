@@ -13,7 +13,7 @@ compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 3.0.0
+  version: 4.0.0
 routes-to:
   - ghs-repo-scan
   - ghs-backlog-board
@@ -35,19 +35,24 @@ Roles:
 No sub-agents — PRs are merged sequentially to avoid race conditions on the base branch.
 
 Shared references:
-- `../shared/references/gh-cli-patterns.md` — authentication, repo detection, PR operations, error handling
-- `../shared/references/output-conventions.md` — status indicators, table patterns, summary blocks
+
+| Reference | Purpose |
+|-----------|---------|
+| `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, PR operations, error handling |
+| `../shared/references/output-conventions.md` | Status indicators, table patterns, summary blocks |
 </context>
 
 <anti-patterns>
-NEVER do any of the following:
 
-- **Merge PRs with failing CI without explicit user acknowledgment** — always highlight CI failures and get confirmation before bypassing checks
-- **Merge without user confirmation on non-bot PRs** — bot PRs can be confirmed as a batch, but human-authored PRs need individual or explicit batch consent
-- **Delete protected branches** — only delete head branches after merge using `--delete-branch`; never attempt to delete the default or base branch
-- **Force-merge draft PRs** — drafts are not ready for review; always skip them and report their status
-- **Retry in a loop on rate limits** — report the rate limit to the user and stop (see gh-cli-patterns.md error handling)
-- **Merge PRs in parallel** — always merge sequentially to avoid race conditions on the base branch
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Merge PRs with failing CI without explicit user acknowledgment | Highlight CI failures and get confirmation before bypassing checks | Prevents accidentally merging broken code into the base branch |
+| Merge without user confirmation on non-bot PRs | Bot PRs can be confirmed as a batch, but human-authored PRs need individual or explicit batch consent | Human PRs require more careful review before merging |
+| Delete protected branches | Only delete head branches after merge using `--delete-branch`; never attempt to delete the default or base branch | Deleting protected branches can break the repository |
+| Force-merge draft PRs | Skip drafts and report their status | Drafts are not ready for review |
+| Retry in a loop on rate limits | Report the rate limit to the user and stop (see `gh-cli-patterns.md` error handling) | Looping on rate limits wastes time and may trigger further restrictions |
+| Merge PRs in parallel | Always merge sequentially | Parallel merges cause race conditions on the base branch |
+
 </anti-patterns>
 
 <objective>
@@ -56,7 +61,7 @@ Merge open PRs with appropriate strategy and clean up branches.
 Outputs:
 - PRs merged on GitHub
 - Branches deleted after merge
-- Terminal summary report (see output-conventions.md — merge-prs summary block)
+- Terminal summary report (see `output-conventions.md` — merge-prs summary block)
 
 Next routing:
 - Suggest `ghs-repo-scan` to re-scan after merging — "To verify improvements: `/ghs-repo-scan {owner}/{repo}`"
@@ -132,14 +137,14 @@ Always skip these PRs automatically — report them but do not attempt to merge.
 The user may provide:
 - A specific PR number: "merge PR #42"
 - A filter: "merge renovate PRs", "merge my PRs", "merge all PRs"
-- A repo: "merge PRs on phmatray/Formidable" — if not provided, detect from `gh repo view` (see gh-cli-patterns.md)
+- A repo: "merge PRs on phmatray/Formidable" — if not provided, detect from `gh repo view` (see `gh-cli-patterns.md`)
 - A URL: "merge PRs from https://github.com/owner/repo/pulls"
 
 If no filter is given, default to showing all open PRs and letting the user choose.
 
 ## Phase 1 — Detect Repository and List PRs
 
-1. Detect the repository (`owner/repo`) from input or git remote (see gh-cli-patterns.md — Repo Detection)
+1. Detect the repository (`owner/repo`) from input or git remote (see `gh-cli-patterns.md` — Repo Detection)
 2. Fetch all open PRs with relevant metadata:
 
 ```bash
@@ -150,7 +155,7 @@ gh pr list --repo {owner}/{repo} --state open --json number,title,author,headRef
 
 ## Phase 2 — Display PR Overview
 
-Present a summary table per category (see output-conventions.md — Table Patterns):
+Present a summary table per category (see `output-conventions.md` — Table Patterns):
 
 ```
 ## Open PRs: {owner}/{repo}
@@ -263,7 +268,7 @@ Report progress as each PR merges:
 
 ## Phase 6 — Summary Report
 
-Follow output-conventions.md summary block pattern:
+Follow `output-conventions.md` summary block pattern:
 
 ```
 ## Merge Summary: {owner}/{repo}
@@ -290,5 +295,5 @@ Remaining open PRs: {N}
 - **Merge conflicts**: Skip conflicting PRs, report them, and suggest resolving manually.
 - **No admin access for failing CI**: If `--admin` fails and branch protection blocks the merge, report it and suggest fixing CI or adjusting branch protection.
 - **PR requires review approval**: If `reviewDecision` is `CHANGES_REQUESTED` or review is required but not approved, flag it and skip unless user explicitly confirms.
-- **Rate limiting**: If `gh` commands fail with rate limit errors, report and suggest waiting (see gh-cli-patterns.md — Error Handling Conventions).
+- **Rate limiting**: If `gh` commands fail with rate limit errors, report and suggest waiting (see `gh-cli-patterns.md` — Error Handling Conventions).
 - **Cascading conflicts**: After merging one PR, others may develop conflicts. Continue with remaining PRs and report all failures at the end.

@@ -7,11 +7,17 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
 ```
 .claude/skills/                  — Skill definitions (SKILL.md files)
   shared/references/             — Shared reference docs used across skills
-    gh-cli-patterns.md           — Common gh CLI patterns and error handling
-    backlog-format.md            — Backlog item format and directory structure
+    gh-cli-patterns.md           — gh CLI patterns, auth, repo detection, context, edge cases
+    backlog-format.md            — Backlog directory structure, file naming, metadata, scoring
     scoring-logic.md             — Health score calculation and tier weights
     output-conventions.md        — Terminal output formatting conventions
     agent-spawning.md            — Worktree-based parallel agent patterns
+    implementation-workflow.md   — Repo clone/pull, worktree mgmt, branch/commit/push/PR
+    edge-cases.md                — Rate limiting, content filters, permission errors, retries
+    item-categories.md           — Health item classification (Category A/B/CI) and routing
+    config.md                    — Centralized scoring constants and display thresholds
+    sync-format.md               — Sync contract: labels, issue body template, metadata
+    agent-result-contract.md     — Universal agent JSON response format
 backlog/                         — Backlog items per repo (health findings + issues)
   {owner}_{repo}/
     SUMMARY.md                   — Unified repo summary
@@ -36,26 +42,36 @@ repos/                           — Local clones of target repositories (gitign
 
 Skills follow a structured prompt pattern inspired by [get-shit-done](https://github.com/gsd-build/get-shit-done):
 
-- **Anti-Patterns section** — Explicit failure modes the agent must avoid, formatted as a table
+- **XML tag structure** — All skills use `<context>`, `<anti-patterns>`, `<objective>`, `<process>` tags; `<rules>` and `<examples>` where applicable
+- **Anti-Patterns table** — 3-column `Do NOT | Do Instead | Why` table inside `<anti-patterns>` tags
 - **Rule/trigger/example triples** — Rules state the imperative, triggers explain when it applies, examples show concrete cases
 - **Tables over prose** — Use markdown tables for check definitions, scoring weights, routing logic, and output specs
 - **Good/bad example pairs** — Show what good output looks like and contrast with bad output
 - **Scope boundaries** — Mutation-capable skills declare what they will and won't modify
 - **Circuit breakers** — Agent-spawning skills limit retry attempts (default: 3) before marking as failed
 - **Context budgets** — Skills that spawn subagents document what context to pass and what to omit
+- **Goal-backward verification** — Agent-spawning skills verify Existence, Substance, and Wiring of outputs
+- **Cognitive bias guards** — Diagnostic skills include bias antidote tables
+- **Confidence levels** — Classification/diagnostic skills indicate High/Medium/Low confidence
 - **Progressive disclosure** — Load indexes (SUMMARY.md) first, read individual items only when needed
 
 ### Shared References
 
-Common patterns are extracted into `shared/references/` to avoid duplication. Skills reference these via `@.claude/skills/shared/references/<file>.md`:
+Common patterns are extracted into `shared/references/` to avoid duplication. Skills reference these via `../shared/references/<file>.md` (relative from skill directory):
 
 | File | Purpose |
 |------|---------|
-| `gh-cli-patterns.md` | Auth checks, repo detection, issue/PR/label ops, error handling (404/403) |
-| `backlog-format.md` | Directory structure, file naming, metadata fields, status values |
+| `gh-cli-patterns.md` | Auth, repo detection, context detection, issue/PR/label ops, error handling, edge cases |
+| `backlog-format.md` | Directory structure, file naming, metadata fields, tier system, scoring rules, status values |
 | `scoring-logic.md` | Tier definitions (T1=4pts, T2=2pts, T3=1pt), formula, priority algorithm |
 | `output-conventions.md` | Status indicators, table patterns, progress bars, summary blocks |
 | `agent-spawning.md` | Repo cloning, worktree creation, parallel execution, cleanup, context budgets |
+| `implementation-workflow.md` | Repo prep, worktree mgmt, branch/commit/push/PR workflow, pre-flight checks |
+| `edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
+| `item-categories.md` | Health item classification (Category A/B/CI) and routing rules |
+| `config.md` | Centralized scoring constants, display thresholds, status indicators |
+| `sync-format.md` | Label taxonomy, issue title convention, body template, hidden metadata comment |
+| `agent-result-contract.md` | Universal agent JSON response format, status semantics, health check variant |
 
 ## Available Skills
 

@@ -13,7 +13,7 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 routes-to:
   - ghs-merge-prs
   - ghs-repo-scan
@@ -26,16 +26,18 @@ routes-from:
 
 Detect failing GitHub Actions workflows, diagnose root causes from run logs, apply targeted fixes in worktrees, and create PRs — all in one pass with no prior scan required.
 
-## Anti-Patterns
+<anti-patterns>
 
-| Anti-Pattern | Why It's Bad | Do Instead |
-|-------------|--------------|------------|
-| Guessing the fix without reading logs | Wastes time, often makes things worse | Always run `gh run view --log-failed` first |
-| Replacing entire workflow files | Loses complex matrix builds, caching, secrets | Make minimal, targeted changes |
-| Fixing application code bugs | Out of scope — workflow skill, not app debugger | Report as NEEDS_HUMAN with diagnosis |
-| Retrying the same fix > 3 times | Infinite loop risk | Circuit breaker: 3 attempts max, then NEEDS_HUMAN |
-| Modifying files outside `.github/workflows/` | Scope violation — could break the app | Only touch workflow files |
-| Skipping YAML validation after edits | Syntax errors are worse than the original failure | Always validate YAML before committing |
+| Do NOT | Do Instead | Why |
+|--------|-----------|-----|
+| Guess the fix without reading logs | Always run `gh run view --log-failed` first | Wastes time, often makes things worse |
+| Replace entire workflow files | Make minimal, targeted changes | Loses complex matrix builds, caching, secrets |
+| Fix application code bugs | Report as NEEDS_HUMAN with diagnosis | Out of scope — workflow skill, not app debugger |
+| Retry the same fix > 3 times | Circuit breaker: 3 attempts max, then NEEDS_HUMAN | Infinite loop risk |
+| Modify files outside `.github/workflows/` | Only touch workflow files | Scope violation — could break the app |
+| Skip YAML validation after edits | Always validate YAML before committing | Syntax errors are worse than the original failure |
+
+</anti-patterns>
 
 ## Scope Boundary
 
@@ -76,11 +78,16 @@ Roles:
 
 Agent prompt: `agents/ci-fix-agent.md`
 
-Shared docs:
-- `../shared/references/agent-spawning.md` — worktree creation, agent spawning, context budgeting
-- `../shared/references/gh-cli-patterns.md` — authentication, repo detection, error handling
-- `../shared/references/output-conventions.md` — status indicators, table formats, summary blocks
-- `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR
+### Shared References
+
+| Reference | Path | Use For |
+|-----------|------|---------|
+| Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting |
+| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
+| Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
+| Implementation workflow | `../shared/references/implementation-workflow.md` | Repo prep, worktree mgmt, branch/commit/push/PR |
+| Edge cases | `../shared/references/edge-cases.md` | Rate limiting, content filters, permission errors |
+| Agent result contract | `../shared/references/agent-result-contract.md` | Universal agent response format |
 
 The user must have **write access** to the target repository.
 </context>
@@ -121,7 +128,7 @@ All GitHub Actions workflows are passing. Nothing to fix.
 
 ## Phase 2 — Prepare Repository
 
-Follow `../shared/implementation-workflow.md` §1:
+Follow `../shared/references/implementation-workflow.md` §1:
 1. Clone or pull the repo into `repos/{owner}_{repo}/`
 2. Detect the default branch: `gh repo view {owner}/{repo} --json defaultBranchRef --jq '.defaultBranchRef.name'`
 3. Detect tech stack (language, framework, package manager) from repo contents
@@ -179,7 +186,7 @@ All agents use `subagent_type: general-purpose`.
 
 After all agents complete:
 
-1. Parse each agent's result (JSON per `../shared/agent-result-contract.md`)
+1. Parse each agent's result (JSON per `../shared/references/agent-result-contract.md`)
 2. Apply circuit breaker: if an agent returns FAILED, retry up to 2 more times (3 total)
 3. After 3 failures, mark as NEEDS_HUMAN
 
@@ -217,6 +224,22 @@ Next steps:
   To scan full health: /ghs-repo-scan {owner}/{repo}
 ```
 
+### Goal-Backward Verification
+
+| Level | Check | Method |
+|-------|-------|--------|
+| Existence | Output artifact exists | File/PR/API response check |
+| Substance | Contains correct content | Diff review, body inspection |
+| Wiring | Properly connected | Correct branch target, auto-close refs |
+
+### Cognitive Bias Guards
+
+| Bias | Antidote |
+|------|----------|
+| First-cause fixation | Read ALL failing steps, not just the first |
+| Recency | Check if the workflow worked before the latest commit |
+| Tool bias | Don't assume the fix is always a version bump |
+
 </process>
 
 ## Edge Cases
@@ -226,7 +249,7 @@ Next steps:
 - **Workflow syntax errors**: Fix the YAML syntax. Validate with a YAML parser before committing.
 - **Deprecated actions**: Update to latest versions (e.g., `actions/checkout@v2` → `@v4`).
 - **Missing secrets**: Report NEEDS_HUMAN — secrets can only be set by the repo admin.
-- **Rate limiting**: Back off and retry per `../shared/edge-cases.md`.
+- **Rate limiting**: Back off and retry per `../shared/references/edge-cases.md`.
 - **Workflow triggered by schedule/cron**: Include in detection but note that the fix can't be verified by a PR push.
 - **Multiple failures in same workflow**: Agent addresses all failures in one fix.
 - **Branch already exists**: Check with `git branch -l fix/action-{slug}`. If exists, use `-B` flag or ask user.
