@@ -1,21 +1,22 @@
 ---
 name: apply-backlog-item
 description: >
-  Applies a backlog item fix to a GitHub repository — clones the repo, generates quality content,
-  verifies acceptance criteria, and creates a PR. Use this skill whenever the user wants to apply,
-  fix, or resolve a backlog item, references a backlog markdown file, or says things like "apply this
+  Applies backlog item fixes to a GitHub repository using parallel worktree-based agents — clones
+  the repo once, creates git worktrees for each fix, launches agents simultaneously, verifies
+  acceptance criteria, and creates PRs. Use this skill whenever the user wants to apply, fix, or
+  resolve a backlog item, references a backlog markdown file, or says things like "apply this
   backlog item", "fix this issue", "resolve this finding", "work on this backlog item", "apply
-  tier-1--readme", or points to any file under backlog/. Also trigger when the user says "apply all
-  backlog items", "fix all findings", or "resolve all tier 1 items".
+  tier-1--license", or points to any file under backlog/. Also trigger when the user says "apply all
+  backlog items", "fix all findings", "resolve all tier 1 items", or "apply all for {repo}".
   Do NOT use for scanning repos (use repo-scan), viewing backlog status (use backlog-dashboard), or general code review.
 metadata:
   author: phmatray
-  version: 2.0.0
+  version: 3.0.0
 ---
 
 # Apply Backlog Item
 
-Read a structured backlog item (health finding or GitHub issue), apply the fix to the target repository, verify acceptance criteria, and update the item's status.
+Read structured backlog items (health findings or GitHub issues), apply fixes using parallel worktree-based agents, verify acceptance criteria, and update item statuses.
 
 ## Prerequisites
 
@@ -25,97 +26,121 @@ Additionally, the user must have **write access** to the target repository (requ
 
 ## Input
 
-The user provides a path to a backlog item markdown file. This can be either:
-- A health item: `backlog/phmatray_NewSLN/health/tier-1--description.md`
-- An issue item: `backlog/phmatray_NewSLN/issues/issue-42--login-bug.md`
+Two invocation modes:
 
-If the user says "apply all" or references multiple items, process them one at a time in priority order (health Tier 1 first, then Tier 2, Tier 3, then issues), confirming each before proceeding.
+- **Single item**: A path to a backlog item markdown file
+  - Health: `backlog/phmatray_Formidable/health/tier-1--license.md`
+  - Issue: `backlog/phmatray_Formidable/issues/issue-42--login-bug.md`
 
-## Step 1 — Parse the Backlog Item
+- **Batch (repo)**: A repo identifier like `phmatray_Formidable`
+  - Discovers all FAIL items in `backlog/{owner}_{repo}/health/`
+  - Processes them in parallel using worktree-based agents
 
-Read the markdown file and determine the item type from the `Source` field in the metadata table.
+## Architecture
 
-For the backlog item format specification, see `../shared/backlog-format.md`.
+This skill uses **parallel worktree-based agents** to apply multiple fixes simultaneously. Instead of processing items one at a time (clone → branch → fix → push → PR → repeat), it creates one clone and multiple git worktrees, then spawns agents that work in parallel.
 
-You can parse backlog items programmatically: `python ../shared/scripts/parse_backlog_item.py <path-to-item.md>`
+### Roles
 
-### Health items (Source: "Health Check")
+1. **Orchestrator** (you): discovers items, classifies them, prepares the repo, creates worktrees, spawns agents, collects results, updates backlog, cleans up
+2. **Category A Agent** (spawned via Task tool): handles all API-only fixes (no worktree needed)
+3. **Category B Agents** (spawned via Task tool): one per file-change item, each working in its own worktree
+4. **Category CI Agent** (spawned via Task tool): handles ci-workflow-health in its own worktree (diagnoses before fixing)
 
-Key fields: Check name (title), Repository, Tier, Points, Current status, What's missing, Quick fix, Full solution, Acceptance criteria.
+### Item Categories
 
-### Issue items (Source: "Issue #N")
+Each health check falls into one of these categories:
 
-Key fields: Issue title, Repository, Issue number, Labels, Description, GitHub URL.
+| Category | Description | Worktree? | Checks |
+|----------|-------------|-----------|--------|
+| **A** (API-only) | Uses `gh` commands directly, no file changes | No | branch-protection, security-alerts, description, topics |
+| **B** (file changes) | Creates/modifies files, commits, pushes, creates PR | Yes — one per item | license, editorconfig, codeowners, issue-templates, pr-template, security-md, contributing-md, readme, gitignore, ci-cd-workflows |
+| **CI** (special) | Diagnoses CI failures before fixing | Yes | ci-workflow-health |
 
-If the file doesn't match either structure, tell the user and stop.
+Issue items are always Category B.
 
-## Step 2 — Prepare the Local Clone
+### Worktree Path Convention
 
-Check if the target repo is already cloned locally:
+```
+repos/{owner}_{repo}/                              ← main clone (stays on default branch)
+repos/{owner}_{repo}--worktrees/fix--{slug}/       ← one per Category B/CI item
+```
+
+Worktrees are siblings to the main clone, never inside it. The `repos/` directory is already gitignored.
+
+---
+
+## Phase 1 — Discover & Classify
+
+### Single-item mode
+
+Parse the provided backlog item file. Determine its type and category. Skip if status is already PASS.
+
+### Batch mode
+
+Scan `backlog/{owner}_{repo}/health/` for all items. For each file:
+
+1. Read the file and check the `Status` field
+2. Skip items with status PASS
+3. Classify each FAIL item into Category A, B, or CI based on its slug
+
+You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
+
+For detailed fix strategies per check, read the individual check file at `../shared/checks/{slug}.md`.
+
+## Phase 2 — Prepare Repository
+
+Check if the target repo is already cloned:
 
 ```
 repos/{owner}_{repo}/
 ```
 
-This directory lives as a sibling to `backlog/` in the working directory.
-
-- **If it exists**, `cd` into it and run `git pull` to get the latest.
-- **If it doesn't exist**, clone it:
+- **If it exists**: `git -C repos/{owner}_{repo} pull` to get the latest
+- **If it doesn't exist**:
   ```bash
   mkdir -p repos
   gh repo clone {owner}/{repo} repos/{owner}_{repo}
   ```
 
-After cloning/pulling, detect the default branch name and the tech stack by scanning for common project files (e.g., `*.csproj`, `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`). For tech stack detection details, see `../shared/gh-prerequisites.md#repo-context-detection`.
+After cloning/pulling:
+1. Detect the default branch: `git -C repos/{owner}_{repo} rev-parse --abbrev-ref HEAD`
+2. Detect tech stack by scanning for common project files (see `../shared/gh-prerequisites.md#repo-context-detection`)
 
-## Step 3 — Plan the Fix
+## Phase 3 — Show Batch Plan & Confirm
 
-### For health items
+Display a summary table of ALL items to be processed:
 
-Health items fall into two categories:
+```
+## Batch Plan: {owner}/{repo}
 
-#### Category A — API-only fixes
+| # | Item | Tier | Pts | Category | Branch | Worktree |
+|---|------|------|-----|----------|--------|----------|
+| 1 | LICENSE | T1 | 4 | B (file) | fix/license | repos/{o}_{r}--worktrees/fix--license/ |
+| 2 | Branch Protection | T1 | 4 | A (API) | — | — |
+| 3 | .editorconfig | T2 | 2 | B (file) | fix/editorconfig | repos/{o}_{r}--worktrees/fix--editorconfig/ |
+| 4 | CI Workflow Health | T2 | 2 | CI | fix/ci-workflow-health | repos/{o}_{r}--worktrees/fix--ci-workflow-health/ |
+...
 
-These don't require file changes in the repo. They use `gh` commands directly.
+Total items: {N} ({cat_a} API-only, {cat_b} file changes, {cat_ci} CI)
+Points recoverable: {total_points}
 
-Checks in this category: Description, Topics, Branch protection, Security alerts.
+Proceed with all? (y/n/select)
+```
 
-For these, craft the specific command based on the backlog item and the repo context. For description and topics, inspect the repo to propose meaningful values (don't use placeholders).
+- **y**: proceed with all items
+- **n**: cancel
+- **select**: let the user pick which items to apply
 
-**Branch protection — solo maintainer awareness**: Before applying branch protection, detect whether the repo is solo-maintained (single owner, no team collaborators). For solo repos, use a lightweight config that won't lock the maintainer out.
-
-#### Category B — File creation / modification
-
-These require creating or editing files in the local clone, then committing and pushing.
-
-Checks in this category: README, .gitignore, CI/CD workflows, CODEOWNERS, Issue templates, PR template, SECURITY.md, CONTRIBUTING.md, LICENSE.
-
-For detailed fix strategies per health check, read `../shared/fix-suggestions.md`.
-
-For file creation items, generate thoughtful, repo-aware content — not just the minimal quick-fix stub. Inspect the repo to understand the project name, purpose, tech stack, build tools, existing documentation patterns, and license type.
-
-### For issue items
-
-Issue fixes are always Category B (file changes + PR). The approach:
-
-1. Read the full issue from GitHub to get the complete body (the backlog item may have a truncated version):
-   ```bash
-   gh issue view {number} --repo {owner}/{repo}
-   ```
-2. Understand what the issue is asking for
-3. Plan the code changes needed
-4. The PR will reference the issue with "Fixes #{number}" to auto-close it on merge
-
-### Present the plan
-
-Before executing, show the user:
+For single-item mode, show a simpler plan:
 
 ```
 ## Plan: {Title}
 
 Repository: {owner}/{repo}
 Source:     {Health Check — Tier N | Issue #N}
-Branch:     fix/{slug} (from {default_branch})
+Category:  {A (API-only) | B (file changes) | CI}
+Branch:    fix/{slug} (from {default_branch})
 
 ### What I'll do:
 {Numbered list of specific actions}
@@ -128,122 +153,279 @@ Proceed? (y/n)
 
 Wait for user confirmation before continuing.
 
-## Step 4 — Apply the Fix
+### Branch conflict detection
 
-### For API-only fixes (health Category A):
+Before showing the plan, check for existing remote branches:
 
-Run the `gh` command and capture the output. Verify the command succeeded (exit code 0).
-
-### For file changes (health Category B and all issue fixes):
-
-1. Create a feature branch from the default branch:
-   ```bash
-   git checkout -b fix/{slug}
-   ```
-   For health items, the slug is `{check-name-kebab}`. For issues, use `issue-{number}--{title-kebab}` (truncated).
-
-2. Create or modify the files as planned
-3. Stage and commit:
-   ```bash
-   git add {files}
-   git commit -m "{descriptive message}"
-   ```
-   For issue fixes, include "Fixes #{number}" in the commit message.
-4. Push the branch:
-   ```bash
-   git push -u origin fix/{slug}
-   ```
-5. Create a PR:
-   ```bash
-   gh pr create --title "{title}" --body "{body}" --base {default_branch}
-   ```
-   The PR body should:
-   - For health items: reference the backlog item and include acceptance criteria as a checklist
-   - For issue items: include "Fixes #{number}" to auto-close the issue, and summarize the changes
-
-## Step 5 — Verify Acceptance Criteria
-
-### For health items
-
-After applying the fix, verify each acceptance criterion from the backlog item.
-
-For API-based checks, use `gh api` to confirm the change took effect. For file-based checks, confirm the file exists and meets the criteria (e.g., README > 500 bytes).
-
-Report results:
-
-```
-## Verification
-
-- [x] Repository description is a non-empty string
-- [x] Description appears in `gh repo view` output
+```bash
+git -C repos/{owner}_{repo} ls-remote --heads origin 'refs/heads/fix/*'
 ```
 
-If any criterion fails, report which ones failed and suggest corrective action. Do not update the backlog item status.
+Flag any conflicts in the plan table with a warning indicator.
 
-### For issue items
+## Phase 4 — Create Worktrees
 
-Verification is simpler — confirm:
-- The PR was created successfully
-- The PR references the issue number
-- The files were modified as planned
+After confirmation, create worktrees for each Category B and CI item:
 
-## Step 6 — Update the Backlog Item
+```bash
+mkdir -p repos/{owner}_{repo}--worktrees
 
-Once verification passes:
+# For each Category B/CI item:
+git -C repos/{owner}_{repo} worktree add \
+  ../../repos/{owner}_{repo}--worktrees/fix--{slug} \
+  -b fix/{slug}
+```
 
-### For health items
+Category A items don't need worktrees — they use `gh` API commands directly.
 
-1. **Update the backlog item file**: Change `| **Status** | FAIL |` to `| **Status** | PASS |` and check all acceptance criteria boxes.
+## Phase 5 — Launch Agents in Parallel
 
-2. **Update SUMMARY.md**: Find the item's row in the Health — Action Items table and change its status from `FAIL` to `PASS`. If a PR was created, add the PR URL.
+Spawn all agents in a **single Task tool message** for parallel execution. Each agent gets a self-contained prompt and returns structured JSON.
 
-3. **Report to the user**:
-   ```
-   ## Done
+### Category A Agent Prompt
 
-   [PASS] {Check Name} — {one-line summary of what was done}
-   PR: {url if created, or "N/A — API-only fix"}
-   Points recovered: {points}
-   ```
+If there are Category A items, spawn **one** agent to handle all of them:
 
-### For issue items
+```
+You are an apply-backlog-item agent handling API-only fixes.
 
-1. **Update the backlog item file**: Change `| **Status** | OPEN |` to `| **Status** | PR CREATED |` and add a `| **PR** | {url} |` row to the metadata table.
+Repository: {owner}/{repo}
+Default branch: {default_branch}
+Skills path: {path to .claude/skills}
+Date: {YYYY-MM-DD}
 
-2. **Update SUMMARY.md**: Find the issue row in the Open Issues table and add the PR link.
+Items to fix:
+{For each Category A item:}
+- Slug: {slug}
+  Backlog file: {path}
+  Check file: {skills_path}/shared/checks/{slug}.md
 
-3. **Report to the user**:
-   ```
-   ## Done
+Your job:
+1. For each item, read the check file to understand the fix strategy
+2. Apply the fix using `gh` CLI commands
+3. Verify the fix took effect using the verification command from the check file
 
-   [PR] Issue #{number}: {title} — {one-line summary}
-   PR: {url}
-   Issue will auto-close when PR is merged.
-   ```
+Important:
+- For branch-protection: detect solo maintainer (single owner, no collaborators) and use lightweight rules
+- For description/topics: inspect the repo to propose meaningful values, not placeholders
+- Use `2>&1 || true` on gh commands to handle errors gracefully
+
+Return a fenced JSON array with one object per item:
+[
+  {
+    "item_path": "backlog/.../tier-1--branch-protection.md",
+    "slug": "branch-protection",
+    "status": "PASS",
+    "pr_url": null,
+    "verification": ["Branch protection enabled with lightweight rules"],
+    "error": null
+  }
+]
+```
+
+### Category B Agent Prompt (one per item)
+
+```
+You are an apply-backlog-item agent handling a file-change fix.
+
+Repository: {owner}/{repo}
+Default branch: {default_branch}
+Worktree path: repos/{owner}_{repo}--worktrees/fix--{slug}/
+Branch: fix/{slug}
+Skills path: {path to .claude/skills}
+Date: {YYYY-MM-DD}
+
+Item to fix:
+- Slug: {slug}
+  Backlog file: {item_path}
+  Check file: {skills_path}/shared/checks/{slug}.md
+
+Your job:
+1. Read the backlog item file to understand what's missing
+2. Read the check file for the fix strategy (see "Backlog Content" section)
+3. Inspect the repo in the worktree to understand the project (name, purpose, tech stack, build tools, existing patterns)
+4. Generate thoughtful, repo-aware content — not minimal stubs
+5. Stage, commit, and push:
+   git -C {worktree_path} add {files}
+   git -C {worktree_path} commit -m "{descriptive message}"
+   git -C {worktree_path} push -u origin fix/{slug}
+6. Create a PR:
+   gh pr create --repo {owner}/{repo} --head fix/{slug} --base {default_branch} --title "{title}" --body "{body}"
+   The PR body should reference the backlog item and include acceptance criteria as a checklist.
+7. Verify acceptance criteria from the backlog item
+
+Important:
+- Work ONLY in your worktree path: {worktree_path}
+- Do NOT checkout other branches or modify the main clone
+- Generate quality content by inspecting the repo — not boilerplate
+- If the fix requires multiple files, create all of them
+
+Return a fenced JSON object:
+{
+  "item_path": "{item_path}",
+  "slug": "{slug}",
+  "status": "PASS",
+  "pr_url": "https://github.com/{owner}/{repo}/pull/N",
+  "verification": ["File exists", "Content > 500 bytes", "..."],
+  "error": null
+}
+
+If something goes wrong, set status to "FAILED" and include the error message.
+If the fix requires human judgment, set status to "NEEDS_HUMAN" and explain why in error.
+```
+
+### Category CI Agent Prompt
+
+Same as Category B, but with an additional diagnostic step:
+
+```
+You are an apply-backlog-item agent handling CI workflow health fixes.
+
+{Same header as Category B agent}
+
+Your job:
+1. Read the backlog item and check file
+2. DIAGNOSE FIRST: examine the failing workflow files, recent run logs, and error patterns
+   gh run list --repo {owner}/{repo} --limit 5 --json status,conclusion,name,headBranch
+   gh run view {run_id} --repo {owner}/{repo} --log-failed 2>&1 | head -100
+3. Determine the root cause (missing dependency, wrong version, syntax error, etc.)
+4. Apply the fix in your worktree
+5. Stage, commit, push, and create PR (same as Category B)
+6. Verify the workflow file is valid YAML
+
+{Same return contract as Category B}
+```
+
+### Launching All Agents
+
+Use the Task tool to spawn all agents in a **single message**:
+
+- 1 Category A agent (if any A items exist) — `subagent_type: general-purpose`
+- N Category B agents (1 per file-change item) — `subagent_type: general-purpose`
+- 1 Category CI agent (if ci-workflow-health is failing) — `subagent_type: general-purpose`
+
+For issue items, use the Category B agent pattern but adapt the prompt:
+- Read the full issue from GitHub: `gh issue view {number} --repo {owner}/{repo}`
+- Include "Fixes #{number}" in the commit message and PR body
+
+## Phase 6 — Collect Results & Update Backlog
+
+After all agents complete:
+
+1. Parse the JSON result from each agent
+2. For each successful item (status = PASS):
+   - Update the backlog item file: change `| **Status** | FAIL |` to `| **Status** | PASS |`
+   - Check all acceptance criteria boxes
+   - Add PR URL if one was created
+3. For failed items (status = FAILED):
+   - Leave the backlog item as FAIL
+   - Log the error for the final report
+4. For NEEDS_HUMAN items:
+   - Leave the backlog item as FAIL
+   - Note in the report that the worktree is left in place
+5. Update `backlog/{owner}_{repo}/SUMMARY.md`:
+   - Change status from FAIL to PASS for successful items
+   - Add PR URLs where applicable
+   - Recalculate the health score
+
+You can verify the score with: `python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}`
+
+## Phase 7 — Cleanup Worktrees
+
+Remove worktrees for completed items:
+
+```bash
+# For each PASS or FAILED item (not NEEDS_HUMAN):
+git -C repos/{owner}_{repo} worktree remove \
+  ../repos/{owner}_{repo}--worktrees/fix--{slug} --force
+
+# After all removals:
+git -C repos/{owner}_{repo} worktree prune
+
+# Remove the worktrees directory if empty:
+rmdir repos/{owner}_{repo}--worktrees 2>/dev/null || true
+```
+
+For NEEDS_HUMAN items, leave the worktree in place and print instructions:
+
+```
+[NEEDS_HUMAN] {slug} — worktree left at repos/{owner}_{repo}--worktrees/fix--{slug}/
+  Reason: {error message from agent}
+  To continue manually: cd repos/{owner}_{repo}--worktrees/fix--{slug}
+  To remove: git -C repos/{owner}_{repo} worktree remove ../repos/{owner}_{repo}--worktrees/fix--{slug}
+```
+
+## Phase 8 — Final Report
+
+Display a summary table with all results:
+
+```
+## Results: {owner}/{repo}
+
+| Item | Tier | Pts | Status | PR |
+|------|------|-----|--------|----|
+| LICENSE | T1 | 4 | [PASS] | #12 |
+| Branch Protection | T1 | 4 | [PASS] | — (API) |
+| .editorconfig | T2 | 2 | [PASS] | #13 |
+| CI Workflow Health | T2 | 2 | [FAILED] | — |
+| CODEOWNERS | T2 | 2 | [PASS] | #14 |
+...
+
+---
+
+Summary:
+  Applied: {n_pass}/{n_total}
+  PRs created: {n_prs}
+  Points recovered: {points_recovered}/{points_possible}
+  New health score: {new_score}% (was {old_score}%)
+
+{If any FAILED or NEEDS_HUMAN items:}
+Remaining items:
+  [FAILED] CI Workflow Health — {error}
+  [NEEDS_HUMAN] ... — worktree at ...
+```
+
+## Single-Item Fast Path
+
+When a single file path is provided:
+
+1. Parse the item, classify as Category A, B, or CI
+2. Clone/pull repo (Phase 2)
+3. Show single-item plan, get `y/n` (Phase 3)
+4. **Category A**: run the `gh` command directly in the orchestrator (no agent needed for a single API call)
+5. **Category B/CI**: create one worktree, spawn one agent
+6. Update backlog, cleanup worktree, report
 
 ## Edge Cases
 
-- **WARN items**: These indicate permission issues. Before applying, check if the user now has sufficient permissions. If not, explain what permissions are needed.
-- **Already PASS**: If the status is already PASS, tell the user and skip.
-- **Already closed issues**: If the issue is already closed on GitHub, update the local backlog item status to CLOSED and skip.
-- **Multiple items**: When processing multiple items, process health Tier 1 first, then Tier 2, Tier 3, then issues by age (oldest first).
-- **Merge conflicts**: If the feature branch can't be created cleanly, report the conflict and let the user decide how to proceed.
-- **PR already exists**: Check if a branch `fix/{slug}` already exists. If so, ask the user whether to update it or create a new one.
-- **Complex issues**: Some issues may require significant code changes. If the issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
+- **Already PASS**: Skip the item. In batch mode, exclude from the plan table.
+- **Already closed issues**: Update local backlog status to CLOSED and skip.
+- **Branch already exists remotely**: Flag in plan table. If user confirms, force-create the branch (`-B` flag on worktree add).
+- **Agent failure**: One agent failing doesn't block others. Mark the item FAILED in the report.
+- **NEEDS_HUMAN**: Worktree left in place with instructions. Not cleaned up.
+- **Re-running is safe**: Phase 1 skips already-PASS items. Idempotent.
+- **WARN items**: These indicate permission issues. Before applying, check if the user now has sufficient permissions. If not, explain what's needed.
+- **Complex issues**: If an issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
+- **Merge conflicts**: If a worktree branch has conflicts, report and let the user decide.
+- **PR already exists for branch**: Check with `gh pr list --head fix/{slug}` before creating a new one.
 
 ## Examples
 
 **Example 1: Apply a single health item**
-User says: "apply backlog/phmatray_NewSLN/health/tier-1--readme.md"
-Result: Reads the item, clones the repo, generates a real README based on the project structure, creates branch `fix/readme`, commits, pushes, opens PR, verifies acceptance criteria, updates backlog item status to PASS.
+User says: "apply backlog/phmatray_Formidable/health/tier-1--license.md"
+Result: Parses item (Category B), clones/pulls repo, shows plan, creates one worktree at `repos/phmatray_Formidable--worktrees/fix--license/`, spawns one agent, agent generates LICENSE file, commits, pushes, creates PR, orchestrator verifies, updates backlog to PASS, cleans up worktree.
 
-**Example 2: Apply an issue fix**
-User says: "fix backlog/phmatray_NewSLN/issues/issue-42--login-page-crashes.md"
-Result: Reads the issue details, fetches full issue body from GitHub, plans code changes, creates branch `fix/issue-42--login-page-crashes`, implements fix, opens PR with "Fixes #42", updates backlog status to PR CREATED.
+**Example 2: Apply all items for a repo**
+User says: "apply all for phmatray_Formidable"
+Result: Discovers 10 FAIL items, classifies (2 Cat A, 7 Cat B, 1 Cat CI), shows batch plan table, user confirms, creates 8 worktrees, launches 10 agents in parallel (1 Cat A handling 2 items + 7 Cat B + 1 Cat CI), collects results, updates all backlog items, cleans up worktrees, shows final report with PRs and new score.
 
-**Example 3: Apply all tier 1 items**
-User says: "apply all tier 1 items for phmatray/NewSLN"
-Result: Processes each Tier 1 FAIL item in order (README, LICENSE, Description, Branch Protection), confirming each before proceeding. API-only fixes applied directly, file changes go through PR workflow.
+**Example 3: Apply an issue fix**
+User says: "fix backlog/phmatray_Formidable/issues/issue-42--login-page-crashes.md"
+Result: Parses issue (Category B), fetches full issue body from GitHub, creates worktree, spawns agent, agent implements fix with "Fixes #42" in commit, creates PR, updates backlog to PR CREATED.
+
+**Example 4: Re-run after partial success**
+User says: "apply all for phmatray_Formidable" (after a previous run where 7/10 passed)
+Result: Discovers only 3 remaining FAIL items, shows smaller batch plan, processes only those.
 
 ## Troubleshooting
 
@@ -253,11 +435,15 @@ The fix has already been applied. The skill will skip it and tell you.
 **"Permission denied" when pushing branch**
 You need write access to the repository. Check `gh repo view --json viewerPermission`.
 
+**Worktree creation fails**
+If the branch already exists locally: `git -C repos/{owner}_{repo} branch -D fix/{slug}` then retry.
+If it exists remotely: use `-B` flag to force-create, or ask user.
+
+**Agent returns NEEDS_HUMAN**
+The fix requires human judgment. The worktree is left in place — `cd` into it and make changes manually, then push and create a PR.
+
 **PR creation fails**
-Common causes: branch already exists (skill will ask whether to update or create new), or the default branch is protected and you need to create PRs from forks.
+Common causes: branch already exists remotely (skill checks for this in Phase 3), or default branch is protected. Check `gh pr list --head fix/{slug}` for existing PRs.
 
-**Complex issue — too many changes needed**
-For issues requiring significant code changes, the skill will present a plan and let you guide the implementation rather than auto-fixing.
-
-**Merge conflict on feature branch**
-If the branch can't be created cleanly from the default branch, the skill reports the conflict and lets you decide how to proceed.
+**Worktrees not cleaned up**
+Run `git -C repos/{owner}_{repo} worktree list` to see active worktrees. Remove with `git worktree remove <path>`.
