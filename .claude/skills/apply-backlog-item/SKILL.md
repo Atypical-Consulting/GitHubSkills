@@ -11,7 +11,7 @@ description: >
 
 # Apply Backlog Item
 
-Read a structured backlog item, apply the fix to the target repository, verify acceptance criteria, and update the item's status.
+Read a structured backlog item (health finding or GitHub issue), apply the fix to the target repository, verify acceptance criteria, and update the item's status.
 
 ## Prerequisites
 
@@ -21,13 +21,19 @@ Read a structured backlog item, apply the fix to the target repository, verify a
 
 ## Input
 
-The user provides a path to a backlog item markdown file (e.g., `backlog/phmatray_NewSLN/health-report/tier-1--description.md`).
+The user provides a path to a backlog item markdown file. This can be either:
+- A health item: `backlog/phmatray_NewSLN/health/tier-1--description.md`
+- An issue item: `backlog/phmatray_NewSLN/issues/issue-42--login-bug.md`
 
-If the user says "apply all" or references multiple items, process them one at a time in tier order (Tier 1 first), confirming each before proceeding.
+If the user says "apply all" or references multiple items, process them one at a time in priority order (health Tier 1 first, then Tier 2, Tier 3, then issues), confirming each before proceeding.
 
 ## Step 1 — Parse the Backlog Item
 
-Read the markdown file and extract these fields from the structured format:
+Read the markdown file and determine the item type from the `Source` field in the metadata table.
+
+### Health items (Source: "Health Check")
+
+Extract these fields:
 
 | Field | Where to find it |
 |-------|-----------------|
@@ -41,7 +47,20 @@ Read the markdown file and extract these fields from the structured format:
 | **Full solution** | The prose/template in "How to Fix > Full Solution" |
 | **Acceptance criteria** | The checkbox list in "Acceptance Criteria" |
 
-If the file doesn't match this structure, tell the user and stop.
+### Issue items (Source: "Issue #N")
+
+Extract these fields:
+
+| Field | Where to find it |
+|-------|-----------------|
+| **Issue title** | The `# Title` at the top |
+| **Repository** | The `Repository` row |
+| **Issue number** | The `Source` row (parse the number from "Issue #N") |
+| **Labels** | The `Labels` row |
+| **Description** | The "Description" section |
+| **GitHub URL** | The "References" section |
+
+If the file doesn't match either structure, tell the user and stop.
 
 ## Step 2 — Prepare the Local Clone
 
@@ -64,9 +83,11 @@ After cloning/pulling, detect the default branch name and the tech stack by scan
 
 ## Step 3 — Plan the Fix
 
-Backlog items fall into two categories. Determine which applies and plan accordingly.
+### For health items
 
-### Category A — API-only fixes
+Health items fall into two categories:
+
+#### Category A — API-only fixes
 
 These don't require file changes in the repo. They use `gh` commands directly.
 
@@ -78,7 +99,7 @@ Examples:
 
 For these, craft the specific command based on the backlog item and the repo context. For description and topics, inspect the repo to propose meaningful values (don't use placeholders).
 
-### Category B — File creation / modification
+#### Category B — File creation / modification
 
 These require creating or editing files in the local clone, then committing and pushing.
 
@@ -98,16 +119,28 @@ For file creation items, generate thoughtful, repo-aware content — not just th
 - Existing documentation patterns
 - License type
 
+### For issue items
+
+Issue fixes are always Category B (file changes + PR). The approach:
+
+1. Read the full issue from GitHub to get the complete body (the backlog item may have a truncated version):
+   ```bash
+   gh issue view {number} --repo {owner}/{repo}
+   ```
+2. Understand what the issue is asking for
+3. Plan the code changes needed
+4. The PR will reference the issue with "Fixes #{number}" to auto-close it on merge
+
 ### Present the plan
 
 Before executing, show the user:
 
 ```
-## Plan: {Check Name}
+## Plan: {Title}
 
 Repository: {owner}/{repo}
-Category:   {A — API-only | B — File creation}
-Branch:     fix/{check-name-kebab} (from {default_branch})
+Source:     {Health Check — Tier N | Issue #N}
+Branch:     fix/{slug} (from {default_branch})
 
 ### What I'll do:
 {Numbered list of specific actions}
@@ -122,33 +155,40 @@ Wait for user confirmation before continuing.
 
 ## Step 4 — Apply the Fix
 
-### For API-only fixes:
+### For API-only fixes (health Category A):
 
 Run the `gh` command and capture the output. Verify the command succeeded (exit code 0).
 
-### For file creation fixes:
+### For file changes (health Category B and all issue fixes):
 
 1. Create a feature branch from the default branch:
    ```bash
-   git checkout -b fix/{check-name-kebab}
+   git checkout -b fix/{slug}
    ```
+   For health items, the slug is `{check-name-kebab}`. For issues, use `issue-{number}--{title-kebab}` (truncated).
+
 2. Create or modify the files as planned
 3. Stage and commit:
    ```bash
    git add {files}
    git commit -m "{descriptive message}"
    ```
+   For issue fixes, include "Fixes #{number}" in the commit message.
 4. Push the branch:
    ```bash
-   git push -u origin fix/{check-name-kebab}
+   git push -u origin fix/{slug}
    ```
 5. Create a PR:
    ```bash
    gh pr create --title "{title}" --body "{body}" --base {default_branch}
    ```
-   The PR body should reference the backlog item and include the acceptance criteria as a checklist.
+   The PR body should:
+   - For health items: reference the backlog item and include acceptance criteria as a checklist
+   - For issue items: include "Fixes #{number}" to auto-close the issue, and summarize the changes
 
 ## Step 5 — Verify Acceptance Criteria
+
+### For health items
 
 After applying the fix, verify each acceptance criterion from the backlog item.
 
@@ -165,13 +205,22 @@ Report results:
 
 If any criterion fails, report which ones failed and suggest corrective action. Do not update the backlog item status.
 
+### For issue items
+
+Verification is simpler — confirm:
+- The PR was created successfully
+- The PR references the issue number
+- The files were modified as planned
+
 ## Step 6 — Update the Backlog Item
 
-Once all acceptance criteria pass:
+Once verification passes:
+
+### For health items
 
 1. **Update the backlog item file**: Change `| **Status** | FAIL |` to `| **Status** | PASS |` and check all acceptance criteria boxes.
 
-2. **Update SUMMARY.md**: Find the item's row in the Action Items table and change its status from `FAIL` to `PASS`. If a PR was created, add the PR URL. Move the item from "Action Items" to "Passing Checks" if you want a clean summary — but at minimum update the status column.
+2. **Update SUMMARY.md**: Find the item's row in the Health — Action Items table and change its status from `FAIL` to `PASS`. If a PR was created, add the PR URL.
 
 3. **Report to the user**:
    ```
@@ -182,10 +231,27 @@ Once all acceptance criteria pass:
    Points recovered: {points}
    ```
 
+### For issue items
+
+1. **Update the backlog item file**: Change `| **Status** | OPEN |` to `| **Status** | PR CREATED |` and add a `| **PR** | {url} |` row to the metadata table.
+
+2. **Update SUMMARY.md**: Find the issue row in the Open Issues table and add the PR link.
+
+3. **Report to the user**:
+   ```
+   ## Done
+
+   [PR] Issue #{number}: {title} — {one-line summary}
+   PR: {url}
+   Issue will auto-close when PR is merged.
+   ```
+
 ## Edge Cases
 
 - **WARN items**: These indicate permission issues. Before applying, check if the user now has sufficient permissions. If not, explain what permissions are needed.
 - **Already PASS**: If the status is already PASS, tell the user and skip.
-- **Multiple items**: When processing multiple items, some may depend on others (e.g., CI/CD workflows reference branch names). Process Tier 1 first, then Tier 2, then Tier 3.
+- **Already closed issues**: If the issue is already closed on GitHub, update the local backlog item status to CLOSED and skip.
+- **Multiple items**: When processing multiple items, process health Tier 1 first, then Tier 2, Tier 3, then issues by age (oldest first).
 - **Merge conflicts**: If the feature branch can't be created cleanly, report the conflict and let the user decide how to proceed.
-- **PR already exists**: Check if a branch `fix/{check-name-kebab}` already exists. If so, ask the user whether to update it or create a new one.
+- **PR already exists**: Check if a branch `fix/{slug}` already exists. If so, ask the user whether to update it or create a new one.
+- **Complex issues**: Some issues may require significant code changes. If the issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
