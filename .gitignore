@@ -17,3 +17,8 @@ backlog/
 
 # Claude Code
 .claude/projects/
+
+# Documentation site
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+node_modules/
