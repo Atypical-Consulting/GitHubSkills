@@ -13,19 +13,40 @@ compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 ---
 
 # Merge PRs
 
 Merge open pull requests on a GitHub repository — individually, by author type, or all at once. Supports batch operations with CI status awareness and automatic branch cleanup.
 
-## Prerequisites
+<context>
+Purpose: Batch-merge open PRs with CI awareness, merge strategy selection, and automatic branch cleanup.
 
-- The `gh` CLI must be authenticated (`gh auth status`)
-- The user must have write/merge access to the target repository
+Roles:
+1. **Merge Operator** (you) — lists PRs, classifies by author, confirms with user, merges sequentially, reports results
 
-For prerequisites, error handling, and repo detection, read `../shared/gh-prerequisites.md`.
+No sub-agents — PRs are merged sequentially to avoid race conditions on the base branch.
+
+Shared docs:
+- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+</context>
+
+<objective>
+Merge open PRs with appropriate strategy and clean up branches.
+
+Outputs:
+- PRs merged on GitHub
+- Branches deleted after merge
+- Terminal summary report
+
+Next routing:
+- Suggest `ghs-repo-scan` to re-scan after merging — "To verify improvements: `/ghs-repo-scan {owner}/{repo}`"
+- Suggest `ghs-backlog-board` to see updated dashboard
+- If merge conflicts exist, suggest resolving manually or closing stale PRs
+</objective>
+
+<process>
 
 ## Input
 
@@ -43,9 +64,7 @@ If no filter is given, default to showing all open PRs and letting the user choo
 - **User's own PRs**: Regular merge (`--merge`) — preserves the full commit history from the feature branch
 - The user can override the strategy if they ask for something specific
 
-## Execution
-
-### Step 1 — Detect Repository and List PRs
+## Step 1 — Detect Repository and List PRs
 
 1. Detect the repository (`owner/repo`) from input or git remote
 2. Fetch all open PRs with relevant metadata:
@@ -59,7 +78,7 @@ gh pr list --repo {owner}/{repo} --state open --json number,title,author,headRef
    - **Own PRs**: author login matches the authenticated user (`gh api user --jq '.login'`)
    - **Other**: any remaining PRs from external contributors
 
-### Step 2 — Display PR Overview
+## Step 2 — Display PR Overview
 
 Present a clear summary table:
 
@@ -71,13 +90,14 @@ Present a clear summary table:
 | # | Title | Branch | CI | Mergeable |
 |---|-------|--------|----|-----------|
 | 31 | Add global.json for .NET SDK version pinning | fix/version-pinning | FAIL | Yes |
-| 30 | Improve Renovate configuration | fix/dependency-update-config | FAIL | Unknown |
+...
 
 ### Bot PRs ({count})
 
 | # | Title | Branch | CI | Mergeable | Bot |
 |---|-------|--------|----|-----------|-----|
-| 33 | chore(deps): update opentelemetry-dotnet-contrib monorepo | renovate/opentelemetry... | FAIL | Unknown | renovate |
+| 33 | chore(deps): update opentelemetry... | renovate/opentelemetry... | FAIL | Unknown | renovate |
+...
 
 ### Other PRs ({count})
 (none)
@@ -92,9 +112,7 @@ CI status is derived from `statusCheckRollup`:
 - **PENDING**: any check has `status: "IN_PROGRESS"` or `"QUEUED"`
 - **NONE**: empty `statusCheckRollup` array
 
-Mergeable status from the `mergeable` field: `MERGEABLE`, `CONFLICTING`, or `UNKNOWN`.
-
-### Step 3 — Determine What to Merge
+## Step 3 — Determine What to Merge
 
 Based on the user's request:
 
@@ -108,10 +126,10 @@ Based on the user's request:
 | No specific filter | Show the overview, ask what to merge |
 
 Skip PRs that are:
-- **Draft**: always skip drafts
+- **Draft**: always skip — drafts aren't ready for review, let alone merging
 - **CONFLICTING**: cannot be merged — report and skip
 
-### Step 4 — Confirm Before Merging
+## Step 4 — Confirm Before Merging
 
 Always show what will be merged before doing it:
 
@@ -128,17 +146,17 @@ Branches will be deleted after merge.
 Proceed? (y/n)
 ```
 
-**If any PRs have failing CI**, highlight this clearly:
+If any PRs have failing CI, highlight clearly — merging broken code can affect other contributors:
 
 ```
 WARNING: {N} PRs have failing CI checks. Merging will bypass status checks.
 ```
 
-Wait for user confirmation before proceeding. This is the critical safety gate.
+Wait for user confirmation. This is the critical safety gate.
 
-### Step 5 — Merge PRs Sequentially
+## Step 5 — Merge PRs Sequentially
 
-For each confirmed PR, merge one at a time (sequential to avoid race conditions on the base branch):
+Merge one at a time — sequential prevents race conditions when multiple PRs touch the same base branch:
 
 ```bash
 # For bot PRs (squash merge)
@@ -161,9 +179,7 @@ Report progress as each PR merges:
 [3/3] Merging #32 (chore(deps): update opentelemetry...) ... FAILED: merge conflict
 ```
 
-### Step 6 — Summary Report
-
-After all merges complete:
+## Step 6 — Summary Report
 
 ```
 ## Merge Summary: {owner}/{repo}
@@ -181,15 +197,17 @@ Skipped: 0 PRs
 Remaining open PRs: {N}
 ```
 
+</process>
+
 ## Edge Cases
 
 - **No open PRs**: Tell the user there's nothing to merge.
 - **All PRs are drafts**: Report that all PRs are drafts and suggest marking them ready first.
 - **Merge conflicts**: Skip conflicting PRs, report them, and suggest resolving manually.
-- **No admin access for failing CI**: If `--admin` fails and branch protection blocks the merge, report it clearly and suggest the user either fix CI or adjust branch protection rules.
+- **No admin access for failing CI**: If `--admin` fails and branch protection blocks the merge, report it and suggest fixing CI or adjusting branch protection.
 - **PR requires review approval**: If `reviewDecision` is `CHANGES_REQUESTED` or review is required but not approved, flag it and skip unless user explicitly confirms.
 - **Rate limiting**: If `gh` commands fail with rate limit errors, report and suggest waiting.
-- **Cascading conflicts**: After merging one PR, others may develop conflicts. If a merge fails mid-batch, continue with remaining PRs and report all failures at the end.
+- **Cascading conflicts**: After merging one PR, others may develop conflicts. Continue with remaining PRs and report all failures at the end.
 
 ## Examples
 
@@ -203,8 +221,8 @@ Result: Lists all Renovate bot PRs, confirms (warns about failing CI if applicab
 
 **Example 3: Merge everything**
 User says: "merge all PRs on phmatray/Formidable"
-Result: Shows overview of all PRs, confirms the batch, merges sequentially (squash for bots, merge for own), reports results.
+Result: Shows overview of all PRs, confirms the batch, merges sequentially, reports results.
 
 **Example 4: Merge only passing PRs**
 User says: "merge passing PRs"
-Result: Filters to only PRs with CI = PASS, confirms, merges them. If none are passing, reports that.
+Result: Filters to only PRs with CI = PASS, confirms, merges them.

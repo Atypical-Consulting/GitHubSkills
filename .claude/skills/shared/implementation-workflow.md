@@ -51,8 +51,8 @@ repos/{owner}_{repo}/                                  ← main clone (stays on 
 repos/{owner}_{repo}--worktrees/{prefix}--{slug}/      ← one worktree per item
 ```
 
-- Worktrees are **siblings** to the main clone, never inside it.
-- The `repos/` directory is gitignored.
+- Worktrees are **siblings** to the main clone, never inside it — nesting worktrees inside the clone causes git to confuse working trees and corrupt the index.
+- The `repos/` directory is gitignored — cloned repos are ephemeral working copies, not project artifacts.
 - `{prefix}` is the branch prefix (e.g., `fix`, `feat`, `docs`, `impl`).
 - `{slug}` is a short, kebab-case identifier for the item.
 
@@ -99,7 +99,7 @@ For items that require human judgment, leave the worktree in place and print ins
 
 Each agent working in a worktree should:
 
-1. **Make changes** in the worktree directory only — never modify the main clone
+1. **Make changes** in the worktree directory only — modifying the main clone would corrupt other agents' worktrees since they share the same git object store
 2. **Stage files**:
    ```bash
    git -C {worktree_path} add {files}
@@ -124,8 +124,8 @@ Each agent working in a worktree should:
 The PR body should include:
 - A summary of what was changed and why
 - A reference to the source (backlog item path, issue number, etc.)
-- Acceptance criteria as a checklist (if available)
-- For issues: include `Fixes #{number}` for auto-close
+- Acceptance criteria as a checklist (if available) — reviewers need to know what "done" looks like
+- For issues: include `Fixes #{number}` — this triggers GitHub's auto-close when the PR is merged
 
 ---
 

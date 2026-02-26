@@ -15,26 +15,44 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 ---
 
 # Issue Implementation
 
 Implement GitHub issues using parallel worktree-based agents. Creates branches, spawns agents to write code, verifies results, and opens PRs with auto-close references.
 
-## Prerequisites
+<context>
+Purpose: Implement GitHub issues by spawning worktree-based agents that write code, run tests, and create PRs.
 
-See `../shared/gh-prerequisites.md` for authentication, repo detection, and error handling.
+Roles:
+1. **Orchestrator** (you) — fetches issues, prepares repo, creates worktrees, spawns agents, collects results, updates labels, cleans up
+2. **Implementation Agents** (spawned via Task tool) — one per issue, each working in its own worktree
 
-See `../shared/implementation-workflow.md` for:
-- §1 Repository Preparation (clone/pull, default branch, tech stack)
-- §2 Worktree Management (path convention, creation, cleanup)
-- §3 Branch/Commit/Push/PR Workflow (agent instructions)
-- §4 Agent Result Contract (JSON format)
-- §5 Pre-flight Checks (branch conflicts, existing PRs)
-- §6 Content Filter Workaround
+Agent prompt: `agents/implementation-agent.md`
 
-The user must have **write access** to the target repository (required for pushing branches and creating PRs).
+Shared docs:
+- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+- `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
+
+The user must have **write access** to the target repository.
+</context>
+
+<objective>
+Implement GitHub issues and create PRs with auto-close references.
+
+Outputs:
+- PRs created on GitHub for each implemented issue
+- Issue labels updated to `status:in-progress`
+- Terminal report with results table
+
+Next routing:
+- Suggest `ghs-merge-prs` to merge the created PRs — "To merge: `/ghs-merge-prs {owner}/{repo}`"
+- If issues lack type/priority labels, suggest `ghs-issue-triage` first — "Run `/ghs-issue-triage` to classify issues before implementing"
+- For complex issues, suggest `ghs-issue-analyze` first — "Run `/ghs-issue-analyze #{number}` for a detailed breakdown"
+</objective>
+
+<process>
 
 ## Input
 
@@ -44,18 +62,9 @@ Three invocation modes:
 - **Batch by label**: `implement all triaged issues` — fetches issues with `status:triaged` label
 - **Batch by type**: `implement all bugs` — fetches issues with `type:bug` label
 
-## Architecture
+## Branch Naming
 
-This skill uses the same **parallel worktree-based agent** pattern as `ghs-backlog-fix`.
-
-### Roles
-
-1. **Orchestrator** (you): fetches issues, prepares repo, creates worktrees, spawns agents, collects results, updates labels, cleans up
-2. **Implementation Agents** (spawned via Task tool): one per issue, each working in its own worktree
-
-### Branch Naming
-
-Branch prefix is determined by the issue's type label:
+Branch prefix is determined by the issue's type label — this keeps the git log readable:
 
 | Type Label | Branch Prefix | Example |
 |-----------|---------------|---------|
@@ -66,18 +75,12 @@ Branch prefix is determined by the issue's type label:
 | (default) | `impl/` | `impl/50-misc-task` |
 
 Branch naming pattern: `{prefix}/{issue-number}-{short-slug}`
-
 Where `{short-slug}` is derived from the issue title: lowercase, non-alphanumeric replaced with `-`, truncated to 40 chars.
 
-### Worktree Path Convention
-
-Per `../shared/implementation-workflow.md` §2:
-
+Worktree path per `../shared/implementation-workflow.md` §2:
 ```
 repos/{owner}_{repo}--worktrees/{prefix}--{issue-number}-{short-slug}/
 ```
-
----
 
 ## Phase 1 — Fetch Issues
 
@@ -105,11 +108,7 @@ For each issue, extract:
 
 ### Analysis Context
 
-If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract it and include it as context for the implementation agent. This provides:
-- Affected files and line numbers
-- Suggested approach
-- Complexity assessment
-- Risks and dependencies
+If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract it and include it as context for the implementation agent. This provides affected files, suggested approach, and complexity assessment — saving the agent significant investigation time.
 
 ## Phase 2 — Prepare Repository
 
@@ -120,8 +119,6 @@ Follow `../shared/implementation-workflow.md` §1:
 
 ## Phase 3 — Show Plan & Confirm
 
-Display a summary of what will be implemented:
-
 ### Batch plan
 
 ```
@@ -131,7 +128,7 @@ Display a summary of what will be implemented:
 |---|-------|------|----------|--------|---------------|
 | 1 | #42 Login crashes | bug | high | fix/42-login-crash | Yes |
 | 2 | #15 Add dark mode | feature | medium | feat/15-dark-mode | No |
-| 3 | #18 Update README | docs | low | docs/18-update-readme | Yes |
+...
 
 Total: {N} issues ({n_bug} bugs, {n_feature} features, {n_docs} docs)
 
@@ -150,7 +147,7 @@ Branch:     {prefix}/{number}-{slug} (from {default_branch})
 Analysis:   {Yes — see comment | No — will analyze during implementation}
 
 ### What I'll do:
-{Numbered list of implementation steps — from analysis comment if available, otherwise AI-determined}
+{Numbered list of implementation steps}
 
 ### Files to create/modify:
 {List of files from analysis, or "Will determine during implementation"}
@@ -162,9 +159,7 @@ Wait for user confirmation.
 
 ### Pre-flight checks
 
-Per `../shared/implementation-workflow.md` §5:
-- Check for branch conflicts
-- Check for existing PRs
+Per `../shared/implementation-workflow.md` §5 — check for branch conflicts and existing PRs.
 
 ## Phase 4 — Create Worktrees
 
@@ -182,77 +177,7 @@ git -C repos/{owner}_{repo} worktree add \
 
 Spawn all agents in a **single Task tool message** using `subagent_type: general-purpose`.
 
-### Agent Prompt Template
-
-```
-You are a ghs-issue-implement agent implementing a GitHub issue.
-
-Repository: {owner}/{repo}
-Default branch: {default_branch}
-Tech stack: {detected_stack}
-Worktree path: repos/{owner}_{repo}--worktrees/{prefix}--{number}-{slug}/
-Branch: {prefix}/{number}-{slug}
-Date: {YYYY-MM-DD}
-
-Issue:
-- Number: #{number}
-- Title: {title}
-- Body: {body}
-
-{If analysis comment exists:}
-Previous Analysis:
-{analysis_comment_content}
-
-{If issue has useful comments:}
-Issue Comments:
-{relevant_comments}
-
-Your job:
-1. Understand the issue and what needs to change
-2. Inspect the repo in the worktree to understand existing patterns, architecture, and conventions
-3. Implement the fix/feature following the project's existing style and patterns
-4. Write/update tests if the project has a test suite and the change is testable
-5. Stage, commit, and push:
-   git -C {worktree_path} add {files}
-   git -C {worktree_path} commit -m "{type}: {descriptive message}
-
-   Fixes #{number}"
-   git -C {worktree_path} push -u origin {prefix}/{number}-{slug}
-6. Create a PR:
-   gh pr create --repo {owner}/{repo} \
-     --head {prefix}/{number}-{slug} --base {default_branch} \
-     --title "{type}: {concise title}" \
-     --body "## Summary
-
-   {description of changes}
-
-   Fixes #{number}
-
-   ## Changes
-   {list of changes}
-
-   ## Testing
-   {testing notes}"
-
-Important:
-- Work ONLY in your worktree path
-- Do NOT checkout other branches or modify the main clone
-- Follow the project's existing code style, patterns, and conventions
-- If the project uses TypeScript, write TypeScript. If it uses Python typing, use type hints. Etc.
-- Write meaningful commit messages that explain WHY, not just WHAT
-- If the issue is too complex or ambiguous, set status to NEEDS_HUMAN and explain why
-- For content filter issues, see §6 of implementation-workflow.md
-
-Return a fenced JSON object:
-{
-  "source": "issue",
-  "slug": "{number}-{short_slug}",
-  "status": "PASS",
-  "pr_url": "https://github.com/{owner}/{repo}/pull/N",
-  "verification": ["List of checks performed"],
-  "error": null
-}
-```
+Read `agents/implementation-agent.md` for the prompt template. Substitute `{owner}`, `{repo}`, `{default_branch}`, `{detected_stack}`, `{prefix}`, `{number}`, `{slug}`, `{title}`, `{body}`, and optionally `{analysis_comment_content}` placeholders.
 
 ## Phase 6 — Collect Results & Update Labels
 
@@ -266,17 +191,12 @@ After all agents complete:
      --remove-label "status:triaged,status:analyzing" \
      --add-label "status:in-progress"
    ```
-3. For FAILED items:
-   - Leave labels unchanged
-   - Log the error for the final report
-4. For NEEDS_HUMAN items:
-   - Leave labels unchanged
-   - Note that the worktree is left in place
+3. For FAILED items: leave labels unchanged, log the error
+4. For NEEDS_HUMAN items: leave labels unchanged, note worktree is preserved
 
 ## Phase 7 — Cleanup Worktrees
 
 Per `../shared/implementation-workflow.md` §2 (Cleanup section):
-
 - Remove worktrees for PASS and FAILED items
 - Leave NEEDS_HUMAN worktrees in place with instructions
 - Prune and remove empty worktree directory
@@ -305,6 +225,8 @@ Remaining:
     Reason: Feature requires design decisions about theme system architecture
 ```
 
+</process>
+
 ## Edge Cases
 
 - **Issue is closed**: Skip by default. Warn the user if they explicitly request a closed issue.
@@ -316,23 +238,18 @@ Remaining:
 - **Agent failure**: One agent failing doesn't block others. Mark FAILED in report.
 - **Content filter blocks output**: Orchestrator handles per §6 of implementation-workflow.md.
 - **Issue has no analysis**: Agent performs its own investigation — it just takes slightly longer.
-- **Merge conflicts**: If the branch has conflicts with the default branch, report and let user decide.
 - **Re-running is safe**: Issues already with `status:in-progress` and an open PR are skipped in batch mode.
 
 ## Examples
 
 **Example 1: Implement a single bug fix**
 User says: "implement issue #42"
-Result: Fetches issue (type:bug), clones/pulls repo, shows plan, creates worktree at `repos/o_r--worktrees/fix--42-login-crash/`, spawns agent, agent fixes the bug with tests, commits with "Fixes #42", pushes, creates PR, label updated to status:in-progress, worktree cleaned up.
+Result: Fetches issue (type:bug), clones/pulls repo, shows plan, creates worktree, spawns agent, agent fixes the bug with tests, commits with "Fixes #42", creates PR, label updated.
 
 **Example 2: Implement all triaged issues**
 User says: "implement all triaged issues"
-Result: Fetches issues with status:triaged, shows batch plan ordered by priority, user confirms, creates worktrees, spawns agents in parallel, collects results, updates labels, cleans up, shows report.
+Result: Fetches issues with status:triaged, shows batch plan ordered by priority, user confirms, creates worktrees, spawns agents in parallel, collects results, shows report.
 
-**Example 3: Implement all bugs**
-User says: "implement all bugs"
-Result: Fetches issues with type:bug label, same flow as batch.
-
-**Example 4: Implement with prior analysis**
+**Example 3: Implement with prior analysis**
 User says: "implement #42" (issue has an analysis comment from ghs-issue-analyze)
-Result: Agent receives the analysis as context, uses suggested approach and affected files to guide implementation. Faster and more targeted than without analysis.
+Result: Agent receives the analysis as context, uses suggested approach and affected files. Faster and more targeted.

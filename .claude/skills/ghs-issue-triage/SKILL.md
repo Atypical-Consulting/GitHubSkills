@@ -13,16 +13,39 @@ compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 ---
 
 # Issue Triage
 
 Verify a consistent label taxonomy exists on a GitHub repository, then classify and label open issues by type and priority.
 
-## Prerequisites
+<context>
+Purpose: Ensure consistent issue labeling by establishing a label taxonomy and classifying issues by type and priority.
 
-See `../shared/gh-prerequisites.md` for authentication, repo detection, and error handling.
+Roles:
+1. **Triage Agent** (you) — creates missing labels, fetches issues, classifies each by type and priority, applies labels after confirmation
+
+This skill does not spawn sub-agents — classification benefits from seeing all issues together for consistent calibration.
+
+Shared docs:
+- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+</context>
+
+<objective>
+Classify and label open issues with consistent type, priority, and status labels.
+
+Outputs:
+- Label taxonomy created/verified on the repo
+- Issues labeled with `type:*`, `priority:*`, and `status:triaged`
+- Before/after summary table in terminal
+
+Next routing:
+- Suggest `ghs-issue-analyze` for complex issues — "For complex issues, run `/ghs-issue-analyze #{number}` before implementing"
+- Suggest `ghs-issue-implement` to start working — "To implement triaged issues: `/ghs-issue-implement all triaged issues`"
+</objective>
+
+<process>
 
 ## Input
 
@@ -35,11 +58,11 @@ Three invocation modes:
 Two confirmation modes:
 
 - **Interactive (default)**: AI proposes labels in a table, user confirms or adjusts before applying
-- **Auto mode**: User says `triage all --auto` or `auto-triage` — AI classifies and applies directly without per-issue confirmation (for large batches where user trusts the classification)
+- **Auto mode**: User says `triage all --auto` or `auto-triage` — classifies and applies directly without per-issue confirmation (for large batches where user trusts the classification)
 
 ## Label Taxonomy
 
-The skill ensures these labels exist on the repo before triaging. Use `gh label create` to create any missing labels (skip existing ones with `2>&1 || true`).
+The skill ensures these labels exist on the repo before triaging. Use `gh label create` to create any missing labels. Append `2>&1 || true` to skip labels that already exist — `gh label create` returns non-zero for duplicates, which isn't a real error.
 
 ### Type Labels (blue shades)
 
@@ -71,8 +94,6 @@ The skill ensures these labels exist on the repo before triaging. Use `gh label 
 | `status:in-progress` | `#9b59b6` | Implementation in progress |
 | `status:blocked` | `#c5def5` | Blocked by external dependency |
 
----
-
 ## Phase 1 — Ensure Label Taxonomy
 
 Check which labels already exist on the repo:
@@ -86,17 +107,9 @@ Create any missing labels from the taxonomy above:
 ```bash
 gh label create "type:bug" --repo {owner}/{repo} \
   --color "d73a4a" --description "Something isn't working" 2>&1 || true
-# ... repeat for all labels
 ```
 
-Report what was created vs. already existed:
-
-```
-## Label Setup: {owner}/{repo}
-
-Created: type:bug, type:feature, priority:critical, priority:high, ...
-Already existed: type:docs, priority:medium, ...
-```
+Report what was created vs. already existed.
 
 ## Phase 2 — Fetch Issues
 
@@ -153,7 +166,6 @@ Display a table of proposed labels:
 |---|-------|----------------|--------|------------|-----------|
 | 1 | #12 Login page crashes | — | type:bug | priority:high | Crash report, user-facing |
 | 2 | #15 Add dark mode | enhancement | type:feature | priority:medium | Feature request, non-urgent |
-| 3 | #18 Update README | — | type:docs | priority:low | Documentation only |
 ...
 
 {N} issues to triage. Confirm? (y/n/edit)
@@ -194,7 +206,7 @@ Display a before/after summary:
 |---|-------|--------|-------|
 | 1 | #12 Login page crashes | — | type:bug, priority:high, status:triaged |
 | 2 | #15 Add dark mode | enhancement | type:feature, priority:medium, status:triaged |
-| 3 | #18 Update README | — | type:docs, priority:low, status:triaged |
+...
 
 ---
 
@@ -204,28 +216,30 @@ Summary:
   Priority: {n_critical} critical, {n_high} high, {n_medium} medium, {n_low} low
 ```
 
+</process>
+
 ## Edge Cases
 
 - **Issue already has type/priority labels**: In batch-unlabeled mode, skip it. In batch-all mode, show current labels and propose reclassification only if the AI disagrees.
 - **Closed issues**: Skip by default. Only include if the user explicitly asks.
 - **Pull requests in issue list**: `gh issue list` may include PRs — filter them out by checking the `pullRequest` field.
 - **Label creation fails**: Some repos restrict label creation to maintainers. Report which labels couldn't be created and continue with existing labels.
-- **Very long issue bodies**: Truncate to ~2000 chars for classification — title and first paragraphs are usually sufficient.
+- **Very long issue bodies**: Truncate to ~2000 chars for classification — title and first paragraphs are usually sufficient for determining type and priority.
 - **No issues to triage**: Report "All open issues are already triaged" and exit cleanly.
 
 ## Examples
 
 **Example 1: Triage a single issue**
 User says: "triage issue #42"
-Result: Fetches issue #42, proposes type + priority labels, user confirms, labels are applied, status:triaged added.
+Result: Fetches issue #42, proposes type + priority labels, user confirms, labels applied, status:triaged added.
 
 **Example 2: Batch triage all unlabeled issues**
 User says: "triage all issues"
-Result: Fetches open issues, filters to unlabeled, proposes labels for each, user confirms table, all labels applied.
+Result: Fetches open issues, filters to unlabeled, proposes labels for each, user confirms, all labels applied.
 
 **Example 3: Auto-triage**
 User says: "auto-triage all issues"
-Result: Same as batch but labels are applied immediately without confirmation.
+Result: Same as batch but labels applied immediately without confirmation.
 
 **Example 4: Set up labels only**
 User says: "set up issue labels on my repo"

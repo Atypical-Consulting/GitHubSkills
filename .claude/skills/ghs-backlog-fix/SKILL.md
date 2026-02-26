@@ -14,26 +14,50 @@ compatibility: "Requires gh CLI (authenticated), git, python3, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 4.0.0
+  version: 5.0.0
 ---
 
 # Apply Backlog Item
 
 Read structured backlog items (health findings or GitHub issues), apply fixes using parallel worktree-based agents, verify acceptance criteria, and update item statuses.
 
-## Prerequisites
+<context>
+Purpose: Apply backlog item fixes using parallel worktree-based agents — one clone, multiple worktrees, simultaneous agents.
 
-See `../shared/gh-prerequisites.md` for authentication, repo detection, and error handling.
+Roles:
+1. **Orchestrator** (you) — discovers items, classifies them, prepares the repo, creates worktrees, spawns agents, collects results, updates backlog, cleans up
+2. **Category A Agent** — handles all API-only fixes (no worktree needed)
+3. **Category B Agents** — one per file-change item, each working in its own worktree
+4. **Category CI Agent** — handles ci-workflow-health in its own worktree (diagnoses before fixing)
 
-See `../shared/implementation-workflow.md` for:
-- §1 Repository Preparation (clone/pull, default branch, tech stack)
-- §2 Worktree Management (path convention, creation, cleanup)
-- §3 Branch/Commit/Push/PR Workflow (agent instructions)
-- §4 Agent Result Contract (JSON format)
-- §5 Pre-flight Checks (branch conflicts, existing PRs)
-- §6 Content Filter Workaround
+Agent prompts: `agents/category-a-agent.md`, `agents/category-b-agent.md`, `agents/category-ci-agent.md`
 
-The user must have **write access** to the target repository (required for pushing branches and creating PRs).
+Shared docs:
+- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+- `../shared/implementation-workflow.md` — §1 Repo Prep, §2 Worktree Mgmt, §3 Branch/Commit/Push/PR, §4 Agent Result Contract, §5 Pre-flight, §6 Content Filter
+- `../shared/config.md` — scoring constants
+- `../shared/backlog-format.md` — file formats and status values
+
+The user must have **write access** to the target repository — required for pushing branches and creating PRs.
+</context>
+
+<objective>
+Apply fixes to FAIL backlog items and create PRs for file changes.
+
+Outputs:
+- PRs created on GitHub for each Category B/CI item
+- API settings applied for Category A items
+- Updated backlog item files (status changed from FAIL to PASS)
+- Updated SUMMARY.md with new score
+- Terminal report with results table
+
+Next routing:
+- Suggest `ghs-merge-prs` to merge the created PRs — "To merge: `/ghs-merge-prs {owner}/{repo}`"
+- Suggest `ghs-backlog-board` to see updated dashboard
+- Suggest `ghs-repo-scan` to re-scan and verify all fixes
+</objective>
+
+<process>
 
 ## Input
 
@@ -47,18 +71,7 @@ Two invocation modes:
   - Discovers all FAIL items in `backlog/{owner}_{repo}/health/`
   - Processes them in parallel using worktree-based agents
 
-## Architecture
-
-This skill uses **parallel worktree-based agents** to apply multiple fixes simultaneously. Instead of processing items one at a time (clone → branch → fix → push → PR → repeat), it creates one clone and multiple git worktrees, then spawns agents that work in parallel.
-
-### Roles
-
-1. **Orchestrator** (you): discovers items, classifies them, prepares the repo, creates worktrees, spawns agents, collects results, updates backlog, cleans up
-2. **Category A Agent** (spawned via Task tool): handles all API-only fixes (no worktree needed)
-3. **Category B Agents** (spawned via Task tool): one per file-change item, each working in its own worktree
-4. **Category CI Agent** (spawned via Task tool): handles ci-workflow-health in its own worktree (diagnoses before fixing)
-
-### Item Categories
+## Item Categories
 
 Each health check falls into one of these categories:
 
@@ -69,8 +82,6 @@ Each health check falls into one of these categories:
 | **CI** (special) | Diagnoses CI failures before fixing | Yes | ci-workflow-health |
 
 Issue items are always Category B.
-
----
 
 ## Phase 1 — Discover & Classify
 
@@ -106,7 +117,6 @@ Display a summary table of ALL items to be processed:
 | 1 | LICENSE | T1 | 4 | B (file) | fix/license | repos/{o}_{r}--worktrees/fix--license/ |
 | 2 | Branch Protection | T1 | 4 | A (API) | — | — |
 | 3 | .editorconfig | T2 | 2 | B (file) | fix/editorconfig | repos/{o}_{r}--worktrees/fix--editorconfig/ |
-| 4 | CI Workflow Health | T2 | 2 | CI | fix/ci-workflow-health | repos/{o}_{r}--worktrees/fix--ci-workflow-health/ |
 ...
 
 Total items: {N} ({cat_a} API-only, {cat_b} file changes, {cat_ci} CI)
@@ -114,10 +124,6 @@ Points recoverable: {total_points}
 
 Proceed with all? (y/n/select)
 ```
-
-- **y**: proceed with all items
-- **n**: cancel
-- **select**: let the user pick which items to apply
 
 For single-item mode, show a simpler plan:
 
@@ -154,110 +160,16 @@ Category A items don't need worktrees — they use `gh` API commands directly.
 
 Spawn all agents in a **single Task tool message** for parallel execution. Each agent gets a self-contained prompt and returns structured JSON per `../shared/implementation-workflow.md` §4.
 
-### Category A Agent Prompt
-
-If there are Category A items, spawn **one** agent to handle all of them:
-
-```
-You are a ghs-backlog-fix agent handling API-only fixes.
-
-Repository: {owner}/{repo}
-Default branch: {default_branch}
-Skills path: {path to .claude/skills}
-Date: {YYYY-MM-DD}
-
-Items to fix:
-{For each Category A item:}
-- Slug: {slug}
-  Backlog file: {path}
-  Check file: {skills_path}/shared/checks/{category}/{slug}.md (use Slug-to-Path Lookup in index.md)
-
-Your job:
-1. For each item, read the check file to understand the fix strategy
-2. Apply the fix using `gh` CLI commands
-3. Verify the fix took effect using the verification command from the check file
-
-Important:
-- For branch-protection: detect solo maintainer (single owner, no collaborators) and use lightweight rules
-- For description/topics: inspect the repo to propose meaningful values, not placeholders
-- Use `2>&1 || true` on gh commands to handle errors gracefully
-
-Return a fenced JSON array with one object per item (see §4 of implementation-workflow.md for format).
-Set "source" to "health" for all items.
-```
-
-### Category B Agent Prompt (one per item)
-
-```
-You are a ghs-backlog-fix agent handling a file-change fix.
-
-Repository: {owner}/{repo}
-Default branch: {default_branch}
-Worktree path: repos/{owner}_{repo}--worktrees/fix--{slug}/
-Branch: fix/{slug}
-Skills path: {path to .claude/skills}
-Date: {YYYY-MM-DD}
-
-Item to fix:
-- Slug: {slug}
-  Backlog file: {item_path}
-  Check file: {skills_path}/shared/checks/{category}/{slug}.md (use Slug-to-Path Lookup in index.md)
-
-Your job:
-1. Read the backlog item file to understand what's missing
-2. Read the check file for the fix strategy (see "Backlog Content" section)
-3. Inspect the repo in the worktree to understand the project (name, purpose, tech stack, build tools, existing patterns)
-4. Generate thoughtful, repo-aware content — not minimal stubs
-5. Stage, commit, push, and create PR (follow §3 of implementation-workflow.md)
-   The PR body should reference the backlog item and include acceptance criteria as a checklist.
-6. Verify acceptance criteria from the backlog item
-
-Important:
-- Work ONLY in your worktree path: {worktree_path}
-- Do NOT checkout other branches or modify the main clone
-- Generate quality content by inspecting the repo — not boilerplate
-- If the fix requires multiple files, create all of them
-- For content filter issues, see §6 of implementation-workflow.md
-
-Return a fenced JSON object (see §4 of implementation-workflow.md for format).
-Set "source" to "health". Set "item_path" to the backlog file path.
-If something goes wrong, set status to "FAILED" and include the error message.
-If the fix requires human judgment, set status to "NEEDS_HUMAN" and explain why in error.
-```
-
-### Category CI Agent Prompt
-
-Same as Category B, but with an additional diagnostic step:
-
-```
-You are a ghs-backlog-fix agent handling CI workflow health fixes.
-
-{Same header as Category B agent}
-
-Your job:
-1. Read the backlog item and check file
-2. DIAGNOSE FIRST: examine the failing workflow files, recent run logs, and error patterns
-   gh run list --repo {owner}/{repo} --limit 5 --json status,conclusion,name,headBranch
-   gh run view {run_id} --repo {owner}/{repo} --log-failed 2>&1 | head -100
-3. Determine the root cause (missing dependency, wrong version, syntax error, etc.)
-4. Apply the fix in your worktree
-5. Stage, commit, push, and create PR (follow §3 of implementation-workflow.md)
-6. Verify the workflow file is valid YAML
-
-{Same return contract as Category B}
-```
-
-### Launching All Agents
-
-Use the Task tool to spawn all agents in a **single message**:
-
-- 1 Category A agent (if any A items exist) — `subagent_type: general-purpose`
-- N Category B agents (1 per file-change item) — `subagent_type: general-purpose`
-- 1 Category CI agent (if ci-workflow-health is failing) — `subagent_type: general-purpose`
+Read the agent prompt templates and substitute placeholders:
+- `agents/category-a-agent.md` — for Category A items (one agent handles all)
+- `agents/category-b-agent.md` — for each Category B item (one agent per item)
+- `agents/category-ci-agent.md` — for Category CI items
 
 For issue items, use the Category B agent pattern but adapt the prompt:
 - Read the full issue from GitHub: `gh issue view {number} --repo {owner}/{repo}`
-- Include "Fixes #{number}" in the commit message and PR body
+- Include "Fixes #{number}" in the commit message and PR body — this triggers GitHub's auto-close
+
+All agents use `subagent_type: general-purpose`.
 
 ## Phase 6 — Collect Results & Update Backlog
 
@@ -273,7 +185,7 @@ After all agents complete:
    - Log the error for the final report
 4. For NEEDS_HUMAN items:
    - Leave the backlog item as FAIL
-   - Note in the report that the worktree is left in place
+   - Note in the report that the worktree is left in place — the user can continue manually
 5. Update `backlog/{owner}_{repo}/SUMMARY.md`:
    - Change status from FAIL to PASS for successful items
    - Add PR URLs where applicable
@@ -302,7 +214,6 @@ Display a summary table with all results:
 | Branch Protection | T1 | 4 | [PASS] | — (API) |
 | .editorconfig | T2 | 2 | [PASS] | #13 |
 | CI Workflow Health | T2 | 2 | [FAILED] | — |
-| CODEOWNERS | T2 | 2 | [PASS] | #14 |
 ...
 
 ---
@@ -319,6 +230,8 @@ Remaining items:
   [NEEDS_HUMAN] ... — worktree at ...
 ```
 
+</process>
+
 ## Single-Item Fast Path
 
 When a single file path is provided:
@@ -326,7 +239,7 @@ When a single file path is provided:
 1. Parse the item, classify as Category A, B, or CI
 2. Clone/pull repo (Phase 2)
 3. Show single-item plan, get `y/n` (Phase 3)
-4. **Category A**: run the `gh` command directly in the orchestrator (no agent needed for a single API call)
+4. **Category A**: run the `gh` command directly in the orchestrator — no agent needed for a single API call
 5. **Category B/CI**: create one worktree, spawn one agent
 6. Update backlog, cleanup worktree, report
 
@@ -348,19 +261,15 @@ When a single file path is provided:
 
 **Example 1: Apply a single health item**
 User says: "apply backlog/phmatray_Formidable/health/tier-1--license.md"
-Result: Parses item (Category B), clones/pulls repo, shows plan, creates one worktree at `repos/phmatray_Formidable--worktrees/fix--license/`, spawns one agent, agent generates LICENSE file, commits, pushes, creates PR, orchestrator verifies, updates backlog to PASS, cleans up worktree.
+Result: Parses item (Category B), clones/pulls repo, shows plan, creates one worktree, spawns one agent, agent generates LICENSE file, commits, pushes, creates PR, orchestrator verifies, updates backlog to PASS, cleans up worktree.
 
 **Example 2: Apply all items for a repo**
 User says: "apply all for phmatray_Formidable"
-Result: Discovers 10 FAIL items, classifies (2 Cat A, 7 Cat B, 1 Cat CI), shows batch plan table, user confirms, creates 8 worktrees, launches 10 agents in parallel (1 Cat A handling 2 items + 7 Cat B + 1 Cat CI), collects results, updates all backlog items, cleans up worktrees, shows final report with PRs and new score.
+Result: Discovers 10 FAIL items, classifies (2 Cat A, 7 Cat B, 1 Cat CI), shows batch plan table, user confirms, creates 8 worktrees, launches 10 agents in parallel, collects results, updates all backlog items, cleans up worktrees, shows final report.
 
 **Example 3: Apply an issue fix**
 User says: "fix backlog/phmatray_Formidable/issues/issue-42--login-page-crashes.md"
-Result: Parses issue (Category B), fetches full issue body from GitHub, creates worktree, spawns agent, agent implements fix with "Fixes #42" in commit, creates PR, updates backlog to PR CREATED.
-
-**Example 4: Re-run after partial success**
-User says: "apply all for phmatray_Formidable" (after a previous run where 7/10 passed)
-Result: Discovers only 3 remaining FAIL items, shows smaller batch plan, processes only those.
+Result: Parses issue (Category B), fetches full issue body from GitHub, creates worktree, spawns agent, agent implements fix with "Fixes #42" in commit, creates PR, updates backlog.
 
 ## Troubleshooting
 

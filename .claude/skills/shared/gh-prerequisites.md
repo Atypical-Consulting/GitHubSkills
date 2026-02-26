@@ -1,6 +1,6 @@
 # GitHub CLI Prerequisites and Error Handling
 
-Shared prerequisites, repo detection, context detection, and common edge cases for all skills. Consumed by: ghs-repo-scan, ghs-backlog-fix, ghs-backlog-board.
+Shared prerequisites, repo detection, context detection, and common edge cases for all skills. Consumed by: ghs-repo-scan, ghs-backlog-fix, ghs-backlog-board, ghs-issue-triage, ghs-issue-analyze, ghs-issue-implement, ghs-merge-prs.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ gh auth status
 ```
 
 - If this fails, instruct the user to run `gh auth login`.
-- All GitHub API interactions must use `gh api` or `gh` subcommands. Never use raw `curl` to `api.github.com`.
+- All GitHub API interactions must use `gh api` or `gh` subcommands — `gh` handles authentication tokens, pagination, and rate limiting automatically; raw `curl` would need all of that manually.
 
 ### Git
 
@@ -48,8 +48,8 @@ Handle API errors gracefully based on HTTP status codes:
 
 ### General principles
 
-- Never fail hard on a single API error. Report the error for that check and continue with the remaining checks.
-- Distinguish between "the thing doesn't exist" (404 = FAIL) and "we can't check" (403 = WARN).
+- Never fail hard on a single API error — one failing check shouldn't prevent the other 15+ checks from running. Report the error for that check and continue.
+- Distinguish between "the thing doesn't exist" (404 = FAIL) and "we can't check" (403 = WARN) — WARN items are excluded from scoring so users aren't penalized for permission gaps.
 - If `gh` commands fail with authentication errors, stop and tell the user to re-authenticate.
 
 ---
@@ -106,7 +106,7 @@ If multiple indicators are found, the repo is multi-stack. Tailor .gitignore and
 gh repo view {owner}/{repo} --json defaultBranchRef -q '.defaultBranchRef.name'
 ```
 
-Common values: `main`, `master`, `develop`. Never assume -- always detect.
+Common values: `main`, `master`, `develop`. Always detect — assuming `main` breaks repos that use `master` or custom branch names.
 
 ### Visibility
 

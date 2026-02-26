@@ -14,18 +14,41 @@ compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 ---
 
 # Issue Analysis
 
 Fetch a GitHub issue, clone the repo, search the codebase for relevant files and patterns, then produce a structured analysis posted as a GitHub comment.
 
-## Prerequisites
+<context>
+Purpose: Deep-analyze GitHub issues by inspecting the actual codebase, producing actionable analysis that speeds up implementation.
 
-See `../shared/gh-prerequisites.md` for authentication, repo detection, and error handling.
+Roles:
+1. **Analyst** (you) — fetches the issue, clones the repo, investigates the codebase, produces the analysis, posts the comment
 
-See `../shared/implementation-workflow.md` §1 for repository clone/pull logic.
+This skill does not spawn sub-agents — the analysis requires accumulated context from file reads that doesn't parallelize well.
+
+Shared docs:
+- `../shared/gh-prerequisites.md` — authentication, repo detection, error handling
+- `../shared/implementation-workflow.md` §1 — repository clone/pull logic
+</context>
+
+<objective>
+Produce a structured analysis comment on the GitHub issue with feasibility, complexity, affected files, and suggested approach.
+
+Outputs:
+- GitHub comment posted on the issue with structured analysis
+- Issue label updated to `status:analyzing`
+- Terminal display of the same analysis
+
+Next routing:
+- Suggest `ghs-issue-implement #{number}` to implement — "To implement: `/ghs-issue-implement #{number}`"
+- If the issue lacks labels, suggest `ghs-issue-triage` first
+- For batch analysis, show a summary table and suggest implementing the simplest issues first
+</objective>
+
+<process>
 
 ## Input
 
@@ -62,8 +85,8 @@ Search the codebase for files, functions, and patterns related to the issue:
 1. **Keyword extraction**: Pull key terms from the issue title and body (function names, file paths, error messages, component names, API endpoints)
 2. **File search**: Use Grep and Glob tools within `repos/{owner}_{repo}/` to locate relevant files
 3. **Code reading**: Use the Read tool on the most relevant files to understand the current implementation
-4. **Dependency tracing**: If the issue mentions a component, trace its imports/exports to identify the full dependency graph
-5. **Test coverage**: Check if existing tests cover the affected area
+4. **Dependency tracing**: If the issue mentions a component, trace its imports/exports to identify the full dependency graph — partial fixes that miss a dependency create new bugs
+5. **Test coverage**: Check if existing tests cover the affected area — this informs the risk assessment
 
 Build a map of affected files with line numbers and brief descriptions of what each does.
 
@@ -92,16 +115,11 @@ List files/modules that would need changes:
 
 ### Suggested Approach
 
-Numbered steps describing how to implement the fix/feature:
-
-1. Step one...
-2. Step two...
-3. Step three...
+Numbered steps describing how to implement the fix/feature.
 
 ### Risks & Dependencies
 
-- Risk 1: description
-- Dependency 1: description
+Specific risks and external dependencies that could affect implementation.
 
 ### Open Questions
 
@@ -145,7 +163,7 @@ EOF
 
 ## Phase 6 — Update Status Label
 
-If the issue has a `status:triaged` label, update it to `status:analyzing`:
+If the issue has a `status:triaged` label, update it to `status:analyzing` — this signals to other skills and users that the issue is being worked on:
 
 ```bash
 gh issue edit {number} --repo {owner}/{repo} \
@@ -179,11 +197,13 @@ Show the same analysis in the terminal:
 Comment posted: https://github.com/{owner}/{repo}/issues/{number}#issuecomment-{id}
 ```
 
+</process>
+
 ## Batch Mode
 
 When analyzing multiple issues:
 
-1. Process each issue sequentially (codebase context accumulates)
+1. Process each issue sequentially — codebase context accumulates, making later analyses faster
 2. After all analyses, show a summary table:
 
 ```
@@ -200,17 +220,17 @@ When analyzing multiple issues:
 
 - **Issue has no body**: Analyze based on title only. Note in the analysis that the issue lacks a description and suggest the author add more context.
 - **Issue references external URLs**: Note them but don't fetch external content.
-- **Very large codebase**: Focus on files directly referenced in the issue. Limit search depth to avoid excessive scanning.
+- **Very large codebase**: Focus on files directly referenced in the issue. Limit search depth.
 - **Issue already has an analysis comment**: Check for existing comments starting with `## Issue Analysis`. If found, ask the user whether to update (edit comment) or add a new one.
-- **Closed issue**: Warn the user and ask whether to proceed. If yes, analyze as normal but note closure status.
-- **Issue is a pull request**: Warn the user — PRs have different workflows. Suggest reviewing the PR diff instead.
+- **Closed issue**: Warn the user and ask whether to proceed.
+- **Issue is a pull request**: Warn — PRs have different workflows. Suggest reviewing the PR diff instead.
 - **Multiple issues share affected files**: Note overlapping areas in the batch summary — these may conflict if implemented in parallel.
 
 ## Examples
 
 **Example 1: Analyze a single issue**
 User says: "analyze issue #42"
-Result: Fetches issue, clones/pulls repo, investigates codebase, posts structured comment, updates label to status:analyzing, shows analysis in terminal.
+Result: Fetches issue, clones/pulls repo, investigates codebase, posts structured comment, updates label, shows analysis in terminal.
 
 **Example 2: Analyze all triaged issues**
 User says: "analyze all triaged issues"
