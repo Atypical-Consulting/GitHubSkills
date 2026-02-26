@@ -41,7 +41,7 @@ gh pr list --repo {owner}/{repo} --state open --json number,title,updatedAt \
 
 ### Full Solution
 1. Review each stale PR and decide:
-   - **Ready to merge**: Merge it (use `ghs:merge-prs` for batch operations)
+   - **Ready to merge**: Merge it (use `ghs-merge-prs` for batch operations)
    - **Needs work**: Leave a comment requesting updates, or push fixes yourself
    - **Abandoned**: Close with a comment explaining why
    - **Blocked**: Add a label like `blocked` and comment on what's needed

@@ -1,13 +1,16 @@
 ---
-name: ghs:issue-triage
+name: ghs-issue-triage
 description: >
   Verify and apply proper labels (type, priority, status) to GitHub issues — ensures a consistent
   label taxonomy exists on the repo, then classifies issues by type and priority. Use this skill
   whenever the user wants to label issues, triage issues, classify issues, organize issue labels,
   or says things like "triage my issues", "label all issues", "triage issue #42", "classify open
   issues", "add labels to issues", "auto-triage", "triage all --auto", or "set up issue labels".
-  Do NOT use for analyzing issue implementation (use ghs:issue-analyze), implementing issues
-  (use ghs:issue-implement), or scanning repo health (use ghs:repo-scan).
+  Do NOT use for analyzing issue implementation (use ghs-issue-analyze), implementing issues
+  (use ghs-issue-implement), or scanning repo health (use ghs-repo-scan).
+allowed-tools: "Bash(gh:*) Read"
+compatibility: "Requires gh CLI (authenticated), network access"
+license: MIT
 metadata:
   author: phmatray
   version: 1.0.0
@@ -64,7 +67,7 @@ The skill ensures these labels exist on the repo before triaging. Use `gh label 
 | Label | Color | Description |
 |-------|-------|-------------|
 | `status:triaged` | `#5319e7` | Classified and ready for analysis/work |
-| `status:analyzing` | `#7057ff` | Under analysis (ghs:issue-analyze) |
+| `status:analyzing` | `#7057ff` | Under analysis (ghs-issue-analyze) |
 | `status:in-progress` | `#9b59b6` | Implementation in progress |
 | `status:blocked` | `#c5def5` | Blocked by external dependency |
 

@@ -1,6 +1,6 @@
 # GitHub CLI Prerequisites and Error Handling
 
-Shared prerequisites, repo detection, context detection, and common edge cases for all skills. Consumed by: ghs:repo-scan, ghs:backlog-fix, ghs:backlog-board.
+Shared prerequisites, repo detection, context detection, and common edge cases for all skills. Consumed by: ghs-repo-scan, ghs-backlog-fix, ghs-backlog-board.
 
 ## Table of Contents
 
@@ -187,7 +187,7 @@ If the repository has zero commits or was very recently created:
 
 ### Archived repositories
 
-If `gh repo view` shows the repo is archived, warn the user that changes cannot be pushed. Health scanning is still useful for informational purposes, but ghs:backlog-fix will not work.
+If `gh repo view` shows the repo is archived, warn the user that changes cannot be pushed. Health scanning is still useful for informational purposes, but ghs-backlog-fix will not work.
 
 ### Repos with many issues
 

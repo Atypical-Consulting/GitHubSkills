@@ -1,8 +1,8 @@
 # Health Checks Index
 
-Registry of all health checks used by the ghs:repo-scan skill. Each check has its own file organized in category subdirectories.
+Registry of all health checks used by the ghs-repo-scan skill. Each check has its own file organized in category subdirectories.
 
-Consumed by: ghs:repo-scan (orchestrator and check agents), ghs:backlog-fix, ghs:backlog-board, ghs:backlog-score.
+Consumed by: ghs-repo-scan (orchestrator and check agents), ghs-backlog-fix, ghs-backlog-board, ghs-backlog-score.
 
 ## Directory Structure
 

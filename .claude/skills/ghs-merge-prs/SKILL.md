@@ -1,5 +1,5 @@
 ---
-name: ghs:merge-prs
+name: ghs-merge-prs
 description: >
   Merges pull requests on a GitHub repository — your own PRs, Renovate/bot PRs, or all eligible PRs at once.
   Use this skill whenever the user wants to merge PRs, asks to "merge my PRs", "merge renovate PRs",
@@ -7,7 +7,10 @@ description: >
   "batch merge", "merge bot PRs", "merge dependency updates", or anything related to merging
   open pull requests. Also trigger for "merge all for {repo}", "squash merge renovate",
   "merge passing PRs", or just "merge" in the context of pull request work.
-  Do NOT use for creating PRs (use ghs:backlog-fix), reviewing code, or scanning repos (use ghs:repo-scan).
+  Do NOT use for creating PRs (use ghs-backlog-fix), reviewing code, or scanning repos (use ghs-repo-scan).
+allowed-tools: "Bash(gh:*) Read"
+compatibility: "Requires gh CLI (authenticated), network access"
+license: MIT
 metadata:
   author: phmatray
   version: 1.0.0

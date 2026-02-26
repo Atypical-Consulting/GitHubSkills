@@ -1,5 +1,5 @@
 ---
-name: ghs:issue-implement
+name: ghs-issue-implement
 description: >
   Implement a GitHub issue using worktree-based agents, then create a PR. Clones the repo, creates
   a worktree, spawns an agent to implement the fix/feature, verifies the result, and opens a PR
@@ -7,9 +7,12 @@ description: >
   a bug from an issue, build a feature from an issue, or says things like "implement issue #42",
   "fix issue #42", "implement #42", "build feature from issue #15", "implement all triaged issues",
   "implement all bugs", "work on issue #42", or "code issue #42".
-  Do NOT use for triaging/labeling issues (use ghs:issue-triage), analyzing issues
-  (use ghs:issue-analyze), applying backlog health items (use ghs:backlog-fix), or scanning
-  repos (use ghs:repo-scan).
+  Do NOT use for triaging/labeling issues (use ghs-issue-triage), analyzing issues
+  (use ghs-issue-analyze), applying backlog health items (use ghs-backlog-fix), or scanning
+  repos (use ghs-repo-scan).
+allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Task"
+compatibility: "Requires gh CLI (authenticated), git, network access"
+license: MIT
 metadata:
   author: phmatray
   version: 1.0.0
@@ -43,7 +46,7 @@ Three invocation modes:
 
 ## Architecture
 
-This skill uses the same **parallel worktree-based agent** pattern as `ghs:backlog-fix`.
+This skill uses the same **parallel worktree-based agent** pattern as `ghs-backlog-fix`.
 
 ### Roles
 
@@ -98,11 +101,11 @@ For each issue, extract:
 - Number, title, body
 - Type label (for branch prefix)
 - Priority label (for ordering — critical first)
-- Comments (check for analysis comments from `ghs:issue-analyze`)
+- Comments (check for analysis comments from `ghs-issue-analyze`)
 
 ### Analysis Context
 
-If an issue has a comment starting with `## Issue Analysis` (from `ghs:issue-analyze`), extract it and include it as context for the implementation agent. This provides:
+If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract it and include it as context for the implementation agent. This provides:
 - Affected files and line numbers
 - Suggested approach
 - Complexity assessment
@@ -182,7 +185,7 @@ Spawn all agents in a **single Task tool message** using `subagent_type: general
 ### Agent Prompt Template
 
 ```
-You are a ghs:issue-implement agent implementing a GitHub issue.
+You are a ghs-issue-implement agent implementing a GitHub issue.
 
 Repository: {owner}/{repo}
 Default branch: {default_branch}
@@ -306,7 +309,7 @@ Remaining:
 
 - **Issue is closed**: Skip by default. Warn the user if they explicitly request a closed issue.
 - **Issue is a pull request**: Warn and skip — PRs should be reviewed, not re-implemented.
-- **No type label**: Use `impl/` prefix. Suggest running `ghs:issue-triage` first.
+- **No type label**: Use `impl/` prefix. Suggest running `ghs-issue-triage` first.
 - **Branch already exists**: Flag in plan table. If confirmed, force-create with `-B`.
 - **PR already exists for branch**: Report existing PR, skip creating a new one.
 - **Issue too complex**: Agent sets NEEDS_HUMAN — worktree left in place for manual work.
@@ -331,5 +334,5 @@ User says: "implement all bugs"
 Result: Fetches issues with type:bug label, same flow as batch.
 
 **Example 4: Implement with prior analysis**
-User says: "implement #42" (issue has an analysis comment from ghs:issue-analyze)
+User says: "implement #42" (issue has an analysis comment from ghs-issue-analyze)
 Result: Agent receives the analysis as context, uses suggested approach and affected files to guide implementation. Faster and more targeted than without analysis.

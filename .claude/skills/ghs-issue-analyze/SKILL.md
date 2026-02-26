@@ -1,5 +1,5 @@
 ---
-name: ghs:issue-analyze
+name: ghs-issue-analyze
 description: >
   Deep-analyze a GitHub issue by inspecting the codebase and post a structured analysis comment
   with feasibility, complexity, affected files, suggested approach, and effort estimate. Use this
@@ -7,8 +7,11 @@ description: >
   get a complexity estimate, or says things like "analyze issue #42", "what would it take to fix
   #42", "assess this issue", "investigate issue #42", "how complex is issue #42", "issue analysis",
   "deep dive on issue #42", or "break down issue #42".
-  Do NOT use for triaging/labeling issues (use ghs:issue-triage), implementing issues
-  (use ghs:issue-implement), or scanning repo health (use ghs:repo-scan).
+  Do NOT use for triaging/labeling issues (use ghs-issue-triage), implementing issues
+  (use ghs-issue-implement), or scanning repo health (use ghs-repo-scan).
+allowed-tools: "Bash(gh:*) Bash(git:*) Read Glob Grep"
+compatibility: "Requires gh CLI (authenticated), git, network access"
+license: MIT
 metadata:
   author: phmatray
   version: 1.0.0
@@ -57,8 +60,8 @@ Detect the default branch and tech stack.
 Search the codebase for files, functions, and patterns related to the issue:
 
 1. **Keyword extraction**: Pull key terms from the issue title and body (function names, file paths, error messages, component names, API endpoints)
-2. **File search**: Use `grep -r` and `find` within `repos/{owner}_{repo}/` to locate relevant files
-3. **Code reading**: Read the most relevant files to understand the current implementation
+2. **File search**: Use Grep and Glob tools within `repos/{owner}_{repo}/` to locate relevant files
+3. **Code reading**: Use the Read tool on the most relevant files to understand the current implementation
 4. **Dependency tracing**: If the issue mentions a component, trace its imports/exports to identify the full dependency graph
 5. **Test coverage**: Check if existing tests cover the affected area
 
@@ -135,7 +138,7 @@ gh issue comment {number} --repo {owner}/{repo} --body "$(cat <<'EOF'
 
 ---
 
-*Automated analysis by ghs:issue-analyze — review before implementation.*
+*Automated analysis by ghs-issue-analyze — review before implementation.*
 EOF
 )"
 ```

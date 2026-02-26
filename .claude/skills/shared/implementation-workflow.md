@@ -1,6 +1,6 @@
 # Shared Implementation Workflow
 
-Reusable patterns for skills that clone repositories, create worktrees, and produce PRs. Referenced by `ghs:backlog-fix` and `ghs:issue-implement`.
+Reusable patterns for skills that clone repositories, create worktrees, and produce PRs. Referenced by `ghs-backlog-fix` and `ghs-issue-implement`.
 
 ---
 
