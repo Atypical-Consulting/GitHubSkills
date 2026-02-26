@@ -12,7 +12,7 @@ description: >
   Do NOT use for managing GitHub Actions workflows, reviewing pull requests, creating repositories, or modifying code.
 metadata:
   author: phmatray
-  version: 2.1.0
+  version: 3.0.0
 ---
 
 # Repo Scan
@@ -36,170 +36,142 @@ gh repo view --json nameWithOwner -q '.nameWithOwner'
 
 If neither works, ask the user which repository to scan.
 
-## Phase 1 — Health Audit
+## Architecture
 
-Run all checks using `gh api` and `gh repo view`. Organize them into three severity tiers that affect scoring.
+This skill uses **parallel agents** to speed up scanning. Instead of running all checks sequentially, it spawns specialized agents that work simultaneously.
 
-For the full tier system, check list, and scoring rules, read `../shared/backlog-format.md`.
+### Roles
 
-### Tier Summary
+1. **Orchestrator** (you): detects the repo, spawns agents, collects results, computes scores, writes SUMMARY.md, displays the terminal report
+2. **Health Check Agents** (spawned via Task tool): one per tier, each runs all checks in its tier and writes backlog items for failures
+3. **Issues Agent** (spawned via Task tool): fetches open issues and writes issue backlog items
 
-| Tier | Label | Points per check |
-|------|-------|-----------------|
-| 1 | Required | 4 |
-| 2 | Recommended | 2 |
-| 3 | Nice to Have | 1 |
+### Check Definitions
 
-### Tier 1 — Required (4 points each)
+Each health check is defined in its own self-contained file under `../shared/checks/`. Read `../shared/checks/index.md` for the full registry with tier assignments, slugs, and links to individual check files.
 
-These are non-negotiable for any public or team-shared repository.
+## Execution
 
-| Check | How to verify | Pass condition |
-|-------|--------------|----------------|
-| **README** | `gh api repos/{owner}/{repo}/readme` | Exists AND response size > 500 bytes (not just a title) |
-| **LICENSE** | `gh api repos/{owner}/{repo}/license` | Exists (any recognized license) |
-| **Description** | `gh repo view --json description -q '.description'` | Non-empty string |
-| **Default branch protection** | `gh api repos/{owner}/{repo}/branches/{default_branch}/protection` | Returns 200 (not 404). Note: may require admin access — if 403/404, report as "unable to check" rather than fail. **Solo maintainer awareness**: detect if the repo has a single owner/contributor (check collaborators count or org membership). For solo repos, branch protection is still recommended but the backlog item should suggest a lightweight config (no required reviews, just force-push protection and enforce admins) since requiring PR approvals blocks the sole maintainer from merging. |
+### Step 1 — Setup
 
-### Tier 2 — Recommended (2 points each)
+1. Detect the repository (`owner/repo`) and default branch
+2. Detect repo visibility (public/private), whether it's a fork, and commit count
+3. Create output directories: `backlog/{owner}_{repo}/health/` and `backlog/{owner}_{repo}/issues/`
+4. If `backlog/{owner}_{repo}/` already exists, ask the user whether to overwrite health items or create a timestamped version. Issues are always synced.
 
-Important for maintainability and collaboration.
+### Step 2 — Spawn Agents in Parallel
 
-| Check | How to verify | Pass condition |
-|-------|--------------|----------------|
-| **.gitignore** | `gh api repos/{owner}/{repo}/contents/.gitignore` | Exists |
-| **CI/CD workflows** | `gh api repos/{owner}/{repo}/contents/.github/workflows` | Directory exists and contains at least one `.yml` or `.yaml` file |
-| **CI Workflow Health** | `gh run list --repo {owner}/{repo} --limit 10 --json conclusion,workflowName,status` | No workflow with its most recent completed run in `failure` state. If workflows exist but all recent runs succeed (or are `skipped`/`cancelled`), this passes. If no workflows exist at all, mark as `[INFO]` (the separate CI/CD check covers existence). |
-| **.editorconfig** | `gh api repos/{owner}/{repo}/contents/.editorconfig` | Exists. When generating the backlog item, detect the tech stack and suggest the matching shared `.editorconfig` from `../shared/editorconfigs/`. |
-| **CODEOWNERS** | Check `gh api repos/{owner}/{repo}/contents/CODEOWNERS`, also `.github/CODEOWNERS` and `docs/CODEOWNERS` | Exists in any standard location |
-| **Issue templates** | `gh api repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE` | Directory exists with at least one file |
-| **PR template** | Check `gh api repos/{owner}/{repo}/contents/.github/pull_request_template.md`, also `.github/PULL_REQUEST_TEMPLATE.md` (case variations) and `.github/PULL_REQUEST_TEMPLATE/` directory | Exists in any standard location |
-| **Topics** | `gh repo view --json repositoryTopics -q '.repositoryTopics[].name'` | At least one topic set |
+Launch **4 agents simultaneously** using the Task tool. Each agent works independently and writes files directly.
 
-### Tier 3 — Nice to Have (1 point each)
+#### Agent Prompt Template
 
-Polish items that signal a mature, well-maintained project.
-
-| Check | How to verify | Pass condition |
-|-------|--------------|----------------|
-| **SECURITY.md** | `gh api repos/{owner}/{repo}/contents/SECURITY.md` | Exists |
-| **CONTRIBUTING.md** | `gh api repos/{owner}/{repo}/contents/CONTRIBUTING.md` | Exists |
-| **Dependency management / security alerts** | `gh api repos/{owner}/{repo}/vulnerability-alerts` (check if enabled), `gh api repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=1`. Also detect which dependency manager is in use: check for `renovate.json`, `.github/renovate.json`, `.github/renovate.json5`, or a "Dependency Dashboard" issue (Renovate); or `.github/dependabot.yml` (Dependabot). | No open critical/high alerts. If alerts API returns 403, report as "not enabled" with a suggestion to enable. When generating the backlog item, tailor the "How to Fix" advice to the detected dependency manager — do NOT suggest adding `dependabot.yml` if Renovate is already in use, and vice versa. |
-| **.editorconfig Drift** | If `.editorconfig` exists, download its content (`gh api repos/{owner}/{repo}/contents/.editorconfig --jq '.content'`, base64-decode) and compare it against the matching shared reference file in `../shared/editorconfigs/` (select by detected tech stack). | Content matches the shared reference, OR no shared reference exists for the detected tech stack. If the repo's `.editorconfig` differs from the shared reference, create a backlog item showing the diff and suggesting alignment. If no `.editorconfig` exists, skip this check (the Tier 2 `.editorconfig` check already covers that). |
-| **Funding** | `gh api repos/{owner}/{repo}/contents/.github/FUNDING.yml` | Exists (purely informational, no penalty) |
-
-### Execution Strategy
-
-Run all health checks in **two sequential Bash calls** to avoid cascading failures from parallel tool calls. Many `gh api` calls return non-zero exit codes for expected 404s (missing files), which causes "sibling tool call errored" if other Bash tool calls are running in parallel.
-
-**Call 1 — Repo metadata + all health checks:**
-
-Combine all API checks into a single Bash command. Append `2>&1 || true` to each `gh api` sub-command so that expected 404s don't produce a non-zero exit code for the overall script. Use `echo` delimiters between checks to parse results.
-
-Example pattern:
-```bash
-echo "=== README ===" && (gh api repos/{owner}/{repo}/readme --jq '.size' 2>&1 || true)
-echo "=== LICENSE ===" && (gh api repos/{owner}/{repo}/license --jq '.license.spdx_id' 2>&1 || true)
-# ... all remaining checks in the same command ...
-```
-
-**Call 2 — Issue collection:**
-
-Run the `gh issue list` command separately since it can return large payloads:
-```bash
-gh issue list --repo {owner}/{repo} --state open --json number,title,labels,assignees,createdAt,updatedAt,body --limit 500 2>&1 || true
-```
-
-These two calls can run in parallel as separate Bash tool invocations since each is individually error-tolerant (the `|| true` ensures neither exits non-zero). Parse results from the output text, treating any `gh api` response containing `"status":"404"` or `"message":"Not Found"` as a missing item.
-
-## Phase 2 — Issue Collection
-
-Fetch all open issues from the repository using `gh issue list`.
-
-### How to fetch
-
-```bash
-gh issue list --repo {owner}/{repo} --state open --json number,title,labels,assignees,createdAt,updatedAt,body --limit 500
-```
-
-### Filtering
-
-Exclude issues that match any of these conditions:
-- Title contains "Dependency Dashboard" (Renovate bot dashboard issues)
-- Title contains "renovate" AND has a bot label
-
-Keep everything else — bugs, features, questions, unlabeled issues.
-
-### Terminal Report
-
-After the health audit section, display the issue summary:
+Each health check agent receives a prompt like this (adapt for the specific tier):
 
 ```
-### Open Issues — {count} total
+You are a health check agent for the repo-scan skill.
 
-| # | Title | Labels | Age | Assignee |
-|---|-------|--------|-----|----------|
-| 42 | Login page crashes on mobile | bug | 12d | @user |
-| 108 | Add dark mode support | enhancement | 45d | — |
-| 115 | Update docs for v2 API | docs | 3d | — |
-...
+Repository: {owner}/{repo}
+Default branch: {default_branch}
+Tier: {N}
+Output directory: backlog/{owner}_{repo}/health/
+Date: {YYYY-MM-DD}
+Skills path: {path to .claude/skills}
 
-Labels breakdown:
-  bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
+Your job:
+1. Read the check index at `{skills_path}/shared/checks/index.md` to find which checks belong to Tier {N}
+2. For each check in your tier:
+   a. Read the check file: `{skills_path}/shared/checks/{slug}.md`
+   b. Run the verification command from the "Verification" section (substitute {owner}/{repo} and {default_branch})
+   c. Determine PASS/FAIL/WARN based on the "Status Rules" section
+   d. If FAIL or WARN: write a backlog item file to `backlog/{owner}_{repo}/health/tier-{N}--{slug}.md`
+      using the health item template from `{skills_path}/repo-scan/references/templates.md`
+      and the "Backlog Content" section from the check file for What's Missing, Why It Matters, How to Fix, and Acceptance Criteria
+   e. Record the result
+
+3. Return your results as a fenced JSON array, one object per check:
+[
+  {"check": "README", "slug": "readme", "tier": 1, "points": 4, "status": "PASS", "detail": "Found (2.3 KB)"},
+  {"check": "LICENSE", "slug": "license", "tier": 1, "points": 4, "status": "FAIL", "detail": "Not found"}
+]
+
+Important:
+- Use `2>&1 || true` on all gh commands so 404s don't cause errors
+- For checks with scoring: "info", use status "INFO" instead of "FAIL" when missing
+- Write backlog items only for FAIL and WARN statuses
 ```
 
-If there are more than 20 issues, show the 20 most recent in the table and note the rest: "(+N more — see backlog/issues/ for full list)".
+#### Issues Agent Prompt
 
-## Phase 3 — Save Backlog Items
-
-After displaying the terminal report, save all findings as structured markdown files.
-
-For the authoritative backlog directory structure and file naming format, read `../shared/backlog-format.md`.
-
-### Output Directory
-
-Save files to `backlog/{owner}_{repo}/` in the current working directory.
-
-Structure (quick reference):
 ```
-backlog/{owner}_{repo}/
-├── SUMMARY.md                          # Unified repo summary
-├── health/                             # Health check findings
-│   ├── tier-1--readme.md
-│   ├── tier-2--gitignore.md
-│   └── ...
-└── issues/                             # Open GitHub issues
-    ├── issue-42--login-page-crashes.md
-    ├── issue-108--add-dark-mode.md
-    └── ...
+You are an issues collection agent for the repo-scan skill.
+
+Repository: {owner}/{repo}
+Output directory: backlog/{owner}_{repo}/issues/
+Date: {YYYY-MM-DD}
+Skills path: {path to .claude/skills}
+
+Your job:
+1. Fetch all open issues:
+   gh issue list --repo {owner}/{repo} --state open --json number,title,labels,assignees,createdAt,updatedAt,body --limit 500
+
+2. Filter out:
+   - Issues with title containing "Dependency Dashboard" (Renovate bot)
+   - Issues with title containing "renovate" AND a bot label
+
+3. For each remaining issue, write a backlog item file to `backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md`
+   using the issue item template from `{skills_path}/repo-scan/references/templates.md`
+   - Title kebab-case, truncated to 50 chars max (cut at last complete word)
+   - Truncate issue body to 500 characters in the file
+
+4. If `backlog/{owner}_{repo}/issues/` already has files, sync:
+   - Remove files for issues that are now closed
+   - Add files for newly opened issues
+   - Update files if title/labels/assignees changed
+
+5. Return a JSON summary:
+{
+  "total": 18,
+  "labels": {"bug": 5, "enhancement": 8, "docs": 2, "unlabeled": 3},
+  "issues": [
+    {"number": 42, "title": "Login page crashes", "labels": ["bug"], "age_days": 12, "assignee": "user"},
+    ...
+  ]
+}
 ```
 
-### File naming
+#### Launching All 4 Agents
 
-- Health items: `tier-{N}--{check-name-kebab}.md` — only create files for `[FAIL]` or `[WARN]` items
-- Issue items: `issue-{number}--{title-kebab}.md` — kebab-case title, truncated to 50 chars max
+Use the Task tool to spawn all 4 agents in a **single message** (parallel execution):
 
-### Templates
+- **Tier 1 Agent**: subagent_type `general-purpose`, prompt with tier=1
+- **Tier 2 Agent**: subagent_type `general-purpose`, prompt with tier=2
+- **Tier 3 Agent**: subagent_type `general-purpose`, prompt with tier=3
+- **Issues Agent**: subagent_type `general-purpose`, prompt for issue collection
 
-Read `references/templates.md` for the exact SUMMARY.md, health item, and issue item file templates. Each file should be self-contained — someone reading it should understand the context and what action to take.
+### Step 3 — Collect Results and Compute Score
 
-### Execution
+After all agents complete:
 
-1. Create the output directories (`health/`, `issues/`)
-2. Generate health item files per `[FAIL]`/`[WARN]` item
-3. Generate issue item files per open issue
-4. Generate unified `SUMMARY.md` covering both sources
-5. Report to the user: show files created, suggest starting with the highest-priority items
+1. Parse the JSON results from each health check agent
+2. Combine all check results into a unified list
+3. Calculate the health score using these rules:
+   - Each check contributes points based on its tier (Tier 1 = 4, Tier 2 = 2, Tier 3 = 1)
+   - WARN items are **excluded** from both earned and possible totals
+   - INFO items (Funding) don't affect the score at all
+   - Percentage = `earned_points / possible_points * 100`, rounded to nearest integer
+4. Parse the issues summary from the issues agent
 
-You can verify the generated score matches expectations by running: `python ../shared/scripts/calculate_score.py backlog/{owner}_{repo}`
+### Step 4 — Write SUMMARY.md
 
-### Re-running
+Write `backlog/{owner}_{repo}/SUMMARY.md` using the template from `references/templates.md`. Include:
+- Health score breakdown by tier with progress bars
+- Action items table linking to each health backlog file
+- Passing checks list
+- Open issues table linking to each issue backlog file
 
-If `backlog/{owner}_{repo}/` already exists:
-- **health/** — Ask the user whether to overwrite or create a timestamped version
-- **issues/** — Always refresh: remove issue files for issues that are now closed, add new ones for newly opened issues, update existing ones if title/labels/assignees changed. This keeps the issues directory in sync with GitHub.
+You can verify the score with: `python ../shared/scripts/calculate_score.py backlog/{owner}_{repo}`
 
-## Terminal Report — Full Structure
+### Step 5 — Display Terminal Report
 
 Present the combined results as a clean, scannable terminal report:
 
@@ -258,37 +230,39 @@ Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
   issues/   — 18 items
 ```
 
-### Scoring Rules
+Progress bars: `█` for filled, `░` for empty, 8 characters wide. Filled = `round(percentage / 100 * 8)`.
 
-- Each health check contributes points based on its tier (Tier 1 = 4, Tier 2 = 2, Tier 3 = 1)
-- WARN items (permission issues) are excluded from the total — don't penalize for things we can't verify
-- INFO items (like FUNDING.yml) are purely informational and don't affect the score
-- The percentage is `earned_points / possible_points * 100`, rounded to the nearest integer
-- Issues don't have a point score — they're tracked by count and labels
+If there are more than 20 issues, show the 20 most recent and note: "(+N more — see backlog/issues/ for full list)".
 
 ## Edge Cases
 
-- **Private repos**: All checks should still work if the user has access. Note in the report header whether the repo is public or private.
-- **Org-level settings**: Branch protection and security alerts may be managed at the org level. If checks fail with 403, mention this possibility.
-- **Forks**: Note if the repo is a fork, since forks often inherit settings from upstream and may not need all checks.
-- **Empty/new repos**: If the repo has zero commits, several checks will naturally fail. Add a note: "This appears to be a new repository — focus on Tier 1 items first."
+- **Private repos**: All checks should still work if the user has access. Note in the report header.
+- **Org-level settings**: Branch protection and security alerts may be managed at the org level. If 403, mention this possibility.
+- **Forks**: Note if the repo is a fork — forks often inherit settings from upstream.
+- **Empty/new repos**: If zero commits, add a note: "This appears to be a new repository — focus on Tier 1 items first."
 - **No failures and no issues**: Display a congratulatory message. Create only SUMMARY.md.
-- **Repos with many issues**: Cap the terminal display at 20 issues, but save all of them to the backlog.
-- **Issues with very long bodies**: Truncate the body to 500 characters in the backlog item file, with a link to the full issue.
+- **Repos with many issues**: Cap terminal display at 20 issues, but save all to the backlog.
+- **Issues with very long bodies**: Truncate to 500 characters with a link to the full issue.
+
+## Re-running
+
+If `backlog/{owner}_{repo}/` already exists:
+- **health/** — Ask the user whether to overwrite or create a timestamped version
+- **issues/** — Always refresh: remove closed, add new, update changed
 
 ## Examples
 
 **Example 1: Scan a specific repo**
 User says: "scan phmatray/NewSLN"
-Result: Terminal report showing health score 10/36 (28%), 10 failing health checks, 18 open issues. Backlog files saved to `backlog/phmatray_NewSLN/`.
+Result: Terminal report showing health score, failing checks, open issues. Backlog files saved to `backlog/phmatray_NewSLN/`.
 
 **Example 2: Scan the current repo**
 User says: "is my repo set up properly?"
-Result: Detects repo from git remote, runs all checks, displays report, saves backlog items for any failures.
+Result: Detects repo from git remote, spawns agents, displays report, saves backlog items.
 
 **Example 3: Re-scan after fixes**
 User says: "re-scan phmatray/NewSLN"
-Result: Refreshes health checks (asks about overwrite), syncs issues directory with GitHub (removes closed, adds new), updates SUMMARY.md.
+Result: Refreshes health checks (asks about overwrite), syncs issues, updates SUMMARY.md.
 
 ## Troubleshooting
 
@@ -296,13 +270,10 @@ Result: Refreshes health checks (asks about overwrite), syncs issues directory w
 The `gh` CLI is not authenticated. Run `gh auth login` first.
 
 **403 on branch protection check**
-Branch protection requires admin access. The check will report as "unable to check (insufficient permissions)" — this is expected for non-admin users.
+Branch protection requires admin access. The check agent will report as WARN — this is expected.
 
 **Rate limiting during scan**
-If you hit GitHub's API rate limit, the scan will wait and retry once. For repos with many issues, consider using `--limit` to reduce the number fetched.
+If you hit GitHub's API rate limit, the agents will encounter errors. Wait and retry.
 
 **Scan seems slow**
-The skill runs API calls in parallel where possible. Large repos with many issues (500+) will take longer due to pagination.
-
-**Backlog directory already exists**
-The skill will ask whether to overwrite health items or create a timestamped version. Issues are always synced (removed if closed, added if new).
+The skill runs 4 agents in parallel. Most scans complete quickly. Large repos with many issues (500+) will take longer.

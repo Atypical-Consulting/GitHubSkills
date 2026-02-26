@@ -1,6 +1,8 @@
 # Backlog Format Reference
 
-Canonical reference for backlog directory structure, file naming, metadata formats, scoring rules, and the full health checks list. Consumed by: repo-scan, apply-backlog-item, backlog-dashboard.
+Canonical reference for backlog directory structure, file naming, metadata formats, scoring rules, and status values. Consumed by: repo-scan, apply-backlog-item, backlog-dashboard.
+
+For the full list of health checks (verification commands, pass conditions, fix suggestions), see `checks/index.md` and the individual check files in `checks/`.
 
 ## Table of Contents
 
@@ -10,7 +12,6 @@ Canonical reference for backlog directory structure, file naming, metadata forma
 4. [Metadata Table Formats](#metadata-table-formats)
 5. [Status Values](#status-values)
 6. [Scoring Rules](#scoring-rules)
-7. [Health Checks List](#health-checks-list)
 
 ---
 
@@ -48,7 +49,7 @@ tier-{N}--{check-name-kebab}.md
 ```
 
 - `{N}` is the tier number: 1, 2, or 3.
-- `{check-name-kebab}` is the check name in kebab-case (e.g., `branch-protection`, `ci-cd-workflows`, `security-alerts`).
+- `{check-name-kebab}` is the check slug from `checks/index.md` (e.g., `branch-protection`, `ci-cd-workflows`, `security-alerts`).
 - Only create files for checks with status **FAIL** or **WARN**. Passing checks are listed in SUMMARY.md but do not get their own file.
 
 Examples:
@@ -182,39 +183,3 @@ Fields:
 Use `█` for filled and `░` for empty, **8 characters wide**. Calculate filled characters as `round(percentage / 100 * 8)`.
 
 Example: 50% = `████░░░░`
-
----
-
-## Health Checks List
-
-### Tier 1 -- Required (4 points each)
-
-| Check | Slug | How to Verify | Pass Condition |
-|-------|------|---------------|----------------|
-| **README** | `readme` | `gh api repos/{owner}/{repo}/readme` | Exists AND response size > 500 bytes |
-| **LICENSE** | `license` | `gh api repos/{owner}/{repo}/license` | Exists (any recognized license) |
-| **Description** | `description` | `gh repo view --json description -q '.description'` | Non-empty string |
-| **Branch Protection** | `branch-protection` | `gh api repos/{owner}/{repo}/branches/{default_branch}/protection` | Returns 200 (not 404). If 403, report as WARN. Solo maintainer awareness applies. |
-
-### Tier 2 -- Recommended (2 points each)
-
-| Check | Slug | How to Verify | Pass Condition |
-|-------|------|---------------|----------------|
-| **.gitignore** | `gitignore` | `gh api repos/{owner}/{repo}/contents/.gitignore` | Exists |
-| **CI/CD Workflows** | `ci-cd-workflows` | `gh api repos/{owner}/{repo}/contents/.github/workflows` | Directory exists with >= 1 `.yml`/`.yaml` file |
-| **CI Workflow Health** | `ci-workflow-health` | `gh run list --repo {owner}/{repo} --limit 10 --json conclusion,workflowName,status` | No workflow with its most recent completed run in `failure` state. INFO if no workflows exist. |
-| **.editorconfig** | `editorconfig` | `gh api repos/{owner}/{repo}/contents/.editorconfig` | Exists. Detect tech stack and suggest matching shared reference. |
-| **CODEOWNERS** | `codeowners` | Check `CODEOWNERS`, `.github/CODEOWNERS`, `docs/CODEOWNERS` | Exists in any standard location |
-| **Issue Templates** | `issue-templates` | `gh api repos/{owner}/{repo}/contents/.github/ISSUE_TEMPLATE` | Directory exists with >= 1 file |
-| **PR Template** | `pr-template` | Check `.github/pull_request_template.md`, case variations, and `.github/PULL_REQUEST_TEMPLATE/` | Exists in any standard location |
-| **Topics** | `topics` | `gh repo view --json repositoryTopics -q '.repositoryTopics[].name'` | At least 1 topic set |
-
-### Tier 3 -- Nice to Have (1 point each)
-
-| Check | Slug | How to Verify | Pass Condition | Scoring |
-|-------|------|---------------|----------------|---------|
-| **SECURITY.md** | `security-md` | `gh api repos/{owner}/{repo}/contents/SECURITY.md` | Exists | Normal |
-| **CONTRIBUTING.md** | `contributing-md` | `gh api repos/{owner}/{repo}/contents/CONTRIBUTING.md` | Exists | Normal |
-| **Security Alerts** | `security-alerts` | `gh api repos/{owner}/{repo}/vulnerability-alerts` + check for open critical/high | Alerts enabled, no open critical/high | Normal |
-| **.editorconfig Drift** | `editorconfig-drift` | Download repo `.editorconfig`, compare against shared reference for detected tech stack | Content matches shared reference, or no reference for the stack | Normal |
-| **Funding** | `funding` | `gh api repos/{owner}/{repo}/contents/.github/FUNDING.yml` | Exists | **INFO only** -- no penalty, no points |
