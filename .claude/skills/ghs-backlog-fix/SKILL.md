@@ -11,7 +11,7 @@ description: >
   Do NOT use for scanning repos (use ghs:repo-scan), viewing backlog status (use ghs:backlog-board), or general code review.
 metadata:
   author: phmatray
-  version: 3.2.0
+  version: 4.0.0
 ---
 
 # Apply Backlog Item
@@ -22,7 +22,15 @@ Read structured backlog items (health findings or GitHub issues), apply fixes us
 
 See `../shared/gh-prerequisites.md` for authentication, repo detection, and error handling.
 
-Additionally, the user must have **write access** to the target repository (required for pushing branches and creating PRs).
+See `../shared/implementation-workflow.md` for:
+- §1 Repository Preparation (clone/pull, default branch, tech stack)
+- §2 Worktree Management (path convention, creation, cleanup)
+- §3 Branch/Commit/Push/PR Workflow (agent instructions)
+- §4 Agent Result Contract (JSON format)
+- §5 Pre-flight Checks (branch conflicts, existing PRs)
+- §6 Content Filter Workaround
+
+The user must have **write access** to the target repository (required for pushing branches and creating PRs).
 
 ## Input
 
@@ -59,15 +67,6 @@ Each health check falls into one of these categories:
 
 Issue items are always Category B.
 
-### Worktree Path Convention
-
-```
-repos/{owner}_{repo}/                              ← main clone (stays on default branch)
-repos/{owner}_{repo}--worktrees/fix--{slug}/       ← one per Category B/CI item
-```
-
-Worktrees are siblings to the main clone, never inside it. The `repos/` directory is already gitignored.
-
 ---
 
 ## Phase 1 — Discover & Classify
@@ -90,22 +89,7 @@ For detailed fix strategies per check, read `../shared/checks/index.md` for the 
 
 ## Phase 2 — Prepare Repository
 
-Check if the target repo is already cloned:
-
-```
-repos/{owner}_{repo}/
-```
-
-- **If it exists**: `git -C repos/{owner}_{repo} pull` to get the latest
-- **If it doesn't exist**:
-  ```bash
-  mkdir -p repos
-  gh repo clone {owner}/{repo} repos/{owner}_{repo}
-  ```
-
-After cloning/pulling:
-1. Detect the default branch: `git -C repos/{owner}_{repo} rev-parse --abbrev-ref HEAD`
-2. Detect tech stack by scanning for common project files (see `../shared/gh-prerequisites.md#repo-context-detection`)
+Follow `../shared/implementation-workflow.md` §1 to clone or pull the repo and detect the default branch and tech stack.
 
 ## Phase 3 — Show Batch Plan & Confirm
 
@@ -153,41 +137,26 @@ Proceed? (y/n)
 
 Wait for user confirmation before continuing.
 
-### Branch conflict detection
+### Pre-flight checks
 
-Before showing the plan, check for existing remote branches:
-
-```bash
-git -C repos/{owner}_{repo} ls-remote --heads origin 'refs/heads/fix/*'
-```
-
-Flag any conflicts in the plan table with a warning indicator.
+Per `../shared/implementation-workflow.md` §5 — check for branch conflicts and existing PRs. Flag any conflicts in the plan table.
 
 ## Phase 4 — Create Worktrees
 
-After confirmation, create worktrees for each Category B and CI item:
-
-```bash
-mkdir -p repos/{owner}_{repo}--worktrees
-
-# For each Category B/CI item:
-git -C repos/{owner}_{repo} worktree add \
-  ../../repos/{owner}_{repo}--worktrees/fix--{slug} \
-  -b fix/{slug}
-```
+Per `../shared/implementation-workflow.md` §2 — create worktrees for each Category B and CI item.
 
 Category A items don't need worktrees — they use `gh` API commands directly.
 
 ## Phase 5 — Launch Agents in Parallel
 
-Spawn all agents in a **single Task tool message** for parallel execution. Each agent gets a self-contained prompt and returns structured JSON.
+Spawn all agents in a **single Task tool message** for parallel execution. Each agent gets a self-contained prompt and returns structured JSON per `../shared/implementation-workflow.md` §4.
 
 ### Category A Agent Prompt
 
 If there are Category A items, spawn **one** agent to handle all of them:
 
 ```
-You are an ghs:backlog-fix agent handling API-only fixes.
+You are a ghs:backlog-fix agent handling API-only fixes.
 
 Repository: {owner}/{repo}
 Default branch: {default_branch}
@@ -210,23 +179,14 @@ Important:
 - For description/topics: inspect the repo to propose meaningful values, not placeholders
 - Use `2>&1 || true` on gh commands to handle errors gracefully
 
-Return a fenced JSON array with one object per item:
-[
-  {
-    "item_path": "backlog/.../tier-1--branch-protection.md",
-    "slug": "branch-protection",
-    "status": "PASS",
-    "pr_url": null,
-    "verification": ["Branch protection enabled with lightweight rules"],
-    "error": null
-  }
-]
+Return a fenced JSON array with one object per item (see §4 of implementation-workflow.md for format).
+Set "source" to "health" for all items.
 ```
 
 ### Category B Agent Prompt (one per item)
 
 ```
-You are an ghs:backlog-fix agent handling a file-change fix.
+You are a ghs:backlog-fix agent handling a file-change fix.
 
 Repository: {owner}/{repo}
 Default branch: {default_branch}
@@ -245,36 +205,19 @@ Your job:
 2. Read the check file for the fix strategy (see "Backlog Content" section)
 3. Inspect the repo in the worktree to understand the project (name, purpose, tech stack, build tools, existing patterns)
 4. Generate thoughtful, repo-aware content — not minimal stubs
-5. Stage, commit, and push:
-   git -C {worktree_path} add {files}
-   git -C {worktree_path} commit -m "{descriptive message}"
-   git -C {worktree_path} push -u origin fix/{slug}
-6. Create a PR:
-   gh pr create --repo {owner}/{repo} --head fix/{slug} --base {default_branch} --title "{title}" --body "{body}"
+5. Stage, commit, push, and create PR (follow §3 of implementation-workflow.md)
    The PR body should reference the backlog item and include acceptance criteria as a checklist.
-7. Verify acceptance criteria from the backlog item
+6. Verify acceptance criteria from the backlog item
 
 Important:
 - Work ONLY in your worktree path: {worktree_path}
 - Do NOT checkout other branches or modify the main clone
 - Generate quality content by inspecting the repo — not boilerplate
 - If the fix requires multiple files, create all of them
-- **Content filter workaround**: For `code-of-conduct`, do NOT generate the text inline — it triggers content filtering. Instead, download it via curl:
-  ```bash
-  curl -sL "https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md" -o CODE_OF_CONDUCT.md
-  sed -i 's/\[INSERT CONTACT METHOD\]/via GitHub issues/' CODE_OF_CONDUCT.md
-  ```
+- For content filter issues, see §6 of implementation-workflow.md
 
-Return a fenced JSON object:
-{
-  "item_path": "{item_path}",
-  "slug": "{slug}",
-  "status": "PASS",
-  "pr_url": "https://github.com/{owner}/{repo}/pull/N",
-  "verification": ["File exists", "Content > 500 bytes", "..."],
-  "error": null
-}
-
+Return a fenced JSON object (see §4 of implementation-workflow.md for format).
+Set "source" to "health". Set "item_path" to the backlog file path.
 If something goes wrong, set status to "FAILED" and include the error message.
 If the fix requires human judgment, set status to "NEEDS_HUMAN" and explain why in error.
 ```
@@ -284,7 +227,7 @@ If the fix requires human judgment, set status to "NEEDS_HUMAN" and explain why 
 Same as Category B, but with an additional diagnostic step:
 
 ```
-You are an ghs:backlog-fix agent handling CI workflow health fixes.
+You are a ghs:backlog-fix agent handling CI workflow health fixes.
 
 {Same header as Category B agent}
 
@@ -295,7 +238,7 @@ Your job:
    gh run view {run_id} --repo {owner}/{repo} --log-failed 2>&1 | head -100
 3. Determine the root cause (missing dependency, wrong version, syntax error, etc.)
 4. Apply the fix in your worktree
-5. Stage, commit, push, and create PR (same as Category B)
+5. Stage, commit, push, and create PR (follow §3 of implementation-workflow.md)
 6. Verify the workflow file is valid YAML
 
 {Same return contract as Category B}
@@ -337,28 +280,11 @@ You can verify the score with: `python .claude/skills/shared/scripts/calculate_s
 
 ## Phase 7 — Cleanup Worktrees
 
-Remove worktrees for completed items:
+Per `../shared/implementation-workflow.md` §2 (Cleanup section):
 
-```bash
-# For each PASS or FAILED item (not NEEDS_HUMAN):
-git -C repos/{owner}_{repo} worktree remove \
-  ../repos/{owner}_{repo}--worktrees/fix--{slug} --force
-
-# After all removals:
-git -C repos/{owner}_{repo} worktree prune
-
-# Remove the worktrees directory if empty:
-rmdir repos/{owner}_{repo}--worktrees 2>/dev/null || true
-```
-
-For NEEDS_HUMAN items, leave the worktree in place and print instructions:
-
-```
-[NEEDS_HUMAN] {slug} — worktree left at repos/{owner}_{repo}--worktrees/fix--{slug}/
-  Reason: {error message from agent}
-  To continue manually: cd repos/{owner}_{repo}--worktrees/fix--{slug}
-  To remove: git -C repos/{owner}_{repo} worktree remove ../repos/{owner}_{repo}--worktrees/fix--{slug}
-```
+- Remove worktrees for PASS and FAILED items
+- Leave NEEDS_HUMAN worktrees in place with instructions
+- Prune and remove empty worktree directory
 
 ## Phase 8 — Final Report
 
@@ -413,7 +339,7 @@ When a single file path is provided:
 - **Complex issues**: If an issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
 - **Merge conflicts**: If a worktree branch has conflicts, report and let the user decide.
 - **PR already exists for branch**: Check with `gh pr list --head fix/{slug}` before creating a new one.
-- **Content filtering blocks agent output**: Some files (notably Code of Conduct) contain text that triggers API content filters when generated inline. If an agent fails with "Output blocked by content filtering policy", the orchestrator should handle that item directly using `curl` to download the canonical version from an official URL (e.g., `https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md`), then commit/push/PR manually.
+- **Content filtering blocks agent output**: See `../shared/implementation-workflow.md` §6.
 
 ## Examples
 

@@ -34,6 +34,12 @@ repos/                   — Local clones of target repositories (gitignored)
 - **ghs:backlog-board** — Show a dashboard of all backlog items (health + issues) across audited repositories with scores, progress, and next-action recommendations
 - **ghs:backlog-fix** — Apply backlog item fixes using parallel worktree-based agents: clone the repo once, create worktrees, launch agents simultaneously, verify acceptance criteria, and create PRs
 
+### Issue Management (triage → analyze → implement)
+
+- **ghs:issue-triage** — Verify and apply proper labels (type, priority, status) to GitHub issues
+- **ghs:issue-analyze** — Deep-analyze a GitHub issue and post a structured analysis comment
+- **ghs:issue-implement** — Implement a GitHub issue using worktree-based agents, then create a PR
+
 ### Actions
 
 - **ghs:merge-prs** — Merge open PRs (own, Renovate, or all) with CI-aware confirmation, batch support, and automatic branch cleanup
