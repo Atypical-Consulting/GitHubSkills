@@ -1,6 +1,6 @@
-# Tier 3 — Nice to Have
+# Core — Tier 3 — Nice to Have
 
-Tier 3 checks verify polish and completeness items. Scored checks are worth **1 point** each. Three checks are **INFO only** (no score impact).
+Tier 3 core checks verify polish and completeness items. Scored checks are worth **1 point** each. Three checks are **INFO only** (no score impact). These checks run for all repositories regardless of tech stack.
 
 ## Scored Checks (1 pt each)
 

@@ -1,6 +1,6 @@
-# Tier 2 — Recommended
+# Core — Tier 2 — Recommended
 
-Tier 2 checks verify professional standards that well-maintained repositories should have. Each check is worth **2 points**. There are 22 checks in this tier for a maximum of 44 points.
+Tier 2 core checks verify professional standards that well-maintained repositories should have. Each check is worth **2 points**. There are 22 checks in this tier for a maximum of 44 points. These checks run for all repositories regardless of tech stack.
 
 ## .gitignore
 

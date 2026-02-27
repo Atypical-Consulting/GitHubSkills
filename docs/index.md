@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "GHS"
   text: "Your repos deserve better."
-  tagline: "43 health checks. Parallel AI agents. Real pull requests."
+  tagline: "63 health checks. Modular scoring. Parallel AI agents. Real pull requests."
   actions:
     - theme: brand
       text: Get Started
@@ -16,7 +16,7 @@ hero:
 features:
   - icon: "🔍"
     title: Scan
-    details: Run 43 health checks across documentation, settings, CI/CD, security, and community standards. Get a scored report in seconds.
+    details: Run 40 core checks plus language-specific modules (.NET, more coming). Get a scored report with weighted module scoring in seconds.
   - icon: "🔧"
     title: Fix
     details: Parallel worktree-based agents fix multiple issues simultaneously. Each fix gets its own branch and pull request.

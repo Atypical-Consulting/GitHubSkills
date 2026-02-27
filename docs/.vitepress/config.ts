@@ -12,11 +12,11 @@ export default withMermaid(
       ['link', { rel: 'icon', type: 'image/svg+xml', href: '/GitHubSkills/logo.svg' }],
       ['meta', { property: 'og:type', content: 'website' }],
       ['meta', { property: 'og:title', content: 'GHS — GitHub Skills' }],
-      ['meta', { property: 'og:description', content: '43 health checks, parallel AI agents, real pull requests. Claude Code skills for auditing and improving GitHub repositories.' }],
+      ['meta', { property: 'og:description', content: '63 health checks, modular scoring, parallel AI agents, real pull requests. Claude Code skills for auditing and improving GitHub repositories.' }],
       ['meta', { property: 'og:url', content: 'https://atypical-consulting.github.io/GitHubSkills/' }],
       ['meta', { name: 'twitter:card', content: 'summary' }],
       ['meta', { name: 'twitter:title', content: 'GHS — GitHub Skills' }],
-      ['meta', { name: 'twitter:description', content: '43 health checks, parallel AI agents, real pull requests. Claude Code skills for auditing and improving GitHub repositories.' }],
+      ['meta', { name: 'twitter:description', content: '63 health checks, modular scoring, parallel AI agents, real pull requests. Claude Code skills for auditing and improving GitHub repositories.' }],
     ],
 
     themeConfig: {
@@ -90,9 +90,22 @@ export default withMermaid(
             text: 'Check Registry',
             items: [
               { text: 'Overview', link: '/checks/' },
+            ],
+          },
+          {
+            text: 'Core Module',
+            items: [
               { text: 'Tier 1 — Required', link: '/checks/tier-1' },
               { text: 'Tier 2 — Recommended', link: '/checks/tier-2' },
               { text: 'Tier 3 — Nice to Have', link: '/checks/tier-3' },
+            ],
+          },
+          {
+            text: '.NET Module',
+            items: [
+              { text: 'Tier 1 — Required', link: '/checks/dotnet-tier-1' },
+              { text: 'Tier 2 — Recommended', link: '/checks/dotnet-tier-2' },
+              { text: 'Tier 3 — Nice to Have', link: '/checks/dotnet-tier-3' },
             ],
           },
         ],

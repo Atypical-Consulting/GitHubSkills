@@ -7,20 +7,20 @@ import StepFlow from './StepFlow.vue'
 
   <div class="stats-row">
     <div class="stat-item">
-      <div class="stat-number">38</div>
+      <div class="stat-number">63</div>
       <div class="stat-label">Health Checks</div>
     </div>
     <div class="stat-item">
-      <div class="stat-number">10</div>
+      <div class="stat-number">2</div>
+      <div class="stat-label">Modules</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">108</div>
+      <div class="stat-label">Max Points</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-number">12</div>
       <div class="stat-label">Skills</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-number">67</div>
-      <div class="stat-label">Max Score</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-number">3</div>
-      <div class="stat-label">Tiers</div>
     </div>
   </div>
 
@@ -28,7 +28,7 @@ import StepFlow from './StepFlow.vue'
     <h2>How It Works</h2>
     <p class="subtitle">From scan to merge in four steps</p>
     <StepFlow :steps="[
-      { icon: '🔍', title: 'Scan', desc: 'Audit against 38 checks' },
+      { icon: '🔍', title: 'Scan', desc: 'Audit against 63 checks' },
       { icon: '📋', title: 'Review', desc: 'Prioritize the backlog' },
       { icon: '🔧', title: 'Fix', desc: 'Parallel agents create PRs' },
       { icon: '🚀', title: 'Merge', desc: 'Land improvements, repeat' },
@@ -51,111 +51,104 @@ import StepFlow from './StepFlow.vue'
     <div class="language- vp-adaptive-theme">
       <pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>scan owner/repo</span></span></code></pre>
     </div>
-    <p>That's it. GHS runs 38 health checks across documentation, settings, CI/CD, security, and community standards — and saves a structured backlog of everything that needs attention.</p>
+    <p>That's it. GHS runs 40 core checks plus language-specific modules (.NET and more coming) — and saves a structured backlog of everything that needs attention.</p>
   </div>
 
   <div class="home-section">
     <h2>What Gets Checked</h2>
-    <p class="subtitle">35 scored checks across 3 tiers, plus 3 informational</p>
+    <p class="subtitle">Modular check system — core always runs, language modules activate on detection</p>
     <table>
       <thead>
         <tr>
-          <th>Tier</th>
-          <th>Focus</th>
-          <th>Checks</th>
-          <th>Points Each</th>
-          <th>Subtotal</th>
+          <th>Module</th>
+          <th>Activation</th>
+          <th>Scored Checks</th>
+          <th>Max Points</th>
+          <th>Weight</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td><strong>Tier 1 — Required</strong></td>
-          <td>Fundamental repo quality</td>
-          <td>4</td>
-          <td>4 pts</td>
-          <td>16 pts</td>
+          <td><strong>Core</strong></td>
+          <td>Always active</td>
+          <td>40</td>
+          <td>74 pts</td>
+          <td>60%</td>
         </tr>
         <tr>
-          <td><strong>Tier 2 — Recommended</strong></td>
-          <td>Professional standards</td>
+          <td><strong>.NET</strong></td>
+          <td>.sln detected</td>
           <td>20</td>
-          <td>2 pts</td>
-          <td>40 pts</td>
+          <td>34 pts</td>
+          <td>40%</td>
         </tr>
         <tr>
-          <td><strong>Tier 3 — Nice to Have</strong></td>
-          <td>11 scored + 3 INFO</td>
-          <td>—</td>
-          <td>1 pt</td>
-          <td>11 pts</td>
-        </tr>
-        <tr>
-          <td><strong>Total</strong></td>
+          <td><strong>Combined</strong></td>
           <td></td>
-          <td><strong>35 scored</strong></td>
+          <td><strong>60</strong></td>
+          <td><strong>108 pts</strong></td>
           <td></td>
-          <td><strong>67 pts</strong></td>
         </tr>
       </tbody>
     </table>
-    <p><strong>Tier 1</strong> covers the essentials every repo needs: README, LICENSE, repository description, and branch protection.</p>
-    <p><strong>Tier 2</strong> covers professional standards: .gitignore, CI/CD workflows, .editorconfig, CODEOWNERS, issue templates, PR template, topics, changelog, GitHub releases, stale issue/PR/branch detection, merge strategy, and README content quality.</p>
-    <p><strong>Tier 3</strong> adds polish: SECURITY.md, CONTRIBUTING.md, security alerts, .editorconfig drift, code of conduct, homepage URL, .gitattributes, version pinning, dependency update config, README table of contents, and README license mention.</p>
+    <p><strong>Core</strong> covers universal best practices: README, LICENSE, CI/CD, branch protection, .editorconfig, CODEOWNERS, issue templates, security, and more across 7 categories.</p>
+    <p><strong>.NET</strong> adds .NET-specific checks: Directory.Build.props, test projects, nullable reference types, central package management, code coverage, analyzers, SourceLink, and more across 4 categories.</p>
+    <p>When a language module is active, scores are combined: <code>core × 60% + language × 40%</code>. More modules coming soon (Python, Node, Go, Rust).</p>
   </div>
 
   <div class="home-section">
     <h2>Terminal Output Preview</h2>
     <div class="terminal-block">
-      <pre><code>Repository Health: phmatray/my-project
-Score: 45/67 (67%) ██████░░
+      <pre><code>## Repository Scan: phmatray/my-dotnet-project
 
-Tier 1 — Required (4 checks)
-  [PASS] README exists
-  [PASS] LICENSE exists
-  [FAIL] Repository description is empty
-  [PASS] Branch protection enabled
+### Core Health Checks
 
-Tier 2 — Recommended (20 checks)
-  [PASS] .gitignore exists
-  [FAIL] No CI/CD workflows found
-  [PASS] CI workflow health — all workflows passing
-  [FAIL] .editorconfig not found
-  [PASS] CODEOWNERS exists
-  [PASS] Issue templates configured
-  [FAIL] No PR template found
-  [PASS] Repository topics set
-  [PASS] CHANGELOG exists
-  [PASS] Delete branch on merge enabled
-  [PASS] GitHub releases found
-  [PASS] No stale issues (&gt; 90 days)
-  [PASS] No stale PRs (&gt; 30 days)
-  [WARN] Stale branches — 3 branches with no recent activity
-  [PASS] Merge strategy configured
-  [PASS] README has description section
-  [PASS] README has badges
-  [PASS] README has installation instructions
-  [PASS] README has usage section
-  [FAIL] README has no features section
+#### Tier 1 — Required
+  [PASS] README.md — Found (2.3 KB)
+  [PASS] LICENSE — MIT License
+  [FAIL] Repository description — Not set
+  [PASS] Branch protection — Enabled on main
 
-Tier 3 — Nice to Have (14 checks)
-  [FAIL] SECURITY.md not found
-  [FAIL] CONTRIBUTING.md not found
-  [PASS] Security alerts enabled
-  [PASS] .editorconfig matches file styles
-  [FAIL] No code of conduct
-  [PASS] Homepage URL set
-  [PASS] .gitattributes exists
-  [FAIL] No version pinning (global.json / .tool-versions)
-  [PASS] Dependabot or Renovate configured
-  [FAIL] README has no table of contents
-  [PASS] README mentions license
-  [INFO] FUNDING.yml not found (optional)
-  [INFO] Discussions not enabled (optional)
-  [INFO] Commit signoff not required (optional)
+#### Tier 2 — Recommended
+  [PASS] .gitignore — Found
+  [PASS] CI/CD workflows — 2 workflows found
+  [FAIL] .editorconfig — Not found
+  [PASS] CODEOWNERS — Found
+  ...
 
-Backlog saved to: backlog/phmatray_my-project/
-  health/   — 10 items (9 FAIL, 1 WARN)
-  issues/   — 7 items</code></pre>
+Core Score: 52/74 (70%)
+
+---
+
+### .NET Health Checks
+
+#### Tier 1 — Required
+  [PASS] Directory.Build.props — Found
+  [PASS] Test Project Exists — 3 test projects
+
+#### Tier 2 — Recommended
+  [PASS] Nullable Reference Types — Enabled
+  [FAIL] Central Package Management — Not found
+  [FAIL] Code Coverage — No coverlet detected
+  [PASS] global.json SDK Pinning — net9.0
+  ...
+
+.NET Score: 22/34 (65%)
+
+---
+
+### Combined Health Score: 68%
+  (core 70% × 60% + .NET 65% × 40%)
+
+  Core:   52/74  ██████░░ (70%)
+  .NET:   22/34  █████░░░ (65%)
+
+---
+
+Backlog saved to: backlog/phmatray_my-dotnet-project/
+  health/   — 6 items (5 FAIL, 1 WARN)
+  dotnet/   — 3 items (3 FAIL)
+  issues/   — 5 items</code></pre>
     </div>
   </div>
 

@@ -1,6 +1,9 @@
 # Check File Format
 
-Each health check is defined in a markdown file at `.claude/skills/shared/checks/{category}/{slug}.md`.
+Each health check is defined in a markdown file within its module's directory:
+
+- Core checks: `.claude/skills/shared/checks/core/{category}/{slug}.md`
+- .NET checks: `.claude/skills/shared/checks/dotnet/{category}/{slug}.md`
 
 ## Frontmatter
 
@@ -9,11 +12,18 @@ Each health check is defined in a markdown file at `.claude/skills/shared/checks
 check: Human-Readable Check Name
 slug: kebab-case-slug
 tier: 1|2|3
-category: documentation|repo-settings|dev-config|ci-cd|community|security|maintenance
+category: category-within-module
 points: 4|2|1
 scoring: Normal|INFO only
 ---
 ```
+
+The `category` field depends on the module:
+
+| Module | Valid Categories |
+|--------|-----------------|
+| Core | `documentation`, `repo-settings`, `dev-config`, `ci-cd`, `community`, `security`, `maintenance` |
+| .NET | `build-config`, `code-quality`, `testing`, `packaging` |
 
 ## Sections
 
@@ -32,7 +42,7 @@ What to write to the backlog if the check fails:
 - **Description** --- what's wrong and why it matters
 - **Acceptance Criteria** --- what "fixed" looks like
 
-## Example
+## Example (Core Check)
 
 ```markdown
 ---
@@ -56,4 +66,30 @@ Verify README.md or README exists in the repository root.
 Title: Add README.md
 Description: The repository has no README file...
 Acceptance Criteria: README.md exists in repo root with project description
+```
+
+## Example (.NET Check)
+
+```markdown
+---
+check: Directory.Build.props
+slug: dotnet-build-props
+tier: 1
+category: build-config
+points: 4
+scoring: Normal
+---
+
+### What to Check
+Verify Directory.Build.props exists in the repository root via `gh api`.
+
+### Status Rules
+- PASS: Directory.Build.props exists
+- FAIL: Directory.Build.props not found
+- WARN: Cannot access repository contents (403)
+
+### Backlog Content
+Title: Add Directory.Build.props
+Description: No centralized MSBuild properties file found...
+Acceptance Criteria: Directory.Build.props exists with shared properties
 ```

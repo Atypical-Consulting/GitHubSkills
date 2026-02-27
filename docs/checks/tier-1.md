@@ -1,6 +1,6 @@
-# Tier 1 — Required
+# Core — Tier 1 — Required
 
-Tier 1 checks verify the absolute fundamentals every repository must have. Each check is worth **4 points**.
+Tier 1 core checks verify the absolute fundamentals every repository must have. Each check is worth **4 points**. These checks run for all repositories regardless of tech stack.
 
 ## README
 
