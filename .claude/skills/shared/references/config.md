@@ -9,7 +9,17 @@ Centralized configuration values used across multiple skills. Reference this fil
 | Tier 1 points | 4 | ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, ghs-backlog-next |
 | Tier 2 points | 2 | ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, ghs-backlog-next |
 | Tier 3 points | 1 | ghs-repo-scan, ghs-backlog-score, ghs-backlog-board, ghs-backlog-next |
-| Max possible points | 74 | ghs-backlog-score |
+| Core max points | 74 | ghs-backlog-score |
+| .NET max points | 34 | ghs-backlog-score |
+| Core weight (with lang module) | 0.6 (60%) | ghs-repo-scan, ghs-backlog-score |
+| Language module weight | 0.4 (40%) | ghs-repo-scan, ghs-backlog-score |
+
+## Modules
+
+| Module | Slug | Detection Marker | Backlog Subdir |
+|--------|------|------------------|----------------|
+| Core | `core` | Always active | `health/` |
+| .NET | `dotnet` | `*.sln` in repo root | `dotnet/` |
 
 ## Display
 

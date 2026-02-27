@@ -23,7 +23,7 @@ flowchart LR
     B --> F[ghs-backlog-score]
 ```
 
-1. **Scan** — `ghs-repo-scan` audits the repo against 43 checks and saves findings as backlog items
+1. **Scan** — `ghs-repo-scan` audits the repo against 40+ core checks (plus language-specific modules) and saves findings as backlog items
 2. **Sync** (optional) — `ghs-backlog-sync` publishes findings as GitHub Issues for team visibility
 3. **Review** — `ghs-backlog-board` shows a dashboard of all findings with scores and progress
 4. **Fix** — `ghs-backlog-fix` spawns parallel agents to fix failing items and create PRs (auto-closes synced issues)
@@ -54,24 +54,38 @@ The backlog is a structured set of markdown files that track health check result
 backlog/
   {owner}_{repo}/
     SUMMARY.md           # Scores, progress, tables
-    health/
-      tier-1--readme.md  # One file per failing check
+    health/              # Core module findings
+      tier-1--readme.md
       tier-2--ci-cd.md
+    dotnet/              # .NET module findings (if detected)
+      tier-1--dotnet-build-props.md
+      tier-2--dotnet-nullable.md
     issues/
       issue-42--title.md # One file per open issue
 ```
 
-Each backlog item has metadata (tier, points, status, category) and acceptance criteria. The status field tracks progress: `FAIL` means unfixed, `PASS` means resolved, `WARN` means permission-blocked.
+Each backlog item has metadata (tier, points, status, module, category) and acceptance criteria. The status field tracks progress: `FAIL` means unfixed, `PASS` means resolved, `WARN` means permission-blocked. Core module items go in `health/`, language module items go in their own directory (e.g., `dotnet/`).
+
+## Modules
+
+GHS uses a **modular check system**. A **core module** (40 checks) always runs, and **language-specific modules** activate based on stack detection:
+
+| Module | Activation | Checks | Max Points |
+|--------|------------|--------|------------|
+| Core | Always | 40 scored + 3 INFO | 74 |
+| .NET | `.sln` in repo root | 20 scored + 3 INFO | 34 |
+
+Future modules (Python, Node, Go, Rust) follow the same pattern.
 
 ## Tiers and Scoring
 
-GHS uses a 3-tier scoring system with a maximum of **74 points**:
+Each module uses a 3-tier scoring system:
 
-| Tier | Label | Checks | Points Each | Subtotal |
-|------|-------|--------|-------------|----------|
-| 1 | Required | 4 | 4 | 16 |
-| 2 | Recommended | 22 | 2 | 44 |
-| 3 | Nice to Have | 14 scored + 3 INFO | 1 | 14 |
+| Tier | Label | Points Each |
+|------|-------|-------------|
+| 1 | Required | 4 |
+| 2 | Recommended | 2 |
+| 3 | Nice to Have | 1 |
 
 **Scoring rules:**
 
@@ -79,7 +93,17 @@ GHS uses a 3-tier scoring system with a maximum of **74 points**:
 - **FAIL** items earn zero points
 - **WARN** items are excluded from both earned and possible totals (they indicate permission issues, not real failures)
 - **INFO** items carry no points and do not affect the score
-- **Percentage** = earned points / possible points * 100, rounded to the nearest integer
+- **Percentage** = earned points / possible points x 100, rounded to the nearest integer
+
+### Multi-module scoring
+
+When a language module is active, scores are combined with weighted averaging:
+
+```
+Combined score = core_pct x 60% + language_pct x 40%
+```
+
+If no language module is active, the core score is used at 100% weight. This weighting ensures core repository standards are always the primary driver of the health score.
 
 The tier system ensures that fundamental requirements (Tier 1) are weighted more heavily than nice-to-have polish (Tier 3). A repo missing a README loses 4 points, while a repo missing a FUNDING.yml loses nothing.
 

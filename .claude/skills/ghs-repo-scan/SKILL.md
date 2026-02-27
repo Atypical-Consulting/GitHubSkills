@@ -38,8 +38,9 @@ Route users to `ghs-backlog-fix` for applying fixes.
 
 | Role | Responsibility |
 |------|---------------|
-| **Orchestrator** (you) | Detect repo, spawn agents, collect results, compute scores, write SUMMARY.md, display terminal report |
-| **Health Check Agents** (3x, spawned via Task) | One per tier — run all checks in the tier, write backlog items for failures |
+| **Orchestrator** (you) | Detect repo, detect stack (modules), spawn agents, collect results, compute scores, write SUMMARY.md, display terminal report |
+| **Core Health Check Agents** (3x, spawned via Task) | One per tier — run all core checks in the tier, write backlog items to `health/` |
+| **Language Module Agents** (3x per module, spawned via Task) | One per tier per active module — run module checks, write backlog items to `{module}/` |
 | **Issues Agent** (1x, spawned via Task) | Fetch open issues, write issue backlog items |
 
 <context>
@@ -54,7 +55,9 @@ Purpose: Scan a GitHub repository for quality best practices and open issues, pr
 | Output conventions | `../shared/references/output-conventions.md` | Terminal formatting, progress bars, tables |
 | gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
 | Agent spawning | `../shared/references/agent-spawning.md` | Task tool patterns, result contract, retries |
-| Check registry | `../shared/checks/index.md` | Full list of checks with tier assignments and slugs |
+| Module registry | `../shared/checks/index.md` | Module discovery, stack detection, scoring weights |
+| Core checks | `../shared/checks/core/index.md` | Core check registry with tier assignments and slugs |
+| .NET checks | `../shared/checks/dotnet/index.md` | .NET check registry (conditional on .sln detection) |
 
 The user must have **read access** to the target repository.
 </context>
@@ -102,12 +105,19 @@ See `../shared/references/gh-cli-patterns.md` for authentication and repo detect
 **Trigger:** User invokes scan without specifying a repo.
 **Example:** `gh repo view --json nameWithOwner -q '.nameWithOwner'` — if neither works, ask the user.
 
-## Phase 1 — Setup
+## Phase 1 — Setup and Stack Detection
 
 1. Detect the repository (`owner/repo`) and default branch
 2. Detect repo visibility (public/private), fork status, and commit count
-3. Create output directories: `backlog/{owner}_{repo}/health/` and `backlog/{owner}_{repo}/issues/`
-4. If `backlog/{owner}_{repo}/` already exists, load `SUMMARY.md` first (progressive disclosure) — only read individual backlog items if needed for comparison
+3. **Detect tech stack** to determine active modules:
+   ```bash
+   # Check for .NET
+   gh api repos/{owner}/{repo}/contents/ --jq '.[].name' 2>/dev/null | grep -q '\.sln$' && DOTNET_DETECTED=true
+   ```
+   See `../shared/checks/index.md` for the full module registry and detection markers.
+4. Create output directories: `backlog/{owner}_{repo}/health/` and `backlog/{owner}_{repo}/issues/`
+   - If .NET detected: also create `backlog/{owner}_{repo}/dotnet/`
+5. If `backlog/{owner}_{repo}/` already exists, load `SUMMARY.md` first (progressive disclosure) — only read individual backlog items if needed for comparison
 
 **Rule:** Ask before overwriting existing health items.
 **Trigger:** `backlog/{owner}_{repo}/health/` directory already exists.
@@ -115,16 +125,34 @@ See `../shared/references/gh-cli-patterns.md` for authentication and repo detect
 
 ## Phase 2 — Spawn Agents in Parallel
 
-Launch **4 agents simultaneously** using the Task tool. Each agent works independently and writes files directly.
+Launch agents simultaneously using the Task tool. Each agent works independently and writes files directly.
+
+### Core Module Agents (always)
 
 | Agent | Template | Substitutions |
 |-------|----------|--------------|
-| Tier 1 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=1`, `{skills_path}` |
-| Tier 2 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=2`, `{skills_path}` |
-| Tier 3 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=3`, `{skills_path}` |
+| Core Tier 1 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=1`, `{module}=core`, `{skills_path}` |
+| Core Tier 2 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=2`, `{module}=core`, `{skills_path}` |
+| Core Tier 3 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=3`, `{module}=core`, `{skills_path}` |
 | Issues Agent | `agents/issues-agent.md` | `{owner}`, `{repo}`, `{skills_path}` |
 
-All agents use `subagent_type: general-purpose`. Spawn all 4 in a **single message** for parallel execution.
+### .NET Module Agents (if .sln detected)
+
+| Agent | Template | Substitutions |
+|-------|----------|--------------|
+| .NET Tier 1 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=1`, `{module}=dotnet`, `{skills_path}` |
+| .NET Tier 2 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=2`, `{module}=dotnet`, `{skills_path}` |
+| .NET Tier 3 Agent | `agents/health-check-agent.md` | `{owner}`, `{repo}`, `{default_branch}`, `{N}=3`, `{module}=dotnet`, `{skills_path}` |
+
+All agents use `subagent_type: general-purpose`. Spawn all agents in a **single message** for parallel execution (4 agents for core-only repos, 7 agents for .NET repos).
+
+Each agent reads its module's index file:
+- Core agents: `checks/core/index.md`
+- .NET agents: `checks/dotnet/index.md`
+
+Backlog items are written to the module's directory:
+- Core agents write to: `backlog/{owner}_{repo}/health/`
+- .NET agents write to: `backlog/{owner}_{repo}/dotnet/`
 
 See `../shared/references/agent-spawning.md` for spawning patterns and the agent result contract.
 
@@ -132,7 +160,8 @@ See `../shared/references/agent-spawning.md` for spawning patterns and the agent
 
 | Pass to Agent | Omit |
 |---------------|------|
-| Check definition (from checks/*.md) | Other check definitions |
+| Module index (from checks/{module}/index.md) | Other module indexes |
+| Check definitions for the agent's tier | Other check definitions |
 | Repo owner/name, default branch | Full SUMMARY.md |
 | Tech stack detection result | Previous scan results |
 | Scoring logic for the check's tier | Full scoring-logic.md |
@@ -142,9 +171,14 @@ See `../shared/references/agent-spawning.md` for spawning patterns and the agent
 After all agents complete:
 
 1. Parse JSON results from each health check agent
-2. Combine all check results into a unified list
-3. Calculate health score per `../shared/references/scoring-logic.md`
-4. Parse the issues summary from the issues agent
+2. Group check results by module (core, dotnet)
+3. Calculate per-module scores:
+   - Core: `core_pct = round(core_earned / core_possible * 100)`
+   - .NET (if active): `dotnet_pct = round(dotnet_earned / dotnet_possible * 100)`
+4. Calculate combined score per `../shared/references/scoring-logic.md`:
+   - Core only: `score = core_pct`
+   - Core + .NET: `score = round(core_pct * 0.6 + dotnet_pct * 0.4)`
+5. Parse the issues summary from the issues agent
 
 **Rule:** Retry failed agents once before marking as WARN.
 **Trigger:** Agent returns malformed JSON or errors out.
@@ -153,9 +187,10 @@ After all agents complete:
 ## Phase 4 — Write SUMMARY.md
 
 Write `backlog/{owner}_{repo}/SUMMARY.md` using the template from `references/templates.md`. Include:
-- Health score breakdown by tier with progress bars
-- Action items table linking to each health backlog file
-- Passing checks list
+- Per-module health score breakdown by tier with progress bars
+- Combined score (if language module active)
+- Action items table linking to each backlog file (health/ and module-specific dirs)
+- Passing checks list (grouped by module)
 - Open issues table linking to each issue backlog file
 
 Verify score: `python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}`
@@ -164,12 +199,12 @@ Verify score: `python .claude/skills/shared/scripts/calculate_score.py backlog/{
 
 Present combined results as a clean, scannable terminal report. See `../shared/references/output-conventions.md` for full format specification.
 
-Report structure:
+Report structure (core-only repo):
 
 ```
 ## Repository Scan: {owner}/{repo}
 
-### Health Checks
+### Core Health Checks
 
 #### Tier 1 — Required
   [PASS] README.md — Found (2.3 KB)
@@ -208,6 +243,69 @@ Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 ### Backlog saved to: backlog/{owner}_{repo}/
   health/   — 8 items (8 FAIL, 0 WARN)
   issues/   — 18 items
+```
+
+Report structure (repo with .NET module):
+
+```
+## Repository Scan: {owner}/{repo}
+
+### Core Health Checks
+
+#### Tier 1 — Required
+  [PASS] README.md — Found (2.3 KB)
+  [FAIL] LICENSE — Not found
+
+#### Tier 2 — Recommended
+  [PASS] .gitignore — Found
+  [FAIL] .editorconfig — Not found
+
+#### Tier 3 — Nice to Have
+  [FAIL] SECURITY.md — Not found
+
+Core Score: 30/74 (41%)
+
+---
+
+### .NET Health Checks
+
+#### Tier 1 — Required
+  [PASS] Directory.Build.props — Found
+  [PASS] Test Project Exists — 3 test projects found
+
+#### Tier 2 — Recommended
+  [PASS] Nullable Reference Types — Enabled in Directory.Build.props
+  [FAIL] Central Package Management — Directory.Packages.props not found
+  [FAIL] Code Coverage — No coverlet package detected
+
+#### Tier 3 — Nice to Have
+  [FAIL] SourceLink — Microsoft.SourceLink.* not referenced
+  [INFO] Target Framework — net9.0 (current)
+  [INFO] Package Count — 12 packages across 5 projects
+
+.NET Score: 18/34 (53%)
+
+---
+
+### Combined Health Score: 46% (core 41% × 60% + .NET 53% × 40%)
+
+  Core:   30/74  ███░░░░░ (41%)
+  .NET:   18/34  ████░░░░ (53%)
+
+---
+
+### Open Issues — 5 total
+
+| # | Title | Labels | Age | Assignee |
+|---|-------|--------|-----|----------|
+| 12 | Add CI pipeline | enhancement | 30d | — |
+
+---
+
+### Backlog saved to: backlog/{owner}_{repo}/
+  health/   — 6 items (5 FAIL, 1 WARN)
+  dotnet/   — 3 items (3 FAIL)
+  issues/   — 5 items
 ```
 
 If there are more than 20 issues, show the 20 most recent and note: "(+N more -- see backlog/issues/ for full list)".

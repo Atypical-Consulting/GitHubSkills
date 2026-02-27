@@ -1,8 +1,27 @@
 # Check Registry
 
-GHS scans repositories against **43 health checks** organized into 3 tiers and 7 categories.
+GHS uses a **modular check system** with a core module (always active) and language-specific modules that activate based on stack detection. Currently **63 health checks** across 2 modules.
 
-## Scoring
+## Modules
+
+| Module | Checks | Max Points | Activation |
+|--------|--------|------------|------------|
+| **Core** | 40 scored + 3 INFO | 74 | Always active |
+| **.NET** | 20 scored + 3 INFO | 34 | `.sln` detected in repo root |
+
+When a language module is active, scores are combined with weighted averaging:
+
+```
+Combined = core_pct x 60% + language_pct x 40%
+```
+
+If no language module is active, the core score is used at 100% weight.
+
+## Core Checks
+
+40 checks across 7 categories covering universal repository best practices.
+
+### Scoring
 
 | Tier | Checks | Points Each | Subtotal |
 |------|--------|-------------|----------|
@@ -11,9 +30,7 @@ GHS scans repositories against **43 health checks** organized into 3 tiers and 7
 | Tier 3 — Nice to Have | 14 scored + 3 INFO | 1 | 14 |
 | **Total** | **40 scored** | | **74** |
 
-WARN items are excluded from both earned and possible totals -- they indicate permission issues, not real failures. INFO items carry no points and do not affect the score.
-
-## All Checks
+### All Core Checks
 
 | # | Check | Slug | Tier | Category | Points |
 |---|-------|------|------|----------|--------|
@@ -61,7 +78,7 @@ WARN items are excluded from both earned and possible totals -- they indicate pe
 | 42 | Discussions enabled | `discussions-enabled` | 3 | Repo Settings | INFO |
 | 43 | Commit signoff required | `commit-signoff` | 3 | Repo Settings | INFO |
 
-## By Category
+### By Category
 
 | Category | Checks | Description |
 |----------|--------|-------------|
@@ -73,8 +90,64 @@ WARN items are excluded from both earned and possible totals -- they indicate pe
 | **Security** | 2 | Security alerts, dependency update config |
 | **Maintenance** | 4 | GitHub releases, stale issues, stale PRs, stale branches |
 
+## .NET Module Checks
+
+23 checks across 4 categories for .NET-specific best practices. Activates when a `.sln` file is detected in the repository root.
+
+### Scoring
+
+| Tier | Checks | Points Each | Subtotal |
+|------|--------|-------------|----------|
+| Tier 1 — Required | 2 | 4 | 8 |
+| Tier 2 — Recommended | 8 | 2 | 16 |
+| Tier 3 — Nice to Have | 10 scored + 3 INFO | 1 | 10 |
+| **Total** | **20 scored** | | **34** |
+
+### All .NET Checks
+
+| # | Check | Slug | Tier | Category | Points |
+|---|-------|------|------|----------|--------|
+| 1 | Directory.Build.props | `dotnet-build-props` | 1 | Build Config | 4 |
+| 2 | Test Project Exists | `dotnet-tests-exist` | 1 | Testing | 4 |
+| 3 | Nullable Reference Types | `dotnet-nullable` | 2 | Code Quality | 2 |
+| 4 | global.json SDK Pinning | `dotnet-global-json` | 2 | Build Config | 2 |
+| 5 | Code Coverage | `dotnet-code-coverage` | 2 | Testing | 2 |
+| 6 | Central Package Management | `dotnet-central-packages` | 2 | Build Config | 2 |
+| 7 | XML Documentation | `dotnet-xml-docs` | 2 | Code Quality | 2 |
+| 8 | NuGet Metadata | `dotnet-nuget-metadata` | 2 | Packaging | 2 |
+| 9 | Solution Structure | `dotnet-solution-structure` | 2 | Build Config | 2 |
+| 10 | Implicit Usings | `dotnet-implicit-usings` | 2 | Code Quality | 2 |
+| 11 | TreatWarningsAsErrors | `dotnet-warnings-as-errors` | 3 | Code Quality | 1 |
+| 12 | Deterministic Builds | `dotnet-deterministic` | 3 | Build Config | 1 |
+| 13 | SourceLink | `dotnet-sourcelink` | 3 | Packaging | 1 |
+| 14 | Analyzers Configured | `dotnet-analyzers` | 3 | Code Quality | 1 |
+| 15 | AnalysisLevel | `dotnet-analysis-level` | 3 | Code Quality | 1 |
+| 16 | Benchmark Project | `dotnet-benchmarks` | 3 | Testing | 1 |
+| 17 | dotnet-tools.json | `dotnet-local-tools` | 3 | Build Config | 1 |
+| 18 | AOT Ready | `dotnet-aot-ready` | 3 | Packaging | 1 |
+| 19 | InternalsVisibleTo | `dotnet-internals-visible` | 3 | Testing | 1 |
+| 20 | Multi-Targeting | `dotnet-multi-target` | 3 | Packaging | 1 |
+| 21 | Target Framework | `dotnet-target-framework` | 3 | Build Config | INFO |
+| 22 | Package Count | `dotnet-package-count` | 3 | Packaging | INFO |
+| 23 | Build System | `dotnet-build-system` | 3 | Build Config | INFO |
+
+### By Category
+
+| Category | Checks | Description |
+|----------|--------|-------------|
+| **Build Config** | 8 | Directory.Build.props, global.json, Central Package Management, solution structure, deterministic builds, local tools, target framework, build system |
+| **Code Quality** | 6 | Nullable, implicit usings, XML docs, warnings-as-errors, analyzers, analysis level |
+| **Testing** | 4 | Test projects, code coverage, benchmarks, InternalsVisibleTo |
+| **Packaging** | 5 | NuGet metadata, SourceLink, AOT, multi-targeting, package count |
+
 ## Tier Deep Dives
 
+### Core Module
 - [Tier 1 — Required](/checks/tier-1) (4 checks, 4 pts each)
 - [Tier 2 — Recommended](/checks/tier-2) (22 checks, 2 pts each)
 - [Tier 3 — Nice to Have](/checks/tier-3) (17 checks, 1 pt or INFO)
+
+### .NET Module
+- [Tier 1 — Required](/checks/dotnet-tier-1) (2 checks, 4 pts each)
+- [Tier 2 — Recommended](/checks/dotnet-tier-2) (8 checks, 2 pts each)
+- [Tier 3 — Nice to Have](/checks/dotnet-tier-3) (13 checks, 1 pt or INFO)

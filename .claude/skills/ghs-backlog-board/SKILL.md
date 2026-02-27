@@ -42,9 +42,10 @@ Shared references (use these, do not duplicate their logic):
 
 | Reference | Purpose |
 |-----------|---------|
-| `../shared/references/scoring-logic.md` | Tier weights, score formula, priority algorithm, progress bar format |
-| `../shared/references/backlog-format.md` | Directory structure, file naming, metadata formats, status values |
+| `../shared/references/scoring-logic.md` | Tier weights, score formula, module weighting, priority algorithm, progress bar format |
+| `../shared/references/backlog-format.md` | Directory structure, file naming, metadata formats, module-to-directory mapping, status values |
 | `../shared/references/output-conventions.md` | Dashboard tables, status indicators, recommendation block |
+| `../shared/checks/index.md` | Module registry — which modules exist and their scoring weights |
 </context>
 
 <anti-patterns>
@@ -89,8 +90,10 @@ Optional filters the user might provide:
 Scan `backlog/` for all `{owner}_{repo}/` directories. For directory structure, see `../shared/references/backlog-format.md`.
 
 For each repo, read **only** `SUMMARY.md` to extract:
-- Health score (earned / max / percentage)
-- Tier breakdown (earned per tier)
+- Health score (earned / max / percentage) — may include per-module breakdown
+- Tier breakdown (earned per tier, per module)
+- Active modules (core, dotnet, etc.)
+- Combined score if multiple modules active
 - Open issue count
 - Generated date
 - Visibility (Public / Private)
@@ -106,7 +109,7 @@ For each repo, read **only** `SUMMARY.md` to extract:
 | User Action | Data Source |
 |-------------|------------|
 | "show backlog" / "dashboard" | SUMMARY.md files only |
-| "show details for phmatray/NewSLN" | SUMMARY.md + list FAIL/WARN files from `health/` and `issues/` |
+| "show details for phmatray/NewSLN" | SUMMARY.md + list FAIL/WARN files from `health/`, `dotnet/` (if exists), and `issues/` |
 | "tell me about the README item" | Read the specific `tier-1--readme.md` file |
 
 ## Phase 2 — Display the Dashboard
@@ -177,9 +180,17 @@ Progress bar format is defined in `../shared/references/scoring-logic.md`.
 
 ### Health Score Breakdown
 
-  Tier 1:  8/16  ████░░░░ (50%)  -- 2 remaining
-  Tier 2:  2/12  █░░░░░░░ (17%)  -- 5 remaining
-  Tier 3:  0/3   ░░░░░░░░ (0%)   -- 3 remaining
+  Core:   30/74  ███░░░░░ (41%)
+    Tier 1:  8/16  ████░░░░ (50%)  -- 2 remaining
+    Tier 2:  2/12  █░░░░░░░ (17%)  -- 5 remaining
+    Tier 3:  0/3   ░░░░░░░░ (0%)   -- 3 remaining
+
+  .NET:   18/34  ████░░░░ (53%)   (if .NET module active)
+    Tier 1:  8/8   ████████ (100%)
+    Tier 2:  8/16  ████░░░░ (50%)  -- 4 remaining
+    Tier 3:  2/10  █░░░░░░░ (20%)  -- 8 remaining
+
+  Combined: 46% (core 41% × 60% + .NET 53% × 40%)
 
 ### Open Issues
 
