@@ -158,7 +158,11 @@ If the item has a `Synced Issue` field (from `ghs-backlog-sync`):
 
 ### Batch mode
 
-Scan `backlog/{owner}_{repo}/health/` for all items. For each file:
+Scan all module directories under `backlog/{owner}_{repo}/` for items:
+- `health/` — core module items (always present if failures exist)
+- `dotnet/` — .NET module items (present if .NET module was active and had failures)
+
+For each file in these directories:
 
 1. Read the file and check the `Status` field
 2. Skip items with status PASS
@@ -167,7 +171,11 @@ Scan `backlog/{owner}_{repo}/health/` for all items. For each file:
 
 You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
 
-For detailed fix strategies per check, read `../shared/checks/index.md` for the Slug-to-Path Lookup table, then read the individual check file at `../shared/checks/{category}/{slug}.md`.
+For detailed fix strategies per check, determine the module from the item's `Module` metadata field:
+- Core items: read `../shared/checks/core/index.md` for the Slug-to-Path Lookup, then `../shared/checks/core/{category}/{slug}.md`
+- .NET items: read `../shared/checks/dotnet/index.md` for the Slug-to-Path Lookup, then `../shared/checks/dotnet/{category}/{slug}.md`
+
+See `../shared/references/item-categories.md` for module-specific category routing (core vs .NET).
 
 ## Phase 2 — Prepare Repository
 

@@ -37,9 +37,10 @@ No sub-agents — this is a lightweight, read-only skill.
 
 | Reference | Path | Purpose |
 |-----------|------|---------|
-| Scoring Logic | `../shared/references/scoring-logic.md` | Tier weights, formula, status rules, progress bar format |
-| Backlog Format | `../shared/references/backlog-format.md` | Directory structure, file naming, metadata parsing |
+| Scoring Logic | `../shared/references/scoring-logic.md` | Tier weights, formula, module weighting, status rules, progress bar format |
+| Backlog Format | `../shared/references/backlog-format.md` | Directory structure, file naming, module-to-directory mapping, metadata parsing |
 | Output Conventions | `../shared/references/output-conventions.md` | Terminal output patterns, table formats, routing suggestions |
+| Module Registry | `../shared/checks/index.md` | Module detection, scoring weights (core 60%, lang 40%) |
 </context>
 
 <anti-patterns>
@@ -88,9 +89,13 @@ The scoring formula (from `scoring-logic.md`):
 
 | Component | Formula |
 |-----------|---------|
-| Earned points | `sum(tier_points for each PASS check)` |
-| Possible points | `sum(tier_points for each PASS or FAIL check)` |
-| Percentage | `round(earned / possible * 100)` |
+| Earned points | `sum(tier_points for each PASS check)` — per module |
+| Possible points | `sum(tier_points for each PASS or FAIL check)` — per module |
+| Module percentage | `round(earned / possible * 100)` |
+| Combined score (core only) | `core_pct` |
+| Combined score (core + lang) | `round(core_pct * 0.6 + lang_pct * 0.4)` |
+
+The script automatically detects modules by scanning `health/` (core) and `dotnet/` (if present).
 
 Status scoring rules:
 
@@ -103,7 +108,7 @@ Status scoring rules:
 
 ### Rule 3: Display the score
 
-**Single-repo view:**
+**Single-repo view (core only):**
 
 ```
 ## Health Score: {owner}/{repo}
@@ -113,6 +118,27 @@ Status scoring rules:
   Tier 1 -- Required:      {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
   Tier 2 -- Recommended:   {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
   Tier 3 -- Nice to Have:  {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+
+  Status: {pass} PASS | {fail} FAIL | {warn} WARN (excluded)
+  Points recoverable: {fail_points} (from {fail_count} failing checks)
+```
+
+**Single-repo view (with .NET module):**
+
+```
+## Health Score: {owner}/{repo}
+
+  Combined Score: {combined_pct}% (core {core_pct}% × 60% + .NET {dotnet_pct}% × 40%)
+
+  Core:  {core_earned}/{core_possible} ({core_pct}%)
+    Tier 1 -- Required:      {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+    Tier 2 -- Recommended:   {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+    Tier 3 -- Nice to Have:  {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+
+  .NET:  {dotnet_earned}/{dotnet_possible} ({dotnet_pct}%)
+    Tier 1 -- Required:      {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+    Tier 2 -- Recommended:   {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
+    Tier 3 -- Nice to Have:  {n}/{max}  {bar}  ({pct}%)  -- {remaining} remaining
 
   Status: {pass} PASS | {fail} FAIL | {warn} WARN (excluded)
   Points recoverable: {fail_points} (from {fail_count} failing checks)

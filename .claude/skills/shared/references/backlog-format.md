@@ -2,7 +2,7 @@
 
 Canonical reference for backlog directory structure, file naming, metadata formats, scoring rules, and status values. Consumed by: ghs-repo-scan, ghs-backlog-fix, ghs-backlog-board, ghs-backlog-score, ghs-backlog-next.
 
-For the full list of health checks (verification commands, pass conditions, fix suggestions), see `checks/index.md` and the individual check files in `checks/`.
+For the full list of health checks (verification commands, pass conditions, fix suggestions), see `checks/index.md` (module registry) and the individual module indexes (`checks/core/index.md`, `checks/dotnet/index.md`).
 
 ## Table of Contents
 
@@ -17,15 +17,20 @@ For the full list of health checks (verification commands, pass conditions, fix 
 
 ## Directory Structure
 
-All backlog items live under `backlog/` in the project root, organized by repository:
+All backlog items live under `backlog/` in the project root, organized by repository and module:
 
 ```
 backlog/{owner}_{repo}/
 ├── SUMMARY.md                              # Unified repo summary (scores, tables, links)
-├── health/                                 # Health check findings (FAIL/WARN only)
+├── health/                                 # Core module findings (FAIL/WARN only)
 │   ├── tier-1--readme.md
 │   ├── tier-1--license.md
 │   ├── tier-2--gitignore.md
+│   └── ...
+├── dotnet/                                 # .NET module findings (FAIL/WARN only)
+│   ├── tier-1--dotnet-build-props.md
+│   ├── tier-2--dotnet-nullable.md
+│   ├── tier-3--dotnet-sourcelink.md
 │   └── ...
 └── issues/                                 # Open GitHub issues
     ├── issue-42--login-page-crashes.md
@@ -34,29 +39,43 @@ backlog/{owner}_{repo}/
 ```
 
 - The `{owner}_{repo}` directory name uses an underscore separator (not slash).
-- `health/` is only created when at least one check results in FAIL or WARN.
+- `health/` is only created when at least one core check results in FAIL or WARN.
+- `dotnet/` is only created when the .NET module is active and at least one check results in FAIL or WARN.
 - `issues/` is only created when the repository has open issues.
 - `SUMMARY.md` is always created, even when all checks pass and there are no issues.
+
+### Module-to-Directory Mapping
+
+| Module | Backlog Directory | When Created |
+|--------|------------------|--------------|
+| Core | `health/` | At least one core FAIL/WARN |
+| .NET | `dotnet/` | .NET module active + at least one FAIL/WARN |
+| Issues | `issues/` | Repo has open issues |
+
+Future modules will use their slug as the directory name (e.g., `node/`, `python/`).
 
 ---
 
 ## File Naming Conventions
 
-### Health items
+### Health items (core and language modules)
 
 ```
-tier-{N}--{check-name-kebab}.md
+tier-{N}--{check-slug}.md
 ```
 
 - `{N}` is the tier number: 1, 2, or 3.
-- `{check-name-kebab}` is the check slug from `checks/index.md` (e.g., `branch-protection`, `ci-cd-workflows`, `security-alerts`).
+- `{check-slug}` is the check slug from the module's `index.md` (e.g., `branch-protection`, `dotnet-nullable`).
 - Only create files for checks with status **FAIL** or **WARN**. Passing checks are listed in SUMMARY.md but do not get their own file.
+- Core items go in `health/`, .NET items go in `dotnet/`.
 
 Examples:
-- `tier-1--readme.md`
-- `tier-1--branch-protection.md`
-- `tier-2--issue-templates.md`
-- `tier-3--security-alerts.md`
+- `health/tier-1--readme.md`
+- `health/tier-1--branch-protection.md`
+- `health/tier-2--issue-templates.md`
+- `dotnet/tier-1--dotnet-build-props.md`
+- `dotnet/tier-2--dotnet-nullable.md`
+- `dotnet/tier-3--dotnet-sourcelink.md`
 
 ### Issue items
 
@@ -100,6 +119,7 @@ Every health item file begins with a title and a metadata table in this exact fo
 |-------|-------|
 | **Repository** | `{owner}/{repo}` |
 | **Source** | Health Check |
+| **Module** | {core|dotnet} |
 | **Tier** | {1|2|3} — {Required|Recommended|Nice to Have} |
 | **Points** | {4|2|1} |
 | **Status** | {FAIL|WARN} |
@@ -109,6 +129,7 @@ Every health item file begins with a title and a metadata table in this exact fo
 Fields:
 - **Repository**: The `owner/repo` string in backticks.
 - **Source**: Always the literal string `Health Check`.
+- **Module**: The module slug (`core` or `dotnet`). This determines the backlog subdirectory.
 - **Tier**: Tier number followed by em-dash and label (e.g., `1 — Required`).
 - **Points**: The point value for this tier (4, 2, or 1).
 - **Status**: `FAIL` or `WARN` at creation. Updated to `PASS` when the fix is applied.
@@ -181,18 +202,27 @@ Fields:
 
 1. Each health check contributes points based on its tier: Tier 1 = 4 pts, Tier 2 = 2 pts, Tier 3 = 1 pt.
 2. **WARN items are excluded** from both earned and possible totals. Do not penalize for checks that cannot be verified due to permissions.
-3. **INFO items** (currently only FUNDING.yml) are purely informational and do not affect the score at all. They are not counted in earned or possible totals.
-4. Percentage calculation: `earned_points / possible_points * 100`, **rounded to the nearest integer**.
-5. Issues do not have a point score. They are tracked by count and label breakdown.
+3. **INFO items** are purely informational and do not affect the score at all. They are not counted in earned or possible totals.
+4. Issues do not have a point score. They are tracked by count and label breakdown.
 
-### Maximum possible points (all checks verifiable)
+### Module scoring
 
-| Tier | Checks | Points each | Subtotal |
-|------|--------|-------------|----------|
-| Tier 1 | 4 | 4 | 16 |
-| Tier 2 | 8 | 2 | 16 |
-| Tier 3 | 4 (excluding Funding) | 1 | 4 |
-| **Total** | **16** | | **36** |
+Each module is scored independently, then combined:
+
+| Module | Max Points | Weight (with lang module) | Weight (solo) |
+|--------|------------|---------------------------|---------------|
+| Core | 74 | 60% | 100% |
+| .NET | 34 | 40% | — |
+
+**Combined formula**: `score = round(core_pct * 0.6 + lang_pct * 0.4)`
+
+If no language module is active: `score = core_pct` (100% weight).
+
+### Per-module percentage
+
+```
+module_pct = round(earned_points / possible_points * 100)
+```
 
 ### Progress bar format
 
