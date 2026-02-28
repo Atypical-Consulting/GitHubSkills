@@ -19,7 +19,7 @@ import StepFlow from './StepFlow.vue'
       <div class="stat-label">Max Points</div>
     </div>
     <div class="stat-item">
-      <div class="stat-number">12</div>
+      <div class="stat-number">18</div>
       <div class="stat-label">Skills</div>
     </div>
   </div>

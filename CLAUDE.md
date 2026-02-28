@@ -18,11 +18,15 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
     config.md                    — Centralized scoring constants and display thresholds
     sync-format.md               — Sync contract: labels, issue body template, metadata
     agent-result-contract.md     — Universal agent JSON response format
+    gsd-integration.md           — GSD framework detection, command patterns, complexity routing
+    state-persistence.md         — STATE.md pattern for session state across context resets
 backlog/                         — Backlog items per repo (health findings + issues)
   {owner}_{repo}/
     SUMMARY.md                   — Unified repo summary
+    STATE.md                     — Session state: decisions, blockers, history (optional)
     health/                      — Health check findings
     issues/                      — Open GitHub issues
+.planning/                       — Refactoring roadmap and project-level planning
 repos/                           — Local clones of target repositories (gitignored)
 .gh-skills/backlog-items/        — Ideas and planned skills not yet implemented
 ```
@@ -72,6 +76,8 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 | `config.md` | Centralized scoring constants, display thresholds, status indicators |
 | `sync-format.md` | Label taxonomy, issue title convention, body template, hidden metadata comment |
 | `agent-result-contract.md` | Universal agent JSON response format, status semantics, health check variant |
+| `gsd-integration.md` | GSD detection, complexity routing (fast path vs GSD pipeline), command patterns, context handoff |
+| `state-persistence.md` | STATE.md lifecycle, format, reading/writing state, session history, blocker tracking |
 
 ## Available Skills
 
@@ -95,10 +101,24 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 - **ghs-issue-analyze** — Deep-analyze a GitHub issue and post a structured analysis comment
 - **ghs-issue-implement** — Implement a GitHub issue using worktree-based agents, then create a PR
 
+### Code Review & Release
+
+- **ghs-review-pr** — Review a GitHub PR: fetch diff, analyze for correctness/security/performance/style/tests, post structured review comment with findings by severity
+- **ghs-release** — Create a GitHub Release with auto-generated changelog from conventional commits, semver version bump, dry-run and pre-release support
+
+### Repository Setup
+
+- **ghs-project-init** — Scaffold a new GitHub repository with all quality essentials for a 100% health score, using GSD for multi-file scaffolding with tech-stack-tailored templates
+
 ### Actions
 
 - **ghs-action-fix** — Fix failing GitHub Actions pipelines directly: detect broken workflows, read run logs, diagnose root causes, apply fixes in worktrees, and create PRs — no prior scan needed
 - **ghs-merge-prs** — Merge open PRs (own, Renovate, or all) with CI-aware confirmation, batch support, and automatic branch cleanup
+
+### Orchestration
+
+- **ghs-orchestrate** — Run a full maintenance pipeline across repositories: pull → scan → fix → review → merge → sync → release, with human checkpoints and resume support
+- **ghs-dev-loop** — Act as an autonomous developer for a repository: triage → analyze → implement → review → merge, with priority queue, issue budgets, and cycle modes
 
 ### Utilities
 

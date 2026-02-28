@@ -3,19 +3,22 @@ name: ghs-issue-implement
 description: >
   Implement a GitHub issue using worktree-based agents, then create a PR. Clones the repo, creates
   a worktree, spawns an agent to implement the fix/feature, verifies the result, and opens a PR
-  with auto-close references. Use this skill whenever the user wants to implement an issue, fix
+  with auto-close references. For complex issues (High/Very High complexity from ghs-issue-analyze),
+  automatically uses GSD framework for multi-phase planning and execution with wave-based
+  parallelization, fresh context per task, and automated verification.
+  Use this skill whenever the user wants to implement an issue, fix
   a bug from an issue, build a feature from an issue, or says things like "implement issue #42",
   "fix issue #42", "implement #42", "build feature from issue #15", "implement all triaged issues",
   "implement all bugs", "work on issue #42", or "code issue #42".
   Do NOT use for triaging/labeling issues (use ghs-issue-triage), analyzing issues
   (use ghs-issue-analyze), applying backlog health items (use ghs-backlog-fix), or scanning
   repos (use ghs-repo-scan).
-allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Task"
-compatibility: "Requires gh CLI (authenticated), git, network access"
+allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Task Skill"
+compatibility: "Requires gh CLI (authenticated), git, GSD framework (for complex issues), network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 4.0.0
+  version: 5.0.0
 routes-to:
   - ghs-merge-prs
 routes-from:
@@ -26,16 +29,18 @@ routes-from:
 
 # Issue Implementation
 
-Implement GitHub issues using parallel worktree-based agents. Creates branches, spawns agents to write code, verifies results, and opens PRs with auto-close references.
+Implement GitHub issues using parallel worktree-based agents. For simple issues, spawns a single agent per issue. For complex issues, invokes GSD's full planning and execution pipeline — discuss, plan, execute, verify — with wave-based parallelization and fresh context per task.
 
 <context>
-Purpose: Implement GitHub issues using parallel worktree-based agents — creates branches, spawns agents to write code, verifies results, and opens PRs with auto-close references.
+Purpose: Implement GitHub issues and create PRs. Routes through either the **fast path** (single-shot agent) or the **GSD path** (multi-phase pipeline) based on issue complexity.
 
 ### Shared References
 
 | Reference | Path | Use For |
 |-----------|------|---------|
-| Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup |
+| Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup, wave-based execution |
+| GSD integration | `../shared/references/gsd-integration.md` | GSD detection, complexity routing, command patterns, skill-to-GSD contract, error handling |
+| State persistence | `../shared/references/state-persistence.md` | STATE.md lifecycle, reading/writing session state |
 | gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
 | Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
 | Edge cases | `../shared/references/edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
@@ -52,12 +57,47 @@ The user must have **write access** to the target repository.
 | Skip verification before creating PR | Run tests, lint, and type-check before pushing | Broken PRs waste reviewer time and erode trust in automation |
 | Create PR for incomplete work | Set `NEEDS_HUMAN` status instead — partial worktree is more useful than a broken PR | Incomplete PRs block the merge queue and confuse reviewers |
 | Pass entire scan/backlog to subagent | Pass only: issue details, repo structure, acceptance criteria, tech stack | Bloats agent context, causes confusion and hallucination |
+| Force GSD on simple issues | Use complexity routing — Low/Medium go fast path, High/Very High go GSD | GSD overhead isn't justified for a typo fix or single-file change |
+| Skip STATE.md check at start | Read STATE.md for active blockers and previous attempts | Re-trying known-blocked items wastes time and confuses users |
 
 </anti-patterns>
 
 ## Scope Boundary
 
 Only implement what the issue describes. If the agent discovers adjacent problems (outdated deps, missing tests for unrelated code, style inconsistencies), it must **not** fix them inline. Instead, note them in the PR body under a "Discovered Issues" section so they can be filed separately.
+
+## Complexity Routing
+
+Every issue goes through a routing decision before execution. See `../shared/references/gsd-integration.md` § Complexity Routing for the full decision matrix.
+
+### Decision Flow
+
+```
+1. Check STATE.md for active blockers on this issue
+2. Fetch issue details + analysis comment (if any)
+3. Determine complexity:
+   a. Analysis comment exists → use its Complexity field
+   b. No analysis → estimate from issue body signals
+4. Route:
+   - Low/Medium → Fast Path (Phase 5a)
+   - High/Very High → GSD Path (Phase 5b)
+   - User override → respect explicit request
+```
+
+### Complexity Signals (when no analysis exists)
+
+| Signal | Points Toward |
+|--------|--------------|
+| Single file mentioned | Fast path |
+| "typo", "fix", "update" in title | Fast path |
+| 1-2 acceptance criteria | Fast path |
+| 4+ files mentioned | GSD path |
+| "refactor", "migration", "redesign" | GSD path |
+| Sub-task checklist in body | GSD path |
+| Multiple modules/subsystems affected | GSD path |
+| Architectural decision required | GSD path |
+
+When ambiguous, default to fast path. The user can always re-run with `/gsd:quick` or ask for the GSD path explicitly.
 
 ## Circuit Breaker
 
@@ -81,6 +121,7 @@ What to pass to each implementation agent:
 | Tech stack detection results | Repository-wide metrics |
 | Worktree path and branch name | Unrelated backlog items |
 | Acceptance criteria extracted from issue | Previous session history |
+| STATE.md active blockers (for this issue only) | Full STATE.md contents |
 
 <objective>
 Implement GitHub issues and create PRs with auto-close references.
@@ -89,6 +130,7 @@ Outputs:
 - PRs created on GitHub for each implemented issue
 - Labels updated on implemented issues (`status:in-progress`)
 - Terminal report with implementation results
+- STATE.md updated with session entry
 - NEEDS_HUMAN items listed with failure details
 
 Next routing:
@@ -109,11 +151,15 @@ Three invocation modes — the trigger phrase determines which:
 
 **Rule:** A single issue number resolves to single-issue mode.
 **Trigger:** User says "implement #42" or "fix issue #42".
-**Example:** Fetch issue #42, show single-issue plan, create one worktree, spawn one agent.
+**Example:** Fetch #42 (type:bug) -> assess complexity -> route to fast or GSD path -> implement -> PR.
 
 **Rule:** "all" + a label keyword resolves to batch mode.
 **Trigger:** User says "implement all triaged issues" or "implement all bugs".
-**Example:** Fetch all open issues matching the label, show batch plan sorted by priority, spawn N agents in parallel.
+**Example:** Fetch all matching issues, assess each issue's complexity, group by path (fast vs GSD), execute in parallel within each group.
+
+**Rule:** User can force a specific path.
+**Trigger:** User says "use GSD for #42" or "just quick-fix #42".
+**Example:** Override complexity routing and use the requested path regardless of signals.
 
 **Rule:** A closed issue is skipped unless explicitly requested.
 **Trigger:** User says "implement #42" but #42 is closed.
@@ -136,7 +182,16 @@ Where `{short-slug}` = issue title, lowercased, non-alphanumeric replaced with `
 
 <process>
 
-### Phase 1 — Fetch Issues
+### Phase 1 — Read State & Fetch Issues
+
+**Read STATE.md** (per `../shared/references/state-persistence.md` § Reading State):
+
+```
+1. Read backlog/{owner}_{repo}/STATE.md (if exists)
+2. Extract active blockers → flag blocked issues in plan
+3. Extract decisions → apply user preferences
+4. Show "Last activity: {date} — {summary}" if recent
+```
 
 **Single issue mode:**
 
@@ -158,7 +213,26 @@ For each issue, extract: number, title, body, type label (for branch prefix), pr
 
 **Analysis context:** If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract and pass it to the agent. This provides affected files, suggested approach, and complexity assessment.
 
-### Phase 2 — Prepare Repository
+### Phase 2 — Assess Complexity & Route
+
+For each issue, determine the execution path:
+
+```
+1. Check for analysis comment → extract Complexity field
+2. If no analysis, estimate from issue body signals (see Complexity Signals table)
+3. Check for user override ("use GSD", "quick fix")
+4. Assign path: FAST or GSD
+```
+
+**Display routing decision in plan:**
+
+| # | Issue | Type | Priority | Complexity | Path | Branch |
+|---|-------|------|----------|------------|------|--------|
+| 1 | #42 Login crashes | bug | high | Low | FAST | fix/42-login-crash |
+| 2 | #15 Add auth system | feature | medium | High | GSD | feat/15-add-auth |
+| 3 | #18 Update README | docs | low | Low | FAST | docs/18-update-readme |
+
+### Phase 3 — Prepare Repository
 
 Per `../shared/references/agent-spawning.md` § Repository Cloning:
 
@@ -166,19 +240,21 @@ Per `../shared/references/agent-spawning.md` § Repository Cloning:
 2. Detect default branch
 3. Detect tech stack (language, framework, test runner, linter)
 
-### Phase 3 — Show Plan & Confirm
+### Phase 4 — Show Plan & Confirm
 
 **Batch plan:**
 
 ```
 ## Implementation Plan: {owner}/{repo}
 
-| # | Issue | Type | Priority | Branch | Has Analysis? |
-|---|-------|------|----------|--------|---------------|
-| 1 | #42 Login crashes | bug | high | fix/42-login-crash | Yes |
-| 2 | #15 Add dark mode | feature | medium | feat/15-dark-mode | No |
+| # | Issue | Type | Priority | Path | Branch | Has Analysis? |
+|---|-------|------|----------|------|--------|---------------|
+| 1 | #42 Login crashes | bug | high | FAST | fix/42-login-crash | Yes |
+| 2 | #15 Add auth system | feature | medium | GSD | feat/15-add-auth | Yes (High) |
+| 3 | #18 Update README | docs | low | FAST | docs/18-update-readme | No |
 
-Total: {N} issues ({n_bug} bugs, {n_feature} features, {n_docs} docs)
+Total: {N} issues ({n_fast} fast path, {n_gsd} GSD path)
+{If blockers:} Blocked: {n_blocked} issues (active blockers in STATE.md)
 
 Proceed with all? (y/n/select)
 ```
@@ -191,6 +267,8 @@ Proceed with all? (y/n/select)
 Repository: {owner}/{repo}
 Type:       {type_label}
 Priority:   {priority_label}
+Complexity: {Low|Medium|High|Very High}
+Path:       {FAST — single agent | GSD — multi-phase pipeline}
 Branch:     {prefix}/{number}-{slug} (from {default_branch})
 Analysis:   {Yes — see comment | No — will analyze during implementation}
 
@@ -212,14 +290,11 @@ Wait for user confirmation before continuing.
 | Existing remote branch | `git ls-remote --heads origin 'refs/heads/{prefix}/*'` | Flag in plan, use `-B` if user confirms |
 | Existing PR for branch | `gh pr list --head {prefix}/{slug} --json number,url` | Report existing PR, skip |
 
-### Phase 4 — Create Worktrees
+### Phase 5a — Fast Path Execution (Low/Medium Complexity)
+
+Create worktrees and spawn agents as before — this is the existing v4.0 behavior.
 
 Per `../shared/references/agent-spawning.md` § Worktree Creation:
-
-```
-repos/{owner}_{repo}/                                  <- main clone
-repos/{owner}_{repo}--worktrees/{prefix}--{number}-{slug}/  <- worktree
-```
 
 ```bash
 mkdir -p repos/{owner}_{repo}--worktrees
@@ -229,15 +304,82 @@ git -C repos/{owner}_{repo} worktree add \
   -b {prefix}/{number}-{slug}
 ```
 
-### Phase 5 — Launch Agents in Parallel
-
-Spawn all agents in a **single Task tool message** using `subagent_type: general-purpose`. See `../shared/references/agent-spawning.md` § Parallel Execution Pattern.
+Spawn all fast-path agents in a **single Task tool message** using `subagent_type: general-purpose`. See `../shared/references/agent-spawning.md` § Parallel Execution Pattern.
 
 Read `agents/implementation-agent.md` for the prompt template. Substitute: `{owner}`, `{repo}`, `{default_branch}`, `{detected_stack}`, `{prefix}`, `{number}`, `{slug}`, `{title}`, `{body}`, and optionally `{analysis_comment_content}`.
 
+### Phase 5b — GSD Path Execution (High/Very High Complexity)
+
+For each GSD-routed issue, follow `../shared/references/gsd-integration.md` § Implementation Flow:
+
+**Step 1: GSD Pre-flight**
+
+Check GSD is installed per `../shared/references/gsd-integration.md` § GSD Detection. If not found, fail fast with install instructions.
+
+**Step 2: Prepare GSD Context**
+
+Create a worktree for the issue (same as fast path), then set up GSD's `.planning/` directory inside it:
+
+```bash
+mkdir -p repos/{owner}_{repo}--worktrees/{prefix}--{number}-{slug}/.planning
+```
+
+Write `.planning/PROJECT.md` with the issue context:
+
+```markdown
+# {repo} — Issue #{number}: {title}
+
+## Project Context
+- **Repository**: {owner}/{repo}
+- **Tech Stack**: {detected_stack}
+- **Default Branch**: {default_branch}
+
+## Issue Details
+{Full issue body}
+
+## Analysis (from ghs-issue-analyze)
+{Analysis comment content, if available}
+
+## Acceptance Criteria
+{Extracted from issue body as checklist}
+```
+
+Write `.planning/REQUIREMENTS.md` with extracted acceptance criteria.
+
+**Step 3: Execute GSD Pipeline**
+
+Run GSD commands in sequence from within the worktree directory. The orchestrator invokes these via the Skill tool:
+
+1. `/gsd:discuss-phase 1` — captures implementation preferences. If running in batch mode, skip discussion (use analysis comment as context instead)
+2. `/gsd:plan-phase 1` — creates atomic task plans with verification commands
+3. `/gsd:execute-phase 1` — wave-based execution with fresh context per task, atomic commits
+4. `/gsd:verify-work 1` — walks through acceptance criteria, spawns debug agents for failures
+
+**Step 4: Post-GSD Handoff**
+
+After GSD completes:
+
+1. Read `.planning/1-VERIFICATION.md` for pass/fail results
+2. If verification passed → push branch and create PR (orchestrator responsibility)
+3. If verification failed → check if GSD generated fix plans. If yes, re-execute. If no, mark NEEDS_HUMAN
+4. Map GSD results to the standard agent result contract:
+
+```json
+{
+  "source": "issue",
+  "slug": "{number}-{short-slug}",
+  "status": "PASS|FAILED|NEEDS_HUMAN",
+  "pr_url": null,
+  "verification": ["extracted from VERIFICATION.md"],
+  "error": "extracted from STATE.md blockers or null"
+}
+```
+
+**Batch GSD execution:** When multiple issues are routed to GSD, execute them sequentially (not in parallel) — each GSD pipeline is already internally parallelized and uses significant context. Running multiple GSD pipelines simultaneously would exhaust resources.
+
 ### Phase 6 — Collect Results & Update Labels
 
-After all agents complete, parse JSON results per `../shared/references/agent-spawning.md` § Agent Result Contract.
+After all agents (fast path) and GSD pipelines complete, parse results per `../shared/references/agent-spawning.md` § Agent Result Contract.
 
 **On success (PASS):**
 
@@ -247,7 +389,7 @@ gh issue edit {number} --repo {owner}/{repo} \
   --add-label "status:in-progress"
 ```
 
-**On failure:** Apply the circuit breaker (up to 3 attempts). If still failing, mark `NEEDS_HUMAN`.
+**On failure:** Apply the circuit breaker (up to 3 attempts for fast path). GSD handles retries internally.
 
 **Label update rules:**
 
@@ -264,36 +406,57 @@ Per `../shared/references/agent-spawning.md` § Worktree Cleanup:
 - Remove worktrees for PASS and FAILED items
 - Leave NEEDS_HUMAN worktrees in place
 - Prune stale references, remove empty directory
+- For GSD path: `.planning/` artifacts are inside the worktree and get cleaned automatically
 
-### Phase 8 — Final Report
+### Phase 8 — Write State & Final Report
+
+**Write STATE.md** (per `../shared/references/state-persistence.md` § Writing State):
+
+Append a session entry to `backlog/{owner}_{repo}/STATE.md`:
+
+```markdown
+### {YYYY-MM-DD} — ghs-issue-implement ({single|batch})
+
+**Items attempted**: {N}
+**Results**: {pass} PASS, {fail} FAILED, {human} NEEDS_HUMAN
+
+| Item | Complexity | Path | Status | PR | Notes |
+|------|-----------|------|--------|-----|-------|
+| #{number} {title} | {level} | {FAST|GSD} | {status} | {pr_url or —} | {brief note} |
+```
+
+Record any new blockers or decisions discovered during execution.
+
+**Final Report:**
 
 ```
 ## Results: {owner}/{repo}
 
-| # | Issue | Type | Status | PR |
-|---|-------|------|--------|----|
-| #42 | Login crashes | bug | [PASS] | #101 |
-| #15 | Add dark mode | feature | [NEEDS_HUMAN] | — |
-| #18 | Update README | docs | [PASS] | #102 |
+| # | Issue | Type | Path | Status | PR |
+|---|-------|------|------|--------|----|
+| #42 | Login crashes | bug | FAST | [PASS] | #101 |
+| #15 | Add auth system | feature | GSD | [PASS] | #102 |
+| #18 | Update README | docs | FAST | [NEEDS_HUMAN] | — |
 
 ---
 
 Summary:
   Implemented: {n_pass}/{n_total}
   PRs created: {n_prs}
+  By path: {n_fast} fast, {n_gsd} GSD
   By type: {n_bug} bugs, {n_feature} features, {n_docs} docs
 
 {If any NEEDS_HUMAN:}
 Remaining:
-  [NEEDS_HUMAN] #15 Add dark mode — worktree at repos/{o}_{r}--worktrees/feat--15-dark-mode/
-    Reason: Feature requires design decisions about theme system architecture
+  [NEEDS_HUMAN] #18 Update README — worktree at repos/{o}_{r}--worktrees/docs--18-update-readme/
+    Reason: Unclear what sections to update — needs user guidance
 ```
 
 **Routing suggestion:** `To merge created PRs: /ghs-merge-prs {owner}/{repo}`
 
 ### Verification Checklist
 
-Before marking any issue as PASS, the agent must confirm:
+Before marking any issue as PASS, the agent (or GSD) must confirm:
 
 | Check | Required |
 |-------|----------|
@@ -328,6 +491,9 @@ Fixes #{number}
 ## Testing
 - {how the changes were verified}
 
+## Implementation Path
+{FAST — single agent | GSD — multi-phase (N tasks, N commits)}
+
 ## Discovered Issues
 {Any adjacent problems found but NOT fixed — to be filed separately}
 ```
@@ -343,22 +509,31 @@ Fixes #{number}
 | No type label | Use `impl/` prefix; suggest `ghs-issue-triage` first |
 | Branch already exists | Flag in plan; force-create with `-B` if user confirms |
 | PR already exists for branch | Report existing PR, skip creating new one |
-| Issue too complex | Agent sets `NEEDS_HUMAN`; worktree left for manual work |
-| Agent failure | One failure doesn't block others; mark `FAILED` in report |
+| Issue too complex for fast path | Agent sets `NEEDS_HUMAN`; suggest re-running with GSD |
+| GSD not installed | Fail fast with install instructions for GSD-routed issues |
+| GSD plan fails validation 3 times | Mark NEEDS_HUMAN; preserve worktree with `.planning/` artifacts |
+| GSD verification finds failures | GSD generates fix plans; orchestrator re-executes or escalates |
+| Agent failure (fast path) | One failure doesn't block others; mark `FAILED` in report |
 | Content filter blocks output | Retry with download-based approach (see `../shared/references/edge-cases.md`) |
-| Issue has no analysis | Agent investigates on its own — slightly slower |
+| Issue has no analysis | Agent investigates on its own (fast path) or GSD researches (GSD path) |
 | Re-running on existing items | Issues with `status:in-progress` + open PR are skipped in batch |
+| Active blocker in STATE.md | Skip the issue; report blocker in plan |
+| Mixed batch (fast + GSD) | Execute fast-path issues in parallel first, then GSD issues sequentially |
 
 ## Examples
 
-**Example 1: Single bug fix**
+**Example 1: Single bug fix (fast path)**
 User: "implement issue #42"
-Flow: Fetch #42 (type:bug) -> show plan -> create worktree `fix--42-login-crash` -> agent fixes bug with tests -> commit with `Fixes #42` -> create PR -> update label -> cleanup -> report with `[PASS]`.
+Flow: Read STATE.md -> fetch #42 (type:bug, complexity:Low) -> route to FAST -> show plan -> create worktree `fix--42-login-crash` -> agent fixes bug with tests -> commit with `Fixes #42` -> create PR -> update label -> write STATE.md -> cleanup -> report with `[PASS]`.
 
-**Example 2: Batch triaged issues**
+**Example 2: Complex feature (GSD path)**
+User: "implement #15" (analysis says complexity:High)
+Flow: Read STATE.md -> fetch #15 (type:feature, complexity:High) -> route to GSD -> show plan -> create worktree -> prepare `.planning/PROJECT.md` -> `/gsd:discuss-phase 1` -> `/gsd:plan-phase 1` -> `/gsd:execute-phase 1` (3 tasks, 3 atomic commits) -> `/gsd:verify-work 1` (4/4 criteria pass) -> push branch -> create PR -> update label -> write STATE.md -> cleanup -> report.
+
+**Example 3: Batch with mixed complexity**
 User: "implement all triaged issues"
-Flow: Fetch issues with `status:triaged` -> show batch plan (priority order) -> user confirms -> create worktrees -> spawn agents in parallel -> collect results -> update labels -> cleanup -> report.
+Flow: Read STATE.md -> fetch 5 triaged issues -> assess complexity (3 Low, 1 Medium, 1 High) -> show plan with paths -> user confirms -> fast-path: 4 issues in parallel (worktrees + agents) -> GSD path: 1 issue sequentially -> collect all results -> update labels -> write STATE.md -> cleanup -> report.
 
-**Example 3: Issue with prior analysis**
-User: "implement #42" (has analysis comment from ghs-issue-analyze)
-Flow: Same as Example 1, but agent receives analysis as context (affected files, suggested approach). Faster and more targeted implementation.
+**Example 4: User forces GSD on a simple issue**
+User: "use GSD for issue #42"
+Flow: Same as Example 2 but skipping complexity assessment — user override wins.

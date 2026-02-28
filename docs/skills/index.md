@@ -1,9 +1,9 @@
 # Skills Reference
 
-GHS provides **12 skills** organized into two workflow loops, a profile viewer, and action skills.
+GHS provides **18 skills** organized into workflow loops, action skills, orchestration modes, and utilities.
 
 ::: tip Start Here
-New to GHS? Start with [ghs-repo-scan](/skills/ghs-repo-scan) — it's the entry point for everything else.
+New to GHS? Start with [ghs-repo-scan](/skills/ghs-repo-scan) --- it's the entry point for everything else.
 :::
 
 ## Health Loop
@@ -29,15 +29,30 @@ The health loop audits repositories against 43 quality checks, optionally syncs 
 flowchart LR
     triage[ghs-issue-triage] --> analyze[ghs-issue-analyze]
     analyze --> implement[ghs-issue-implement]
-    implement --> merge[ghs-merge-prs]
+    implement --> review[ghs-review-pr]
+    review --> merge[ghs-merge-prs]
 ```
 
-The issue loop classifies GitHub issues with labels, investigates the codebase for each issue, implements fixes with worktree-based agents, and merges the PRs.
+The issue loop classifies GitHub issues with labels, investigates the codebase for each issue, implements fixes with worktree-based agents, reviews the PRs, and merges them.
+
+## Orchestration Pipeline
+
+```mermaid
+flowchart LR
+    pull[ghs-repos-pull] --> scan[ghs-repo-scan]
+    scan --> fix[ghs-backlog-fix]
+    fix --> review[ghs-review-pr]
+    review --> merge[ghs-merge-prs]
+    merge --> sync[ghs-backlog-sync]
+    sync --> release[ghs-release]
+```
+
+The orchestration pipeline chains skills end-to-end across one or many repositories, with human checkpoints before destructive stages and STATE.md-based resume.
 
 ## All Skills
 
-| Skill | Loop | Version | Description |
-|-------|------|---------|-------------|
+| Skill | Category | Version | Description |
+|-------|----------|---------|-------------|
 | [ghs-repo-scan](/skills/ghs-repo-scan) | <Badge type="health" text="Health" /> | 6.0.0 | Scan a repo for quality best practices and open issues |
 | [ghs-backlog-sync](/skills/ghs-backlog-sync) | <Badge type="health" text="Health" /> | 3.0.0 | Sync health findings to GitHub Issues for team visibility |
 | [ghs-backlog-board](/skills/ghs-backlog-board) | <Badge type="health" text="Health" /> | 5.0.0 | Dashboard of all backlog items across audited repos |
@@ -48,5 +63,11 @@ The issue loop classifies GitHub issues with labels, investigates the codebase f
 | [ghs-issue-triage](/skills/ghs-issue-triage) | <Badge type="issue" text="Issue" /> | 4.0.0 | Apply proper labels to GitHub issues |
 | [ghs-issue-analyze](/skills/ghs-issue-analyze) | <Badge type="issue" text="Issue" /> | 4.0.0 | Deep-analyze an issue, post analysis comment |
 | [ghs-issue-implement](/skills/ghs-issue-implement) | <Badge type="issue" text="Issue" /> | 4.0.0 | Implement an issue, create a PR |
+| [ghs-review-pr](/skills/ghs-review-pr) | <Badge type="action" text="Review" /> | 1.0.0 | Review a PR with structured findings by severity |
+| [ghs-release](/skills/ghs-release) | <Badge type="action" text="Release" /> | 1.0.0 | Create a GitHub Release with auto-generated changelog |
+| [ghs-project-init](/skills/ghs-project-init) | <Badge type="action" text="Setup" /> | 1.0.0 | Scaffold a new repo targeting 100% health score |
 | [ghs-action-fix](/skills/ghs-action-fix) | <Badge type="action" text="Action" /> | 2.0.0 | Fix failing GitHub Actions pipelines directly |
 | [ghs-merge-prs](/skills/ghs-merge-prs) | <Badge type="action" text="Both" /> | 4.0.0 | Merge PRs with CI-aware confirmation |
+| [ghs-orchestrate](/skills/ghs-orchestrate) | <Badge type="warning" text="Orchestration" /> | 1.0.0 | Multi-repo maintenance pipeline with checkpoints |
+| [ghs-dev-loop](/skills/ghs-dev-loop) | <Badge type="warning" text="Orchestration" /> | 1.0.0 | Autonomous developer for a single repo |
+| [ghs-repos-pull](/skills/ghs-repos-pull) | <Badge type="tip" text="Utility" /> | 1.0.0 | Pull all cloned repos to keep them fresh |

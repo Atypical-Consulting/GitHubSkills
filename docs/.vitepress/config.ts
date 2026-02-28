@@ -78,10 +78,36 @@ export default withMermaid(
             ],
           },
           {
+            text: 'Code Review & Release',
+            items: [
+              { text: 'ghs-review-pr', link: '/skills/ghs-review-pr' },
+              { text: 'ghs-release', link: '/skills/ghs-release' },
+            ],
+          },
+          {
+            text: 'Repository Setup',
+            items: [
+              { text: 'ghs-project-init', link: '/skills/ghs-project-init' },
+            ],
+          },
+          {
             text: 'Actions',
             items: [
               { text: 'ghs-action-fix', link: '/skills/ghs-action-fix' },
               { text: 'ghs-merge-prs', link: '/skills/ghs-merge-prs' },
+            ],
+          },
+          {
+            text: 'Orchestration',
+            items: [
+              { text: 'ghs-orchestrate', link: '/skills/ghs-orchestrate' },
+              { text: 'ghs-dev-loop', link: '/skills/ghs-dev-loop' },
+            ],
+          },
+          {
+            text: 'Utilities',
+            items: [
+              { text: 'ghs-repos-pull', link: '/skills/ghs-repos-pull' },
             ],
           },
         ],
@@ -115,6 +141,7 @@ export default withMermaid(
             items: [
               { text: 'Health Loop', link: '/workflows/health-loop' },
               { text: 'Issue Loop', link: '/workflows/issue-loop' },
+              { text: 'Orchestration', link: '/workflows/orchestration' },
             ],
           },
         ],
