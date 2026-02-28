@@ -123,6 +123,60 @@ Category A agents handling multiple items return a JSON **array** of these objec
 5. Create PR: `gh pr create --repo {owner}/{repo} --head {prefix}/{slug} --base {default_branch} --title "{title}" --body "{body}"`
 6. For issues: include `Fixes #{number}` in commit/PR body for auto-close
 
+## Wave-Based Execution
+
+When fixing multiple items with dependencies, organize agents into waves instead of spawning all at once. This prevents conflicts (e.g., a CI workflow fix that depends on `.editorconfig` being present).
+
+### Dependency Detection
+
+Before spawning agents, build a dependency graph from item classification:
+
+| Item | Depends On | Reason |
+|------|-----------|--------|
+| CI workflow health | .editorconfig, .gitignore | Workflows may reference these files |
+| Branch protection status checks | CI workflows | Status checks require passing workflows |
+| CODEOWNERS | Team structure | CODEOWNERS references teams/users |
+| Contributing guide | LICENSE, README | Links to these files |
+
+### Wave Construction
+
+```
+1. Identify items with no dependencies → Wave 1
+2. Identify items whose dependencies are all in Wave 1 → Wave 2
+3. Repeat until all items are assigned
+4. Items with circular dependencies → flag as NEEDS_HUMAN
+```
+
+### Execution Pattern
+
+```
+Wave 1: Spawn all Wave 1 agents in a single Task message (parallel)
+  → Wait for all to complete
+  → Recalculate health score (progress update)
+  → Record results in STATE.md
+
+Wave 2: Spawn all Wave 2 agents in a single Task message (parallel)
+  → Only if Wave 1 dependencies passed
+  → Skip items whose dependencies failed (mark as BLOCKED)
+  → Wait for all to complete
+  → Recalculate health score
+
+Wave N: Continue until all waves complete
+```
+
+### When to Use Waves vs. Flat Parallel
+
+| Scenario | Strategy |
+|----------|----------|
+| All items are independent (common case) | Flat parallel — single wave, same as current behavior |
+| Dependencies detected between items | Wave-based — respect ordering |
+| User requests specific ordering | Wave-based — user-defined waves |
+| Single item | No waves needed — direct execution |
+
+Flat parallel is the default. Wave-based execution activates only when the dependency graph has edges.
+
+---
+
 ## Bounded Retries
 
 | Attempt | Action |

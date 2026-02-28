@@ -13,7 +13,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 4.0.0
+  version: 5.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-repo-scan
@@ -42,6 +42,7 @@ No sub-agents — this is a lightweight, read-only skill.
 | Scoring Logic | `../shared/references/scoring-logic.md` | Tier weights, priority algorithm, score formula |
 | Backlog Format | `../shared/references/backlog-format.md` | Directory layout, file naming, metadata format |
 | Output Conventions | `../shared/references/output-conventions.md` | Status indicators, table patterns, progress bars |
+| State Persistence | `../shared/references/state-persistence.md` | STATE.md format, blocker/decision/session data for filtering |
 </context>
 
 <anti-patterns>
@@ -55,6 +56,8 @@ No sub-agents — this is a lightweight, read-only skill.
 | Show multiple recommendations as a list | Return exactly one item; show a single runner-up line only if multiple repos exist | Defeats the purpose of "next ONE item" — causes decision paralysis |
 | Guess the score instead of calculating | Always run `calculate_score.py` for accurate scores | Produces wrong priority ordering |
 | Recommend WARN items as actionable | Skip WARN items; only mention them if nothing else remains | WARN means permission-blocked, user cannot fix it |
+| Recommend items with ACTIVE blockers in STATE.md | Read STATE.md and exclude blocked/recently-failed/skipped items | Wastes time on items that are known to be unresolvable right now |
+| Ignore STATE.md when it exists | Always check STATE.md before recommending — it has blockers, failures, and skip decisions | Missing context leads to recommending items that will fail again |
 
 </anti-patterns>
 
@@ -96,6 +99,24 @@ Parse items programmatically:
 python .claude/skills/shared/scripts/parse_backlog_item.py <path>
 ```
 
+### Phase 1.5 — Filter Using STATE.md
+
+For each repo, read `backlog/{owner}_{repo}/STATE.md` if it exists. Use it to exclude items from the candidate pool:
+
+| STATE.md Data | Filter Rule |
+|---------------|-------------|
+| **Active blockers** | Exclude items listed in the `Affected Items` column of ACTIVE blockers |
+| **Last session failures** | Exclude items that FAILED in the most recent session (unless user says "retry") |
+| **Decisions with skip** | Exclude items the user explicitly decided to skip |
+
+> **Rule:** STATE.md filtering happens before the priority algorithm. Only unblocked, non-failed, non-skipped items enter the ranking.
+>
+> **Trigger:** STATE.md exists for the repo being evaluated
+>
+> **Example:** STATE.md has `branch-protection` as affected by an ACTIVE blocker "No admin access" — skip `tier-1--branch-protection.md` even though it is Tier 1 with 4 points.
+
+If STATE.md does not exist, skip this phase — all FAIL items are candidates.
+
 ### Phase 2 — Select the Highest-Impact Item
 
 Apply the priority algorithm (see `scoring-logic.md` for canonical definition):
@@ -130,6 +151,8 @@ Points:      {points}
 Category:    {A (API-only) | B (file changes) | CI}
 
 Why this item: {one sentence — e.g., "Lowest-scoring repo, highest-tier failing check."}
+{If items were filtered by STATE.md:}
+Skipped: {N} items excluded (blocked: {b}, recent failures: {f}, user-skipped: {s})
 
 To apply:
   /ghs-backlog-fix backlog/{owner}_{repo}/health/tier-{N}--{slug}.md
@@ -212,6 +235,9 @@ Why it is bad: README already has status PASS. Always verify the item's current 
 | Only WARN items left | Explain remaining items are permission-blocked; suggest checking access |
 | Multiple repos tied on score | Pick the one with the most failing items |
 | Stale data (scan > 30 days old) | Note it and suggest re-scanning: `/ghs-repo-scan {owner}/{repo}` |
+| All FAIL items blocked by STATE.md | Show "All remaining items are blocked" with blocker summary; suggest resolving blockers |
+| User says "retry" after blocked recommendation | Ignore STATE.md filters for that item and recommend it anyway |
+| No STATE.md exists | Normal flow — all FAIL items are candidates (no filtering) |
 
 ## Routing
 

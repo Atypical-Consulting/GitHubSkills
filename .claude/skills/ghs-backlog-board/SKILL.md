@@ -14,7 +14,7 @@ compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-
 license: MIT
 metadata:
   author: phmatray
-  version: 5.0.0
+  version: 6.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-sync
@@ -45,6 +45,7 @@ Shared references (use these, do not duplicate their logic):
 | `../shared/references/scoring-logic.md` | Tier weights, score formula, module weighting, priority algorithm, progress bar format |
 | `../shared/references/backlog-format.md` | Directory structure, file naming, metadata formats, module-to-directory mapping, status values |
 | `../shared/references/output-conventions.md` | Dashboard tables, status indicators, recommendation block |
+| `../shared/references/state-persistence.md` | STATE.md format, lifecycle, reading patterns for dashboard enrichment |
 | `../shared/checks/index.md` | Module registry — which modules exist and their scoring weights |
 </context>
 
@@ -98,18 +99,24 @@ For each repo, read **only** `SUMMARY.md` to extract:
 - Generated date
 - Visibility (Public / Private)
 
-> **Rule:** SUMMARY.md is the single source of truth for the overview.
+Then check for `STATE.md` (if it exists) to extract:
+- **Last activity** — date from most recent session entry
+- **Active blockers** — count of blockers with status ACTIVE
+- **Decisions** — any user preferences that affect display (e.g., skip list)
+- **Last session summary** — skill name and outcome (e.g., "ghs-backlog-fix — 3 PASS, 1 FAILED")
+
+> **Rule:** SUMMARY.md is the single source of truth for scores. STATE.md enriches the view with activity context.
 >
 > **Trigger:** User asks "show backlog", "dashboard", "how are my repos doing"
 >
-> **Example:** Read `backlog/phmatray_NewSLN/SUMMARY.md` to get `10/31 (32%)` — do NOT scan individual item files.
+> **Example:** Read `backlog/phmatray_NewSLN/SUMMARY.md` for `10/31 (32%)`, then `STATE.md` for "Last activity: 2026-02-28 — 3 items fixed". Do NOT scan individual item files.
 
 ### Progressive Disclosure
 
 | User Action | Data Source |
 |-------------|------------|
-| "show backlog" / "dashboard" | SUMMARY.md files only |
-| "show details for phmatray/NewSLN" | SUMMARY.md + list FAIL/WARN files from `health/`, `dotnet/` (if exists), and `issues/` |
+| "show backlog" / "dashboard" | SUMMARY.md + STATE.md (if exists) |
+| "show details for phmatray/NewSLN" | SUMMARY.md + STATE.md + list FAIL/WARN files from `health/`, `dotnet/` (if exists), and `issues/` |
 | "tell me about the README item" | Read the specific `tier-1--readme.md` file |
 
 ## Phase 2 — Display the Dashboard
@@ -125,6 +132,8 @@ For each repo, read **only** `SUMMARY.md` to extract:
 | Open | SUMMARY.md | Issues currently open |
 | PRs | SUMMARY.md | Issues with PRs created |
 | Last Scan | SUMMARY.md | `YYYY-MM-DD` generated date |
+| Last Activity | STATE.md | Most recent session date, or `--` if no STATE.md |
+| Blockers | STATE.md | Count of ACTIVE blockers, or `--` if none |
 
 ### Status Indicators
 
@@ -147,13 +156,15 @@ See `../shared/references/output-conventions.md` for the canonical list. Key ind
 ```
 ## Backlog Dashboard
 
-| Repository | Health | Progress | Issues | Open | PRs | Last Scan |
-|------------|--------|----------|--------|------|-----|-----------|
-| phmatray/NewSLN | 10/31 (32%) | ██░░░░░░ | 18 | 15 | 3 | 2026-02-26 |
-| phmatray/OtherRepo | 24/28 (86%) | ██████░░ | 5 | 2 | 1 | 2026-02-20 |
+| Repository | Health | Progress | Issues | Open | PRs | Last Scan | Last Activity | Blockers |
+|------------|--------|----------|--------|------|-----|-----------|---------------|----------|
+| phmatray/NewSLN | 10/31 (32%) | ██░░░░░░ | 18 | 15 | 3 | 2026-02-26 | 2026-02-28 | 1 |
+| phmatray/OtherRepo | 24/28 (86%) | ██████░░ | 5 | 2 | 1 | 2026-02-20 | -- | -- |
 
 Total: 2 repos | Health items: 25 (14 pass) | Issues: 23 (17 open)
 ```
+
+The Last Activity and Blockers columns are sourced from STATE.md. Repos with no STATE.md show `--`.
 
 Progress bar format is defined in `../shared/references/scoring-logic.md`.
 
@@ -169,6 +180,7 @@ Progress bar format is defined in `../shared/references/scoring-logic.md`.
 ## Backlog: phmatray/NewSLN
 
 > Health Score: 10/31 (32%) | Open Issues: 15 | Last scan: 2026-02-26 | Visibility: Private
+> Last activity: 2026-02-28 — ghs-backlog-fix (3 PASS, 1 FAILED) | Active blockers: 1
 
 ### Health — Remaining Items (by priority)
 
@@ -200,7 +212,15 @@ Progress bar format is defined in `../shared/references/scoring-logic.md`.
 ...
 
 Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
+
+### Active Blockers (from STATE.md)
+
+| Blocker | Affected Items | Status |
+|---------|---------------|--------|
+| No admin access | branch-protection, security-alerts | ACTIVE |
 ```
+
+If STATE.md exists and has ACTIVE blockers, show the blockers section. If no STATE.md or no active blockers, omit this section entirely.
 
 The "Issue" column in the health table shows `#{number}` for items synced via `ghs-backlog-sync`, or `--` for non-synced items. Only display this column when at least one item has a synced issue.
 

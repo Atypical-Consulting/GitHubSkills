@@ -22,6 +22,7 @@ All backlog items live under `backlog/` in the project root, organized by reposi
 ```
 backlog/{owner}_{repo}/
 ├── SUMMARY.md                              # Unified repo summary (scores, tables, links)
+├── STATE.md                                # Session state: decisions, blockers, history (optional)
 ├── health/                                 # Core module findings (FAIL/WARN only)
 │   ├── tier-1--readme.md
 │   ├── tier-1--license.md
@@ -43,6 +44,7 @@ backlog/{owner}_{repo}/
 - `dotnet/` is only created when the .NET module is active and at least one check results in FAIL or WARN.
 - `issues/` is only created when the repository has open issues.
 - `SUMMARY.md` is always created, even when all checks pass and there are no issues.
+- `STATE.md` is created on first mutation (by ghs-backlog-fix, ghs-issue-implement, or ghs-action-fix). Not created by read-only skills. See `state-persistence.md` for the full format and lifecycle.
 
 ### Module-to-Directory Mapping
 
