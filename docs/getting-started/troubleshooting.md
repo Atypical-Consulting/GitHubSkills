@@ -20,11 +20,12 @@ Your token may lack the required scopes. GHS needs:
 
 - **`repo`** — full access to private and public repositories
 - **`read:org`** — read organization membership (for CODEOWNERS checks)
+- **`project`** — read and write GitHub Projects (for storing scan results and scores)
 
 Re-authenticate with the correct scopes:
 
 ```bash
-gh auth login --scopes repo,read:org
+gh auth login --scopes repo,read:org,project
 ```
 
 ### `[WARN]` results for branch protection or settings
@@ -55,59 +56,40 @@ Large repositories with many issues can cause agents to hit context limits. Try:
 - Running `ghs-backlog-fix` on a single item instead of the full batch
 - Ensuring your Claude Code subscription supports extended context
 
-## Python Scripts
-
-### `python3: command not found`
-
-Some skills use Python for score calculation. Install Python 3:
-
-::: code-group
-```bash [macOS]
-brew install python3
-```
-
-```bash [Linux (Debian/Ubuntu)]
-sudo apt install python3
-```
-
-```bash [Windows]
-winget install Python.Python.3
-```
-:::
-
-### `ModuleNotFoundError`
-
-GHS Python scripts use only the standard library — no `pip install` needed. If you see a module error, ensure you're using Python 3.8+:
-
-```bash
-python3 --version
-```
-
-## Backlog Issues
+## GitHub Project Issues
 
 ### Stale scan data
 
-If your backlog seems outdated, re-scan the repository:
+If your GitHub Project seems outdated, re-scan the repository:
 
 ```
 scan owner/repo
 ```
 
-The scan overwrites the existing backlog with fresh results. The SUMMARY.md includes a timestamp so you can verify when the last scan ran.
+The scan updates existing project items in place — PASS/FAIL status is refreshed, and the `[GHS Score]` item is updated with the new score and timestamp.
 
-### Reset the backlog
+### Reset the project
 
-To start fresh, delete the repository's backlog directory:
+To start fresh, delete the GitHub Project from github.com and re-scan. GHS will create a new project with all fields provisioned automatically.
+
+### Duplicate project items
+
+This can happen if you rename a repository between scans. Delete the old `[GHS] old-owner/old-repo` project on GitHub, then re-scan with the current repository name.
+
+### Project not found after scan
+
+If `ghs-backlog-board` or `ghs-backlog-score` cannot find the project, verify the project owner matches the repository owner. GHS looks for projects using:
 
 ```bash
-rm -rf backlog/owner_repo/
+gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title == "[GHS] {owner}/{repo}")'
 ```
 
-Then re-scan.
+Ensure your GitHub token has the `project` scope:
 
-### Duplicate backlog items
-
-This can happen if you rename a repository between scans. Delete the old directory and re-scan with the current name.
+```bash
+gh auth login --scopes repo,read:org,project
+```
 
 ## Pull Request Issues
 

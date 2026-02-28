@@ -9,7 +9,7 @@ Recommends the single highest-impact backlog item to fix across all audited repo
 
 ## What It Does
 
-`ghs-backlog-next` scans all backlog data and returns one recommendation: the single most impactful item you should fix next. It is fast and focused -- no dashboard, no tables, just a clear recommendation with the exact command to apply it.
+`ghs-backlog-next` queries all GitHub Project items (via `gh project item-list` and jq pipelines) and returns one recommendation: the single most impactful item you should fix next. It is fast and focused -- no dashboard, no tables, just a clear recommendation with the exact command to apply it.
 
 ### Priority Algorithm
 
@@ -35,7 +35,7 @@ Category:    B (file changes)
 Why this item: Lowest-scoring repo, highest-tier failing check.
 
 To apply:
-  /ghs-backlog-fix backlog/phmatray_Formidable/health/tier-1--license.md
+  /ghs-backlog-fix phmatray/Formidable --item license
 
 Runner-up: README for phmatray/NewSLN (67% health, Tier 1, 4 pts)
 ```
@@ -60,8 +60,8 @@ After seeing the recommendation, GHS suggests:
 
 | Property | Value |
 |----------|-------|
-| Allowed tools | `Bash(python3:*)`, `Read`, `Glob` |
+| Allowed tools | `Bash(gh:*)`, `Read` |
 | Spawns sub-agents | No — lightweight read-only recommender |
-| Phases | 3 (Discover Failing Items, Select Highest-Impact, Display Recommendation) |
-| Requires | `python3`, backlog data from a prior `ghs-repo-scan` run |
+| Phases | 3 (Query Project Items, Select Highest-Impact, Display Recommendation) |
+| Requires | `gh` CLI (authenticated), GitHub Project data from a prior `ghs-repo-scan` run |
 | Re-run safe | Yes — read-only, no side effects |

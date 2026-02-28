@@ -9,7 +9,7 @@ Shows a read-only dashboard of all backlog items across audited repositories wit
 
 ## What It Does
 
-`ghs-backlog-board` reads all backlog data from prior scans and renders a dashboard in the terminal. It does not make any API calls or modify any files — it is purely a read-only display skill.
+`ghs-backlog-board` reads all project item data from GitHub Projects (via `gh project item-list`) and renders a dashboard in the terminal. It does not modify any items — it is purely a read-only display skill.
 
 The dashboard comes in two views:
 
@@ -62,7 +62,7 @@ Total: 2 repos | Health items: 25 (14 pass) | Issues: 23 (17 open)
 
 The highest-impact item is **README** (Health — Tier 1, 4 points).
 To apply it:
-  /ghs-backlog-fix backlog/phmatray_NewSLN/health/tier-1--readme.md
+  /ghs-backlog-fix phmatray/NewSLN --item readme
 ```
 
 ## Routes To
@@ -77,8 +77,8 @@ After viewing the dashboard, GHS suggests:
 
 | Property | Value |
 |----------|-------|
-| Allowed tools | `Bash(python3:*)`, `Read`, `Glob` |
+| Allowed tools | `Bash(gh:*)`, `Read` |
 | Spawns sub-agents | No — read-only dashboard renderer |
-| Phases | 5 (Discover Repos, Collect Status, Display Dashboard, Recommend Next, Quick-Apply Prompt) |
-| Requires | `python3`, backlog data from a prior `ghs-repo-scan` run |
+| Phases | 5 (Discover Projects, Collect Status, Display Dashboard, Recommend Next, Quick-Apply Prompt) |
+| Requires | `gh` CLI (authenticated), GitHub Project data from a prior `ghs-repo-scan` run |
 | Re-run safe | Yes — read-only, no side effects |

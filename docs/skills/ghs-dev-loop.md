@@ -78,14 +78,14 @@ flowchart TD
 ### Process (Per Cycle)
 
 1. **Pre-flight** --- Auth, repo access, write permission, GSD, skill availability
-2. **Load state** --- Read STATE.md, offer resume or fresh start
+2. **Load state** --- Read state issue (GitHub Issue with `ghs:state` label), offer resume or fresh start
 3. **Priority assessment** --- Health score, issue inventory, dependency PRs
 4. **Health maintenance** --- If score < threshold: scan, fix, merge
 5. **Issue processing** --- For each issue (up to budget): triage, analyze, implement, review, merge
 6. **Dependency management** --- Review and merge Renovate/bot PRs
 7. **Release decision** --- If criteria met and `--auto-release`: draft release + checkpoint
 8. **Cycle report** --- Health delta, issues processed, PRs created/merged
-9. **State update** --- Write session entry to STATE.md
+9. **State update** --- Write session entry to state issue (`ghs:state` GitHub Issue)
 10. **Next cycle** --- Stop, continue, or poll based on mode
 
 ### Flags
@@ -142,7 +142,7 @@ Cycle complete. To continue: /ghs-dev-loop --continuous phmatray/Formidable
 | 3 failed implementations in one cycle | Stop issue processing, report failures |
 | Health scan fails | Skip maintenance, proceed with warning |
 | Rate limit detected | Pause cycle, report, offer resume |
-| 3 consecutive skill failures | Stop cycle, preserve STATE.md |
+| 3 consecutive skill failures | Stop cycle, preserve state issue |
 
 ## Routes To
 

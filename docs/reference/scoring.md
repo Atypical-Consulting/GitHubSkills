@@ -37,6 +37,8 @@ GHS uses a modular, tiered scoring system to measure repository health.
 
 ## Calculation
 
+Scores are computed by querying GitHub Project items via `jq` pipelines — no local files or Python scripts are involved. See the [GitHub Projects Format](./backlog-format) reference for the full jq queries.
+
 ### Single module (core only)
 
 ```
@@ -58,7 +60,7 @@ All percentages rounded to the nearest integer.
 ## Special Rules
 
 ### WARN Exclusion
-If a check returns WARN (cannot verify), it is excluded from both earned AND possible totals. This prevents penalizing repos for checks that can't be verified (e.g., permission issues).
+If a check returns WARN (cannot verify), it is excluded from both earned AND possible totals. This prevents penalizing repos for checks that can't be verified (e.g., permission issues). WARN items are never added to the GitHub Project, so they are automatically excluded from all jq scoring queries.
 
 ### INFO Exclusion
 INFO checks carry no points and are purely informational:

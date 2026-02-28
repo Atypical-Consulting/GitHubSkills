@@ -8,7 +8,7 @@ Welcome! GHS is open to contributions. Here are three ways to help:
 Found a typo or unclear docs? Edit any page using the "Edit this page on GitHub" link at the bottom.
 
 ### 2. Improve a Check
-Make an existing health check better --- improve the verification logic, fix edge cases, or enhance the backlog content.
+Make an existing health check better --- improve the verification logic, fix edge cases, or enhance the project item content.
 
 See [Adding a Check](/contributing/adding-a-check) for details.
 

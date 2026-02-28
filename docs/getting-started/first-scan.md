@@ -46,34 +46,32 @@ Each check is displayed with a status badge:
 
 | Badge | Meaning |
 |-------|---------|
-| `[PASS]` | Check is passing — no action needed |
-| `[FAIL]` | Check is failing — a backlog item is created |
-| `[WARN]` | Unable to check — usually a permission issue (excluded from score) |
-| `[INFO]` | Informational only — no points, no penalty |
+| `[PASS]` | Check is passing — added to the GitHub Project as Done |
+| `[FAIL]` | Check is failing — added to the GitHub Project as Todo |
+| `[WARN]` | Unable to check — usually a permission issue (excluded from score, not added to project) |
+| `[INFO]` | Informational only — no points, no penalty, not added to project |
 
 ### Issues Table
 
 Open GitHub issues are listed with their number, title, labels, age, and assignee. If the repository has more than 20 issues, the terminal shows the 20 most recent with a note about the rest.
 
-## Step 3: Review the Backlog
+## Step 3: Review the GitHub Project
 
-After scanning, GHS saves all findings to structured markdown files:
+After scanning, GHS saves all findings as items in a GitHub Project named `[GHS] phmatray/my-project`. You can view it directly on GitHub, or use the dashboard skill:
 
 ```
-backlog/phmatray_my-project/
-  SUMMARY.md              # Unified repo summary with scores and tables
-  health/
-    tier-1--readme.md     # One file per failing/warning health check
-    tier-1--license.md
-    tier-2--ci-cd.md
-    ...
-  issues/
-    issue-42--login-bug.md    # One file per open GitHub issue
-    issue-108--dark-mode.md
-    ...
+show me the backlog board
 ```
 
-Each health item file contains the check name, tier, points, status, acceptance criteria, and a fix strategy. Each issue file contains the issue metadata and body.
+The project uses a Kanban board with three columns:
+
+| Column | Contents |
+|--------|----------|
+| `Todo` | FAIL health findings and open issues — action required |
+| `In Progress` | Items being actively fixed |
+| `Done` | PASS findings and resolved items |
+
+Each health finding is a draft item titled `[Health] {Check Name}` with custom fields for tier, points, module, category, and detection date. Open GitHub issues are linked directly into the project. A `[GHS Score]` item stores the computed health score as JSON for quick retrieval.
 
 ## Step 4: What's Next?
 

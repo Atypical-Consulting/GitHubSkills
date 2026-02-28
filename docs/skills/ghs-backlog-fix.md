@@ -9,7 +9,7 @@ Applies backlog item fixes using parallel worktree-based agents -- clones the re
 
 ## What It Does
 
-`ghs-backlog-fix` is the most complex skill in GHS. It reads structured backlog items, classifies each into a category, and spawns parallel agents to fix them.
+`ghs-backlog-fix` is the most complex skill in GHS. It reads structured project items from GitHub Projects (via `gh project item-list` and jq queries), classifies each into a category, and spawns parallel agents to fix them.
 
 ### Item Categories
 
@@ -21,8 +21,8 @@ Applies backlog item fixes using parallel worktree-based agents -- clones the re
 
 ### Two Modes
 
-- **Single item** — provide a path to one backlog item file; GHS shows a focused plan and fixes just that item
-- **Batch** — provide a repo identifier; GHS discovers all FAIL items, shows a batch plan table, and fixes them all in parallel after confirmation
+- **Single item** — provide a project item identifier; GHS shows a focused plan and fixes just that item
+- **Batch** — provide a repo identifier; GHS queries all FAIL project items, shows a batch plan table, and fixes them all in parallel after confirmation
 
 ### Process
 
@@ -32,7 +32,7 @@ Applies backlog item fixes using parallel worktree-based agents -- clones the re
 4. Create worktrees for Category B and CI items
 5. Launch all agents in parallel (one Task tool call)
 6. Collect results, retry transient failures once
-7. Update backlog items and SUMMARY.md with new scores
+7. Update project items and `[GHS Score]` item with new scores via `gh project item-edit`
 8. Clean up worktrees (except NEEDS_HUMAN items)
 9. Display final results report
 
@@ -90,8 +90,8 @@ After fixing, GHS suggests:
 
 | Property | Value |
 |----------|-------|
-| Allowed tools | `Bash(gh:*)`, `Bash(git:*)`, `Bash(python3:*)`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Task` |
+| Allowed tools | `Bash(gh:*)`, `Bash(git:*)`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Task` |
 | Spawns sub-agents | Yes — Category A agent, Category B agents (one per item), Category CI agent |
 | Phases | 8 (Discover, Prepare Repo, Show Plan, Create Worktrees, Launch Agents, Collect Results, Cleanup, Report) |
-| Requires | `gh` CLI (authenticated), `git`, `python3`, network access, write access to repo |
+| Requires | `gh` CLI (authenticated), `git`, network access, write access to repo |
 | Re-run safe | Yes — skips already-PASS items, idempotent |
