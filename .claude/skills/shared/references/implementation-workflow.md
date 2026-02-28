@@ -6,22 +6,32 @@ Reusable patterns for skills that clone repositories, create worktrees, and prod
 
 ## §1 — Repository Preparation
 
+### Path Resolution
+
+All paths must be **absolute** to avoid breakage when the working directory changes (e.g., inside subagents, after `cd`, or when skills run from different directories). Compute the root path once at the start:
+
+```bash
+# Resolve GHS_ROOT once at skill start (the GitHubSkills project root)
+GHS_ROOT="$(cd "$(dirname "$(git rev-parse --git-dir)")" && pwd)"
+REPO_PATH="$GHS_ROOT/repos/{owner}_{repo}"
+WT_DIR="$GHS_ROOT/repos/{owner}_{repo}--worktrees"
+```
+
 ### Clone or Pull
 
 ```bash
-# Check if already cloned
-if [ -d "repos/{owner}_{repo}" ]; then
-  git -C repos/{owner}_{repo} pull
+if [ -d "$REPO_PATH" ]; then
+  git -C "$REPO_PATH" pull --ff-only
 else
-  mkdir -p repos
-  gh repo clone {owner}/{repo} repos/{owner}_{repo}
+  mkdir -p "$GHS_ROOT/repos"
+  gh repo clone {owner}/{repo} "$REPO_PATH"
 fi
 ```
 
 ### Default Branch Detection
 
 ```bash
-git -C repos/{owner}_{repo} rev-parse --abbrev-ref HEAD
+git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD
 ```
 
 ### Tech Stack Detection
@@ -59,25 +69,23 @@ repos/{owner}_{repo}--worktrees/{prefix}--{slug}/      ← one worktree per item
 ### Creation
 
 ```bash
-mkdir -p repos/{owner}_{repo}--worktrees
+WT_PATH="$WT_DIR/{prefix}--{slug}"
+mkdir -p "$WT_DIR"
 
-git -C repos/{owner}_{repo} worktree add \
-  ../repos/{owner}_{repo}--worktrees/{prefix}--{slug} \
-  -b {prefix}/{slug}
+git -C "$REPO_PATH" worktree add "$WT_PATH" -b {prefix}/{slug}
 ```
 
 ### Cleanup
 
 ```bash
 # For each completed item (PASS or FAILED, not NEEDS_HUMAN):
-git -C repos/{owner}_{repo} worktree remove \
-  ../repos/{owner}_{repo}--worktrees/{prefix}--{slug} --force
+git -C "$REPO_PATH" worktree remove "$WT_DIR/{prefix}--{slug}" --force
 
 # After all removals:
-git -C repos/{owner}_{repo} worktree prune
+git -C "$REPO_PATH" worktree prune
 
 # Remove the worktrees directory if empty:
-rmdir repos/{owner}_{repo}--worktrees 2>/dev/null || true
+rmdir "$WT_DIR" 2>/dev/null || true
 ```
 
 ### NEEDS_HUMAN Retention
@@ -164,7 +172,7 @@ For Category A agents handling multiple items, return a JSON **array** of these 
 Before creating worktrees, check for existing remote branches:
 
 ```bash
-git -C repos/{owner}_{repo} ls-remote --heads origin 'refs/heads/{prefix}/*'
+git -C "$REPO_PATH" ls-remote --heads origin 'refs/heads/{prefix}/*'
 ```
 
 Flag any conflicts in the plan table with a warning indicator. If the user confirms, use the `-B` flag on `worktree add` to force-create the branch.

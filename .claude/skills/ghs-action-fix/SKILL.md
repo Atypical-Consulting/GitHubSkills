@@ -176,12 +176,14 @@ Wait for user confirmation.
 
 For each confirmed workflow:
 
+**Use absolute paths** — resolve `GHS_ROOT`, `REPO_PATH`, and `WT_DIR` once at skill start (see `agent-spawning.md` § Repository Cloning):
+
 | Step | Command | Notes |
 |------|---------|-------|
-| 1. Create worktree dir | `mkdir -p repos/{owner}_{repo}--worktrees` | Sibling to main clone |
+| 1. Create worktree dir | `mkdir -p "$WT_DIR"` | Sibling to main clone |
 | 2. Derive slug | Workflow filename without extension, kebab-case | `ci.yml` → `ci`, `code-quality.yml` → `code-quality` |
-| 3. Add worktree | `git -C repos/{owner}_{repo} worktree add ../repos/{owner}_{repo}--worktrees/fix--action-{slug} -b fix/action-{slug}` | One per workflow |
-| 4. Verify | `ls repos/{owner}_{repo}--worktrees/fix--action-{slug}/.git` | Confirm valid |
+| 3. Add worktree | `git -C "$REPO_PATH" worktree add "$WT_DIR/fix--action-{slug}" -b fix/action-{slug}` | One per workflow |
+| 4. Verify | `ls "$WT_DIR/fix--action-{slug}/.git"` | Confirm valid |
 
 ## Phase 5 — Launch CI Fix Agents
 
@@ -213,7 +215,7 @@ After all agents complete:
 - **FAILED**: Remove worktree and local branch (fix didn't work anyway)
 - **NEEDS_HUMAN**: Leave worktree in place with instructions
 
-Prune: `git -C repos/{owner}_{repo} worktree prune`
+Prune: `git -C "$REPO_PATH" worktree prune`
 
 ## Phase 8 — Final Report
 
@@ -297,4 +299,4 @@ You need write access. Check: `gh repo view --json viewerPermission`
 If logs are truncated or unclear, the agent marks NEEDS_HUMAN. Check the full logs manually: `gh run view {run_id} --log`
 
 **Worktrees not cleaned up**
-Run `git -C repos/{owner}_{repo} worktree list` and remove stale ones: `git worktree remove <path>`
+Run `git -C "$REPO_PATH" worktree list` and remove stale ones: `git worktree remove <path>`

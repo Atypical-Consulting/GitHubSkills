@@ -4,21 +4,28 @@ Patterns for parallel worktree-based agent execution. Used by ghs-repo-scan, ghs
 
 ## Repository Cloning
 
-Repos are cloned to `repos/` (gitignored, ephemeral working copies):
+Repos are cloned to `repos/` (gitignored, ephemeral working copies).
+
+**Important:** All paths must be resolved to **absolute paths** before use. Relative paths like `repos/{owner}_{repo}` break when the working directory changes (e.g., after `cd`, inside subagents, or when the skill runs from a different directory). Compute `GHS_ROOT` once at the start of the skill and derive all paths from it.
 
 ```bash
-if [ -d "repos/{owner}_{repo}" ]; then
-  git -C repos/{owner}_{repo} pull
+# Resolve GHS_ROOT once at skill start (the GitHubSkills project root)
+GHS_ROOT="$(cd "$(dirname "$(git rev-parse --git-dir)")" && pwd)"
+REPO_PATH="$GHS_ROOT/repos/{owner}_{repo}"
+WT_DIR="$GHS_ROOT/repos/{owner}_{repo}--worktrees"
+
+if [ -d "$REPO_PATH" ]; then
+  git -C "$REPO_PATH" pull --ff-only
 else
-  mkdir -p repos
-  gh repo clone {owner}/{repo} repos/{owner}_{repo}
+  mkdir -p "$GHS_ROOT/repos"
+  gh repo clone {owner}/{repo} "$REPO_PATH"
 fi
 ```
 
 Detect default branch after clone/pull:
 
 ```bash
-git -C repos/{owner}_{repo} rev-parse --abbrev-ref HEAD
+git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD
 ```
 
 ## Worktree Creation
@@ -33,11 +40,10 @@ repos/{owner}_{repo}--worktrees/{prefix}--{slug}/      <- one worktree per item
 ### Create
 
 ```bash
-mkdir -p repos/{owner}_{repo}--worktrees
+WT_PATH="$WT_DIR/{prefix}--{slug}"
+mkdir -p "$WT_DIR"
 
-git -C repos/{owner}_{repo} worktree add \
-  ../repos/{owner}_{repo}--worktrees/{prefix}--{slug} \
-  -b {prefix}/{slug}
+git -C "$REPO_PATH" worktree add "$WT_PATH" -b {prefix}/{slug}
 ```
 
 ### Branch Prefix Convention
@@ -57,7 +63,7 @@ Before creating worktrees, check for conflicts:
 
 ```bash
 # Existing remote branches
-git -C repos/{owner}_{repo} ls-remote --heads origin 'refs/heads/{prefix}/*'
+git -C "$REPO_PATH" ls-remote --heads origin 'refs/heads/{prefix}/*'
 
 # Existing PRs for branch
 gh pr list --repo {owner}/{repo} --head {prefix}/{slug} --json number,url
@@ -195,14 +201,13 @@ Content filter failures: retry with download-based approach (see `../edge-cases.
 
 ```bash
 # Remove completed/failed worktrees
-git -C repos/{owner}_{repo} worktree remove \
-  ../repos/{owner}_{repo}--worktrees/{prefix}--{slug} --force
+git -C "$REPO_PATH" worktree remove "$WT_DIR/{prefix}--{slug}" --force
 
 # Prune stale worktree references
-git -C repos/{owner}_{repo} worktree prune
+git -C "$REPO_PATH" worktree prune
 
 # Remove directory if empty
-rmdir repos/{owner}_{repo}--worktrees 2>/dev/null || true
+rmdir "$WT_DIR" 2>/dev/null || true
 ```
 
 NEEDS_HUMAN worktrees are **not** cleaned up -- left in place with instructions for manual continuation.
