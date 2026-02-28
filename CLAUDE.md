@@ -102,6 +102,7 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 
 ### Utilities
 
+- **ghs-repos-pull** — Pull (update) all locally cloned repositories in repos/ to keep them fresh before scanning or fixing
 - **ghs-backlog-score** — Calculate and display the health score for a repository from its backlog items
 - **ghs-backlog-next** — Recommend the highest-impact next item to fix across all audited repositories
 
