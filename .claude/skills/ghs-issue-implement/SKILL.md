@@ -40,7 +40,7 @@ Purpose: Implement GitHub issues and create PRs. Routes through either the **fas
 |-----------|------|---------|
 | Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup, wave-based execution |
 | GSD integration | `../shared/references/gsd-integration.md` | GSD detection, complexity routing, command patterns, skill-to-GSD contract, error handling |
-| State persistence | `../shared/references/state-persistence.md` | STATE.md lifecycle, reading/writing session state |
+| State persistence | `../shared/references/state-persistence.md` | State issue lifecycle, reading/writing session state via GitHub Issues |
 | gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
 | Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
 | Edge cases | `../shared/references/edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
@@ -58,7 +58,7 @@ The user must have **write access** to the target repository.
 | Create PR for incomplete work | Set `NEEDS_HUMAN` status instead — partial worktree is more useful than a broken PR | Incomplete PRs block the merge queue and confuse reviewers |
 | Pass entire scan/backlog to subagent | Pass only: issue details, repo structure, acceptance criteria, tech stack | Bloats agent context, causes confusion and hallucination |
 | Force GSD on simple issues | Use complexity routing — Low/Medium go fast path, High/Very High go GSD | GSD overhead isn't justified for a typo fix or single-file change |
-| Skip STATE.md check at start | Read STATE.md for active blockers and previous attempts | Re-trying known-blocked items wastes time and confuses users |
+| Skip state issue check at start | Read state issue for active blockers and previous attempts | Re-trying known-blocked items wastes time and confuses users |
 
 </anti-patterns>
 
@@ -73,7 +73,7 @@ Every issue goes through a routing decision before execution. See `../shared/ref
 ### Decision Flow
 
 ```
-1. Check STATE.md for active blockers on this issue
+1. Check state issue for active blockers on this issue
 2. Fetch issue details + analysis comment (if any)
 3. Determine complexity:
    a. Analysis comment exists → use its Complexity field
@@ -121,7 +121,7 @@ What to pass to each implementation agent:
 | Tech stack detection results | Repository-wide metrics |
 | Worktree path and branch name | Unrelated backlog items |
 | Acceptance criteria extracted from issue | Previous session history |
-| STATE.md active blockers (for this issue only) | Full STATE.md contents |
+| State issue active blockers (for this issue only) | Full state issue contents |
 
 <objective>
 Implement GitHub issues and create PRs with auto-close references.
@@ -130,7 +130,7 @@ Outputs:
 - PRs created on GitHub for each implemented issue
 - Labels updated on implemented issues (`status:in-progress`)
 - Terminal report with implementation results
-- STATE.md updated with session entry
+- State issue updated with session comment
 - NEEDS_HUMAN items listed with failure details
 
 Next routing:
@@ -184,11 +184,17 @@ Where `{short-slug}` = issue title, lowercased, non-alphanumeric replaced with `
 
 ### Phase 1 — Read State & Fetch Issues
 
-**Read STATE.md** (per `../shared/references/state-persistence.md` § Reading State):
+**Read state issue** (per `../shared/references/state-persistence.md` § Reading State):
+
+```bash
+gh issue list --repo {owner}/{repo} --label "ghs:state" --state open
+# Then read the most recent state issue:
+gh issue view {state_issue_number} --repo {owner}/{repo} --json body,comments
+```
 
 ```
-1. Read backlog/{owner}_{repo}/STATE.md (if exists)
-2. Extract active blockers → flag blocked issues in plan
+1. Fetch open state issue via gh issue list (label: ghs:state)
+2. Extract active blockers from issue comments → flag blocked issues in plan
 3. Extract decisions → apply user preferences
 4. Show "Last activity: {date} — {summary}" if recent
 ```
@@ -254,7 +260,7 @@ Per `../shared/references/agent-spawning.md` § Repository Cloning:
 | 3 | #18 Update README | docs | low | FAST | docs/18-update-readme | No |
 
 Total: {N} issues ({n_fast} fast path, {n_gsd} GSD path)
-{If blockers:} Blocked: {n_blocked} issues (active blockers in STATE.md)
+{If blockers:} Blocked: {n_blocked} issues (active blockers in state issue)
 
 Proceed with all? (y/n/select)
 ```
@@ -371,7 +377,7 @@ After GSD completes:
   "status": "PASS|FAILED|NEEDS_HUMAN",
   "pr_url": null,
   "verification": ["extracted from VERIFICATION.md"],
-  "error": "extracted from STATE.md blockers or null"
+  "error": "extracted from state issue blockers or null"
 }
 ```
 
@@ -410,11 +416,12 @@ Per `../shared/references/agent-spawning.md` § Worktree Cleanup:
 
 ### Phase 8 — Write State & Final Report
 
-**Write STATE.md** (per `../shared/references/state-persistence.md` § Writing State):
+**Write state issue** (per `../shared/references/state-persistence.md` § Writing State):
 
-Append a session entry to `backlog/{owner}_{repo}/STATE.md`:
+Post a session comment to the open state issue via `gh issue comment`:
 
-```markdown
+```bash
+gh issue comment {state_issue_number} --repo {owner}/{repo} --body "$(cat <<'EOF'
 ### {YYYY-MM-DD} — ghs-issue-implement ({single|batch})
 
 **Items attempted**: {N}
@@ -423,9 +430,19 @@ Append a session entry to `backlog/{owner}_{repo}/STATE.md`:
 | Item | Complexity | Path | Status | PR | Notes |
 |------|-----------|------|--------|-----|-------|
 | #{number} {title} | {level} | {FAST|GSD} | {status} | {pr_url or —} | {brief note} |
+EOF
+)"
 ```
 
-Record any new blockers or decisions discovered during execution.
+If no state issue exists yet, create one first:
+
+```bash
+gh issue create --repo {owner}/{repo} --label "ghs:state" \
+  --title "ghs state: {owner}/{repo}" \
+  --body "Session state tracking issue for ghs skills."
+```
+
+Record any new blockers or decisions discovered during execution as additional comment content.
 
 **Final Report:**
 
@@ -517,22 +534,22 @@ Fixes #{number}
 | Content filter blocks output | Retry with download-based approach (see `../shared/references/edge-cases.md`) |
 | Issue has no analysis | Agent investigates on its own (fast path) or GSD researches (GSD path) |
 | Re-running on existing items | Issues with `status:in-progress` + open PR are skipped in batch |
-| Active blocker in STATE.md | Skip the issue; report blocker in plan |
+| Active blocker in state issue | Skip the issue; report blocker in plan |
 | Mixed batch (fast + GSD) | Execute fast-path issues in parallel first, then GSD issues sequentially |
 
 ## Examples
 
 **Example 1: Single bug fix (fast path)**
 User: "implement issue #42"
-Flow: Read STATE.md -> fetch #42 (type:bug, complexity:Low) -> route to FAST -> show plan -> create worktree `fix--42-login-crash` -> agent fixes bug with tests -> commit with `Fixes #42` -> create PR -> update label -> write STATE.md -> cleanup -> report with `[PASS]`.
+Flow: Read state issue -> fetch #42 (type:bug, complexity:Low) -> route to FAST -> show plan -> create worktree `fix--42-login-crash` -> agent fixes bug with tests -> commit with `Fixes #42` -> create PR -> update label -> write state issue comment -> cleanup -> report with `[PASS]`.
 
 **Example 2: Complex feature (GSD path)**
 User: "implement #15" (analysis says complexity:High)
-Flow: Read STATE.md -> fetch #15 (type:feature, complexity:High) -> route to GSD -> show plan -> create worktree -> prepare `.planning/PROJECT.md` -> `/gsd:discuss-phase 1` -> `/gsd:plan-phase 1` -> `/gsd:execute-phase 1` (3 tasks, 3 atomic commits) -> `/gsd:verify-work 1` (4/4 criteria pass) -> push branch -> create PR -> update label -> write STATE.md -> cleanup -> report.
+Flow: Read state issue -> fetch #15 (type:feature, complexity:High) -> route to GSD -> show plan -> create worktree -> prepare `.planning/PROJECT.md` -> `/gsd:discuss-phase 1` -> `/gsd:plan-phase 1` -> `/gsd:execute-phase 1` (3 tasks, 3 atomic commits) -> `/gsd:verify-work 1` (4/4 criteria pass) -> push branch -> create PR -> update label -> write state issue comment -> cleanup -> report.
 
 **Example 3: Batch with mixed complexity**
 User: "implement all triaged issues"
-Flow: Read STATE.md -> fetch 5 triaged issues -> assess complexity (3 Low, 1 Medium, 1 High) -> show plan with paths -> user confirms -> fast-path: 4 issues in parallel (worktrees + agents) -> GSD path: 1 issue sequentially -> collect all results -> update labels -> write STATE.md -> cleanup -> report.
+Flow: Read state issue -> fetch 5 triaged issues -> assess complexity (3 Low, 1 Medium, 1 High) -> show plan with paths -> user confirms -> fast-path: 4 issues in parallel (worktrees + agents) -> GSD path: 1 issue sequentially -> collect all results -> update labels -> write state issue comment -> cleanup -> report.
 
 **Example 4: User forces GSD on a simple issue**
 User: "use GSD for issue #42"

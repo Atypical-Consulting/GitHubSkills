@@ -15,7 +15,7 @@ compatibility: "Requires gh CLI (authenticated), git, all ghs-skills, GSD framew
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 routes-to:
   - ghs-backlog-board
 routes-from:
@@ -32,7 +32,7 @@ Purpose: Replace a human developer for a single repository by orchestrating the 
 
 ### Roles
 
-1. **Developer** (you) — orchestrates existing skills, manages the priority queue, enforces checkpoints, tracks progress via STATE.md
+1. **Developer** (you) — orchestrates existing skills, manages the priority queue, enforces checkpoints, tracks progress via state issue
 2. **Human** (the user) — approves checkpoints, overrides priorities, provides context when needed
 
 This skill **only orchestrates** via the Skill tool — it never directly modifies code, creates branches, or pushes commits. All mutations flow through the chained skills.
@@ -44,7 +44,8 @@ This skill **only orchestrates** via the Skill tool — it never directly modifi
 | gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
 | Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
 | GSD integration | `../shared/references/gsd-integration.md` | GSD detection, complexity routing, command patterns |
-| State persistence | `../shared/references/state-persistence.md` | STATE.md lifecycle, reading/writing session state |
+| State persistence | `../shared/references/state-persistence.md` | State issue lifecycle (GitHub Issues), reading/writing session state |
+| GitHub Projects format | `../shared/references/projects-format.md` | Project naming, discovery, score record, state record |
 | Agent spawning | `../shared/references/agent-spawning.md` | Worktree patterns, context budgets, circuit breakers |
 
 ### Skill Dependency Map
@@ -77,7 +78,7 @@ ghs-dev-loop
   Start
     |
     v
-  [Load STATE.md]
+  [Load State Issue]
     |
     v
   [Check Health Score] ---> Score < threshold? ---> [Health Maintenance]
@@ -102,7 +103,7 @@ ghs-dev-loop
   [Cycle summary report]
     |
     v
-  [Update STATE.md]
+  [Update State Issue]
     |
     v
   [Next cycle decision]
@@ -120,7 +121,7 @@ ghs-dev-loop
 | Release without merging all pending PRs | Merge or defer all open PRs before creating a release | A release with unmerged PRs creates version confusion and partial features |
 | Re-process issues that already have open PRs or branches | Check for existing PRs/branches before processing; skip if found | Re-implementing wastes time and creates conflicting PRs |
 | Start continuous mode without explicit user consent | Require the user to explicitly say "continuous" or "keep going" | Autonomous loops without consent can drain API quota and create unwanted changes |
-| Ignore STATE.md from a previous session | Read STATE.md first; offer resume or fresh start | Ignoring previous state re-processes items, re-encounters known blockers, and loses decisions |
+| Ignore state issue from a previous session | Read state issue first; offer resume or fresh start | Ignoring previous state re-processes items, re-encounters known blockers, and loses decisions |
 | Process issues assigned to other users | Skip issues with assignees (unless assigned to the authenticated user) | Implementing someone else's assigned work causes ownership conflicts |
 | Bypass checkpoints even in continuous mode | Always pause at non-disableable checkpoints (High+ implementation, release) | Irreversible operations need human sign-off regardless of automation mode |
 | Modify code directly | Delegate all code changes to chained skills via the Skill tool | This skill is an orchestrator — direct code changes bypass verification and review |
@@ -144,7 +145,7 @@ This skill **orchestrates only** — it never directly modifies code, creates br
 | Creating releases | `/ghs-release` |
 
 The sole write actions of ghs-dev-loop itself are:
-1. Reading and writing STATE.md (session tracking)
+1. Reading and writing state issue (session tracking)
 2. Terminal output (cycle reports)
 
 ## Context Budget
@@ -156,7 +157,7 @@ What state to carry between cycle stages:
 | Health score (before/after) | Full scan output (re-scan if needed) |
 | Issue list with priorities and statuses | Issue body details (re-fetch per skill) |
 | PR numbers created this cycle | Subagent prompts and intermediate results |
-| Blocker list from STATE.md | Previous session history (only current blockers matter) |
+| Blocker list from state issue | Previous session history (only current blockers matter) |
 | Cycle budget counters (issues processed, failures) | Worktree paths (managed by downstream skills) |
 | Checkpoint decisions (user approvals) | GSD internal state (managed by GSD) |
 
@@ -167,14 +168,14 @@ What state to carry between cycle stages:
 | 3 failed implementations in one cycle | Stop issue processing; report failures; suggest manual review |
 | Health scan fails | Skip health maintenance; proceed to issues with a warning |
 | Rate limit detected | Pause cycle; report remaining budget; offer resume |
-| Skill invocation fails 3 times consecutively | Stop cycle; preserve STATE.md; report error |
+| Skill invocation fails 3 times consecutively | Stop cycle; preserve state issue; report error |
 
 <objective>
 Operate as an autonomous developer for one repository, processing work in priority-driven cycles.
 
 Outputs per cycle:
 - Cycle report with health delta, issues processed, PRs created/merged
-- STATE.md updated with session entry, decisions, blockers
+- State issue updated with session entry, decisions, blockers
 - Terminal summary with next-cycle recommendation
 
 Next routing:
@@ -235,7 +236,7 @@ When a checkpoint is reached:
 
 1. Display a summary of what will happen
 2. Ask the user to approve, reject, or modify
-3. If rejected: skip the action, record the decision in STATE.md, continue to next priority
+3. If rejected: skip the action, record the decision in state issue, continue to next priority
 4. If modified: apply the user's adjustments (e.g., "skip issue #15, do the rest")
 
 In `continuous` and `watch` modes, checkpoints still pause execution — they are never auto-approved.
@@ -290,19 +291,19 @@ Detect repository context (per `../shared/references/gh-cli-patterns.md` § Repo
 - Fork status
 - Dependency manager (Renovate/Dependabot)
 
-## Phase 2 — Load/Create STATE.md
+## Phase 2 — Load/Create State Issue
 
 Per `../shared/references/state-persistence.md` § Reading State:
 
 ```
-1. Read backlog/{owner}_{repo}/STATE.md (if exists)
+1. Query gh issue list --label ghs:state (if exists)
 2. Extract active blockers → flag blocked items
 3. Extract decisions → apply user preferences
 4. Extract last session → offer resume or fresh start
-5. If no STATE.md → create fresh (first cycle for this repo)
+5. If no state issue → create fresh (first cycle for this repo)
 ```
 
-If STATE.md shows a previous incomplete cycle:
+If state issue shows a previous incomplete cycle:
 - Display: "Previous cycle on {date} processed {N} items. {M} issues remain. Resume or start fresh?"
 - Wait for user decision
 
@@ -313,9 +314,9 @@ Gather the full picture of available work:
 ### 3a. Health Score
 
 ```bash
-# Check if backlog exists and has a score
-# If no backlog: run /ghs-repo-scan first
-# If backlog exists: read SUMMARY.md for current score
+# Check if GitHub Project exists and has a score record
+# If no project: run /ghs-repo-scan first
+# If project exists: query [GHS Score] item from project
 ```
 
 | Score | Action |
@@ -397,7 +398,7 @@ Only if no backlog exists or the last scan is older than 7 days.
 **Checkpoint** (if enabled): Show fix plan, wait for approval.
 
 ```
-/ghs-backlog-fix {owner}_{repo}
+/ghs-backlog-fix {owner}/{repo}
 ```
 
 For P0 (< 50%): fix all tiers.
@@ -480,7 +481,7 @@ If circuit breaker triggers (3 failed implementations):
 | Issue assigned to another user | Skip | Respect ownership |
 | Issue is a pull request | Skip | PRs are reviewed, not implemented |
 | Issue is closed | Skip | No work needed |
-| Issue blocked in STATE.md | Skip | Known blocker — report it |
+| Issue blocked in state issue | Skip | Known blocker — report it |
 | Issue failed in previous cycle | Skip (unless user retries) | Avoid repeating same failure |
 
 ## Phase 6 — Dependency Management
@@ -556,11 +557,12 @@ Summary:
   Cycle complete. To continue: /ghs-dev-loop --continuous {owner}/{repo}
 ```
 
-## Phase 9 — STATE.md Update
+## Phase 9 — State Issue Update
 
 Per `../shared/references/state-persistence.md` § Writing State:
 
-```markdown
+```bash
+gh issue comment {state_issue_number} --repo {owner}/{repo} --body "$(cat <<'EOF'
 ### {YYYY-MM-DD} — ghs-dev-loop (cycle #{n}, {mode})
 
 **Issues processed**: {N}/{budget}
@@ -575,6 +577,8 @@ Per `../shared/references/state-persistence.md` § Writing State:
 **Dependencies merged**: {n} ({list})
 **Release**: {version or skipped}
 **Circuit breaker**: {n}/3
+EOF
+)"
 ```
 
 Record any new blockers or decisions discovered during the cycle.
@@ -610,14 +614,14 @@ Record any new blockers or decisions discovered during the cycle.
 | Issue assigned to someone else | Skip, respect ownership, report in summary |
 | Implementation fails 3 times on same issue | Mark NEEDS_HUMAN, activate circuit breaker, continue with dependencies |
 | Rate limiting detected | Pause cycle, report remaining budget, offer resume |
-| STATE.md exists from previous cycle | Offer resume or fresh start before proceeding |
+| State issue exists from previous cycle | Offer resume or fresh start before proceeding |
 | Watch mode — no new issues found | Sleep and re-poll at configured interval |
-| User cancels mid-cycle | STATE.md captures progress for resume in next session |
+| User cancels mid-cycle | State issue captures progress for resume in next session |
 | Conflicting PRs from different issues | Warn, do not merge both — suggest resolving conflicts first |
-| Health scan already recent (< 7 days) | Skip re-scan, use existing backlog data |
-| No backlog directory exists | Run `/ghs-repo-scan` first to create initial backlog |
+| Health scan already recent (< 7 days) | Skip re-scan, use existing project data |
+| No GitHub Project exists | Run `/ghs-repo-scan` first to create initial project |
 | GSD not available but High-complexity issue found | Warn, offer fast-path fallback or skip |
-| User declines a checkpoint | Record decision in STATE.md, skip that action, continue cycle |
+| User declines a checkpoint | Record decision in state issue, skip that action, continue cycle |
 | All checkpoints declined | Cycle completes with no mutations — report "dry run" |
 | Continuous mode with recurring failures | Circuit breaker stops issue processing per cycle; failures reset between cycles |
 
@@ -629,7 +633,7 @@ User says: "dev loop on phmatray/Formidable"
 
 Flow:
 1. Pre-flight: auth OK, repo accessible, GSD available
-2. STATE.md: previous cycle fixed 3 items, score at 65%
+2. State issue: previous cycle fixed 3 items, score at 65%
 3. Priority: score 65% < 80% -> P2 health maintenance, 4 open issues (1 critical, 3 normal)
 4. Health: `/ghs-backlog-fix` fixes 3 Tier 1+2 items -> score 82%
 5. Merge fix PRs: `/ghs-merge-prs --own` merges 3 PRs
@@ -637,7 +641,7 @@ Flow:
 7. Dependencies: merge 2 Renovate PRs
 8. Release: not configured -> skip
 9. Report: health +17%, 4 issues processed, 6 PRs merged
-10. STATE.md updated, cycle complete
+10. State issue updated, cycle complete
 
 ### Example 2: Continuous mode clearing a backlog
 
@@ -661,7 +665,7 @@ Flow:
 - Cycle 2: triage + analyze + implement 2 issues
 - Sleep 10 minutes
 - Wake: no new issues -> sleep again
-- User sends cancel -> STATE.md updated, stop
+- User sends cancel -> state issue updated, stop
 
 ### Example 4: Checkpoint declined
 
@@ -671,7 +675,7 @@ Flow:
 - Health OK (92%), skip maintenance
 - Issue #42 (critical bug): analyze -> implement (Low complexity, no checkpoint) -> review -> merge
 - Issue #55 (High complexity): analyze -> checkpoint: "Implement #55? Complexity: High, Effort: L" -> user says "skip for now"
-- Record decision in STATE.md: "#55 deferred by user"
+- Record decision in state issue: "#55 deferred by user"
 - Continue with remaining budget
 - Report includes: "#55 — Deferred (user decision at checkpoint)"
 

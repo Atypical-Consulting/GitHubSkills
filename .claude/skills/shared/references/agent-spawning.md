@@ -97,6 +97,8 @@ Each agent prompt should include:
 - Synced issue number (if applicable, for commit message `Fixes #{number}`)
 - Analysis comment content (for issue-implement, if available from ghs-issue-analyze)
 
+**Agents do not write backlog files** — they return results via the agent-result-contract. The orchestrator writes findings to GitHub Projects via `gh project` CLI commands.
+
 ### Agent Result Contract
 
 Every agent returns fenced JSON:
@@ -153,7 +155,7 @@ Before spawning agents, build a dependency graph from item classification:
 Wave 1: Spawn all Wave 1 agents in a single Task message (parallel)
   → Wait for all to complete
   → Recalculate health score (progress update)
-  → Record results in STATE.md
+  → Update GitHub Project with results
 
 Wave 2: Spawn all Wave 2 agents in a single Task message (parallel)
   → Only if Wave 1 dependencies passed
@@ -163,6 +165,8 @@ Wave 2: Spawn all Wave 2 agents in a single Task message (parallel)
 
 Wave N: Continue until all waves complete
 ```
+
+The orchestrator writes all results to the GitHub Project via `gh project` CLI commands, not to local STATE.md files.
 
 ### When to Use Waves vs. Flat Parallel
 

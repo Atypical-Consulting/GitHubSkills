@@ -8,17 +8,14 @@ Agent prompt for ghs-repo-scan issue collection. One agent fetches all open issu
 You are an issues collection agent for the ghs-repo-scan skill.
 
 Repository: {owner}/{repo}
-Output directory: backlog/{owner}_{repo}/issues/
 Date: {YYYY-MM-DD}
 Skills path: {path to .claude/skills}
 
 <task type="auto">
-  <name>Fetch open issues, filter bot noise, and write issue backlog items</name>
+  <name>Fetch open issues, filter bot noise, and return structured JSON results</name>
   <files>
     - Read: GitHub Issues API via gh CLI
-    - Read: {skills_path}/ghs-repo-scan/references/templates.md (issue item template)
-    - Write: backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md (per issue)
-    - Delete: stale issue files for closed issues (sync step)
+    - Return: structured JSON results per agent-result-contract
   </files>
   <action>
     1. Fetch all open issues:
@@ -28,24 +25,20 @@ Skills path: {path to .claude/skills}
        - Issues with title containing "Dependency Dashboard" (Renovate bot)
        - Issues with title containing "renovate" AND a bot label
 
-    3. For each remaining issue, write a backlog item file to `backlog/{owner}_{repo}/issues/issue-{number}--{title-kebab}.md`
-       using the issue item template from `{skills_path}/ghs-repo-scan/references/templates.md`
+    3. For each remaining issue, build a structured result entry:
        - Title kebab-case, truncated to 50 chars max (cut at last complete word — avoids ugly trailing fragments)
-       - Truncate issue body to 500 characters in the file (with link to full issue for context)
+       - Truncate issue body to 500 characters in the result (with link to full issue for context)
 
-    4. If `backlog/{owner}_{repo}/issues/` already has files, sync to keep the local backlog in step with GitHub:
-       - Remove files for issues that are now closed
-       - Add files for newly opened issues
-       - Update files if title/labels/assignees changed
+    4. Return the full issue list as a JSON summary — the orchestrator handles project item management
+       (creating, updating, and removing items from the GitHub Project to keep it in step with GitHub)
   </action>
   <verify>
     - No bot-generated issues (Dependency Dashboard, Renovate) appear in output
-    - Every issue file has a valid kebab-case filename, truncated to 50 chars at a word boundary
-    - Issue body in each file is truncated to 500 chars with a link to the full issue
-    - Stale files (for closed issues) have been removed
+    - Every issue entry has a valid kebab-case title slug, truncated to 50 chars at a word boundary
+    - Issue body in each entry is truncated to 500 chars with a link to the full issue
   </verify>
   <done>
-    All open issues written as backlog items, bot noise filtered, stale files cleaned up, and a JSON summary returned.
+    All open issues returned as structured JSON results, bot noise filtered, and a JSON summary returned.
   </done>
 </task>
 

@@ -1,6 +1,6 @@
 # ghs-repo-scan
 
-Scans a GitHub repository against 38 health checks and fetches open issues, producing a scored report and structured backlog.
+Scans a GitHub repository against 38 health checks and fetches open issues, producing a scored report and structured GitHub Project items.
 
 ::: info Skill Info
 **Version:** 6.0.0
@@ -14,15 +14,15 @@ Scans a GitHub repository against 38 health checks and fetches open issues, prod
 1. **Tier 1 Agent** — checks the 4 required items (README, LICENSE, description, branch protection)
 2. **Tier 2 Agent** — checks the 20 recommended items (CI/CD, .editorconfig, templates, etc.)
 3. **Tier 3 Agent** — checks the 14 nice-to-have items (SECURITY.md, CONTRIBUTING.md, etc.)
-4. **Issues Agent** — fetches all open GitHub issues and saves them as backlog items
+4. **Issues Agent** — fetches all open GitHub issues and creates them as GitHub Project items
 
-After all agents complete, the orchestrator collects results, calculates the health score, writes a `SUMMARY.md` file, and displays a terminal report.
+After all agents complete, the orchestrator collects results, calculates the health score, creates a `[GHS Score]` project item in the GitHub Project, and displays a terminal report.
 
 ### Outputs
 
-- `backlog/{owner}_{repo}/SUMMARY.md` — unified repo summary with score breakdown
-- `backlog/{owner}_{repo}/health/tier-N--slug.md` — one file per failing or warning check
-- `backlog/{owner}_{repo}/issues/issue-N--title.md` — one file per open issue
+- `[GHS Score]` project item — unified repo summary with score breakdown, stored as a GitHub Project item
+- One GitHub Project item per failing or warning health check
+- One GitHub Project item per open issue
 - Terminal report with health score, check results, and issue table
 
 ## Example
@@ -69,7 +69,7 @@ After all agents complete, the orchestrator collects results, calculates the hea
 | 108| Add dark mode      | enhancement | 45d  | --       |
 ...
 
-Backlog saved to: backlog/phmatray_my-project/
+Saved to GitHub Project: phmatray/my-project
   health/   — 8 items (8 FAIL, 0 WARN)
   issues/   — 18 items
 ```
@@ -86,8 +86,8 @@ After scanning, GHS suggests:
 
 | Property | Value |
 |----------|-------|
-| Allowed tools | `Bash(gh:*)`, `Bash(git:*)`, `Bash(python3:*)`, `Read`, `Write`, `Glob`, `Task` |
+| Allowed tools | `Bash(gh:*)`, `Bash(git:*)`, `Read`, `Glob`, `Task` |
 | Spawns sub-agents | Yes — 4 parallel agents (3 health tier agents + 1 issues agent) |
-| Phases | 5 (Setup, Spawn Agents, Collect Results, Write SUMMARY, Display Report) |
-| Requires | `gh` CLI (authenticated), `git`, `python3`, network access |
+| Phases | 5 (Setup, Spawn Agents, Collect Results, Update Project, Display Report) |
+| Requires | `gh` CLI (authenticated), `git`, network access |
 | Re-run safe | Yes — asks before overwriting health items, always syncs issues |

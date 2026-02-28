@@ -10,16 +10,15 @@ You are a health check agent for the ghs-repo-scan skill.
 Repository: {owner}/{repo}
 Default branch: {default_branch}
 Tier: {N}
-Output directory: backlog/{owner}_{repo}/health/
 Date: {YYYY-MM-DD}
 Skills path: {path to .claude/skills}
 
 <task type="auto">
-  <name>Run all Tier {N} health checks and write backlog items for failures</name>
+  <name>Run all Tier {N} health checks and return structured JSON results</name>
   <files>
     - Read: {skills_path}/shared/checks/index.md (check index)
     - Read: {skills_path}/shared/checks/{category}/{slug}.md (per check)
-    - Write: backlog/{owner}_{repo}/health/tier-{N}--{slug}.md (per failing check)
+    - Return: structured JSON results per agent-result-contract
   </files>
   <action>
     1. Read the check index at `{skills_path}/shared/checks/index.md` to find which checks belong to Tier {N}
@@ -27,19 +26,18 @@ Skills path: {path to .claude/skills}
        a. Read the check file using the Slug-to-Path Lookup table from the index: `{skills_path}/shared/checks/{category}/{slug}.md`
        b. Run the verification command from the "Verification" section (substitute {owner}/{repo} and {default_branch})
        c. Determine PASS/FAIL/WARN based on the "Status Rules" section
-       d. If FAIL or WARN: write a backlog item file to `backlog/{owner}_{repo}/health/tier-{N}--{slug}.md`
-          using the health item template from `{skills_path}/ghs-repo-scan/references/templates.md`
-          and the "Backlog Content" section from the check file for What's Missing, Why It Matters, How to Fix, and Acceptance Criteria
+       d. If FAIL or WARN: include the "Backlog Content" section data (What's Missing, Why It Matters, How to Fix, Acceptance Criteria)
+          in the structured result so the orchestrator can create the corresponding project item
        e. Record the result
   </action>
   <verify>
     - Every check in Tier {N} has a result entry (no checks silently skipped)
     - Each result has all required fields: check, slug, tier, points, status, detail
-    - Backlog item files exist for every FAIL and WARN status
-    - No backlog item files written for PASS or INFO statuses
+    - FAIL and WARN results include backlog content fields for project item creation
+    - PASS and INFO results do not include backlog content fields
   </verify>
   <done>
-    All Tier {N} checks executed, backlog items written for failures, and results returned as a fenced JSON array.
+    All Tier {N} checks executed, and results returned as a fenced JSON array.
   </done>
 </task>
 

@@ -4,7 +4,7 @@
 - Skill names: `ghs-` prefix + kebab-case (e.g., `ghs-repo-scan`)
 - Directory names match skill names exactly
 - Check slugs: kebab-case (e.g., `branch-protection`)
-- Backlog files: `tier-{N}--{slug}.md` for health, `issue-{number}--{title-kebab}.md` for issues
+- GitHub Project items: health findings use `[Tier N] <check-name>` titles; issue items reference the original GitHub issue number
 
 ## Trigger Phrases
 - Include 2-4 natural trigger phrases in the skill description
@@ -38,7 +38,7 @@ All shared reference docs live in `.claude/skills/shared/references/`. Skills re
 | File | Purpose |
 |------|---------|
 | `gh-cli-patterns.md` | Auth, repo detection, context detection, API patterns, error handling |
-| `backlog-format.md` | Directory structure, file naming, metadata, tier system, scoring rules |
+| `projects-format.md` | GitHub Projects item structure, field names, status values, tier system, scoring rules |
 | `scoring-logic.md` | Tier weights, score formula, priority algorithm |
 | `output-conventions.md` | Status indicators, tables, progress bars, summary blocks |
 | `agent-spawning.md` | Worktree-based parallel agent patterns, context budgets |
@@ -51,7 +51,6 @@ All shared reference docs live in `.claude/skills/shared/references/`. Skills re
 
 Other shared directories:
 - Check registry: `.claude/skills/shared/checks/index.md`
-- Python scripts: `.claude/skills/shared/scripts/`
 - EditorConfig templates: `.claude/skills/shared/editorconfigs/`
 
 ## GSD Patterns

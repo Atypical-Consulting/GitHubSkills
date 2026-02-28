@@ -23,9 +23,9 @@ flowchart LR
     B --> F[ghs-backlog-score]
 ```
 
-1. **Scan** — `ghs-repo-scan` audits the repo against 40+ core checks (plus language-specific modules) and saves findings as backlog items
-2. **Sync** (optional) — `ghs-backlog-sync` publishes findings as GitHub Issues for team visibility
-3. **Review** — `ghs-backlog-board` shows a dashboard of all findings with scores and progress
+1. **Scan** — `ghs-repo-scan` audits the repo against 40+ core checks (plus language-specific modules) and saves findings as items in a GitHub Project
+2. **Sync** (optional) — `ghs-backlog-sync` publishes health findings as GitHub Issues for team visibility
+3. **Review** — `ghs-backlog-board` shows a dashboard of all findings with scores and progress, read from the GitHub Project
 4. **Fix** — `ghs-backlog-fix` spawns parallel agents to fix failing items and create PRs (auto-closes synced issues)
 5. **Merge** — `ghs-merge-prs` merges the PRs with CI awareness and branch cleanup
 6. **Repeat** — Re-scan to verify fixes and catch any new issues
@@ -48,23 +48,21 @@ flowchart LR
 
 ## Backlog
 
-The backlog is a structured set of markdown files that track health check results and GitHub issues for each audited repository. It lives in the `backlog/` directory:
+The backlog is a **GitHub Project** (ProjectsV2) that tracks health check results and GitHub issues for each audited repository. There are no local markdown files — everything lives on GitHub.
 
-```
-backlog/
-  {owner}_{repo}/
-    SUMMARY.md           # Scores, progress, tables
-    health/              # Core module findings
-      tier-1--readme.md
-      tier-2--ci-cd.md
-    dotnet/              # .NET module findings (if detected)
-      tier-1--dotnet-build-props.md
-      tier-2--dotnet-nullable.md
-    issues/
-      issue-42--title.md # One file per open issue
-```
+Each scanned repo gets one project named `[GHS] {owner}/{repo}`. The project uses a Kanban board with three columns:
 
-Each backlog item has metadata (tier, points, status, module, category) and acceptance criteria. The status field tracks progress: `FAIL` means unfixed, `PASS` means resolved, `WARN` means permission-blocked. Core module items go in `health/`, language module items go in their own directory (e.g., `dotnet/`).
+| Column | Meaning |
+|--------|---------|
+| `Todo` | FAIL findings and open issues — action required |
+| `In Progress` | Items being actively fixed by worktree agents |
+| `Done` | PASS findings and closed or merged items |
+
+Each project item carries 9 custom fields: `Source`, `Module`, `Tier`, `Points`, `Slug`, `Category`, `Detected`, `PR URL`, and `Score`. Health findings are stored as draft issues titled `[Health] {Check Name}`. GitHub issues are linked directly from the repository.
+
+A special `[GHS Score]` draft item stores the computed health score as JSON. Session state (decisions, blockers, history) is stored as a real GitHub Issue on the target repository with the `ghs:state` label — not as a project item.
+
+For the full field definitions, item types, and jq scoring queries, see the [GitHub Projects Format](../reference/backlog-format) reference.
 
 ## Modules
 
@@ -126,7 +124,7 @@ This approach avoids branch switching conflicts and allows true parallel executi
 
 Beyond the individual loops, GHS provides two orchestration skills that chain everything together:
 
-- **ghs-orchestrate** --- runs a full maintenance pipeline across multiple repos (pull, scan, fix, review, merge, sync, release) with human checkpoints and STATE.md-based resume
+- **ghs-orchestrate** --- runs a full maintenance pipeline across multiple repos (pull, scan, fix, review, merge, sync, release) with human checkpoints and GitHub Issue-based state for resume support
 - **ghs-dev-loop** --- acts as an autonomous developer for a single repo, processing issues in priority order through the full lifecycle (triage, analyze, implement, review, merge) with budget-constrained cycles
 
 Both orchestration skills delegate all work to the individual skills above --- they never modify code directly.
@@ -143,4 +141,4 @@ Fix items are classified into categories that determine how they are processed:
 
 Category A items are handled by a single agent that makes `gh` API calls. Category B items each get their own worktree and agent. Category CI items require a diagnostic phase before the fix phase, so they get special handling.
 
-Issue items (from `issues/`) are always Category B, since implementing an issue always involves file changes.
+Issue items (linked from GitHub) are always Category B, since implementing an issue always involves file changes.

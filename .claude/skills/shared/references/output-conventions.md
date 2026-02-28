@@ -119,7 +119,7 @@ Each skill ends with a `Summary:` block using indented key-value pairs:
 The highest-impact item is **{name}** (Health — Tier {N}, {points} points).
 To apply it:
 
-  /ghs-backlog-fix backlog/{owner}_{repo}/health/tier-{N}--{slug}.md
+  /ghs-backlog-fix {owner}/{repo} --item {slug}
 ```
 
 ## Routing Suggestions

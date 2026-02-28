@@ -161,7 +161,7 @@ export default withMermaid(
             text: 'Reference',
             items: [
               { text: 'Scoring', link: '/reference/scoring' },
-              { text: 'Backlog Format', link: '/reference/backlog-format' },
+              { text: 'GitHub Projects Format', link: '/reference/backlog-format' },
               { text: 'Check Format', link: '/reference/check-format' },
               { text: 'Agent Contract', link: '/reference/agent-contract' },
             ],

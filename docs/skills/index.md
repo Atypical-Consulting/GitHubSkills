@@ -21,7 +21,7 @@ flowchart LR
     scan --> board
 ```
 
-The health loop audits repositories against 43 quality checks, optionally syncs findings to GitHub Issues for team visibility, displays findings on a dashboard, fixes them with parallel agents, and merges the resulting PRs.
+The health loop audits repositories against 43 quality checks, stores findings as GitHub Project items, optionally promotes them to GitHub Issues for team visibility, displays findings on a dashboard, fixes them with parallel agents, and merges the resulting PRs.
 
 ## Issue Loop
 
@@ -47,14 +47,14 @@ flowchart LR
     sync --> release[ghs-release]
 ```
 
-The orchestration pipeline chains skills end-to-end across one or many repositories, with human checkpoints before destructive stages and STATE.md-based resume.
+The orchestration pipeline chains skills end-to-end across one or many repositories, with human checkpoints before destructive stages and state issue-based resume.
 
 ## All Skills
 
 | Skill | Category | Version | Description |
 |-------|----------|---------|-------------|
 | [ghs-repo-scan](/skills/ghs-repo-scan) | <Badge type="health" text="Health" /> | 6.0.0 | Scan a repo for quality best practices and open issues |
-| [ghs-backlog-sync](/skills/ghs-backlog-sync) | <Badge type="health" text="Health" /> | 3.0.0 | Sync health findings to GitHub Issues for team visibility |
+| [ghs-backlog-sync](/skills/ghs-backlog-sync) | <Badge type="health" text="Health" /> | 3.0.0 | Promote draft project items to GitHub Issues for team visibility |
 | [ghs-backlog-board](/skills/ghs-backlog-board) | <Badge type="health" text="Health" /> | 5.0.0 | Dashboard of all backlog items across audited repos |
 | [ghs-backlog-fix](/skills/ghs-backlog-fix) | <Badge type="health" text="Health" /> | 7.0.0 | Fix backlog items using parallel worktree agents |
 | [ghs-backlog-score](/skills/ghs-backlog-score) | <Badge type="health" text="Health" /> | 4.0.0 | Calculate and display health score |

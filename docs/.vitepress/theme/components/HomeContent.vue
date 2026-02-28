@@ -29,11 +29,11 @@ import StepFlow from './StepFlow.vue'
     <p class="subtitle">From scan to merge in four steps</p>
     <StepFlow :steps="[
       { icon: '🔍', title: 'Scan', desc: 'Audit against 63 checks' },
-      { icon: '📋', title: 'Review', desc: 'Prioritize the backlog' },
+      { icon: '📋', title: 'Review', desc: 'Prioritize project items' },
       { icon: '🔧', title: 'Fix', desc: 'Parallel agents create PRs' },
       { icon: '🚀', title: 'Merge', desc: 'Land improvements, repeat' },
     ]" />
-    <p>GHS follows a simple loop: <strong>scan</strong> to find problems, optionally <strong>sync</strong> to publish findings as GitHub Issues for team visibility, <strong>fix</strong> to create pull requests (with auto-close references), and <strong>merge</strong> to land the improvements. Each cycle raises your health score closer to 100%.</p>
+    <p>GHS follows a simple loop: <strong>scan</strong> to find problems and create GitHub Project items, optionally <strong>sync</strong> to publish findings as GitHub Issues for team visibility, <strong>fix</strong> to create pull requests (with auto-close references), and <strong>merge</strong> to land the improvements. Each cycle raises your health score closer to 100%.</p>
   </div>
 
   <div class="home-section">
@@ -51,7 +51,7 @@ import StepFlow from './StepFlow.vue'
     <div class="language- vp-adaptive-theme">
       <pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>scan owner/repo</span></span></code></pre>
     </div>
-    <p>That's it. GHS runs 40 core checks plus language-specific modules (.NET and more coming) — and saves a structured backlog of everything that needs attention.</p>
+    <p>That's it. GHS runs 40 core checks plus language-specific modules (.NET and more coming) — and creates structured GitHub Project items for everything that needs attention.</p>
   </div>
 
   <div class="home-section">
@@ -145,7 +145,7 @@ Core Score: 52/74 (70%)
 
 ---
 
-Backlog saved to: backlog/phmatray_my-dotnet-project/
+Project items created: phmatray/my-dotnet-project (GHS project)
   health/   — 6 items (5 FAIL, 1 WARN)
   dotnet/   — 3 items (3 FAIL)
   issues/   — 5 items</code></pre>

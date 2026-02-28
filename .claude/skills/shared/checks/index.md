@@ -69,17 +69,9 @@ score      = round(core_pct * 0.6 + lang_pct * 0.4)
 - If multiple language modules are active, they split the 40% equally (e.g., 2 modules = 20% each).
 - WARN and INFO items are excluded from both earned and possible totals (same as before).
 
-### Backlog paths
+### Backlog storage
 
-Each module writes backlog items to its own subdirectory:
-
-```
-backlog/{owner}_{repo}/
-├── SUMMARY.md                  ← unified summary (all modules)
-├── health/                     ← core module items
-├── dotnet/                     ← dotnet module items
-└── issues/                     ← GitHub issues (unchanged)
-```
+Findings are stored as items in the repository's GitHub Project. The orchestrator creates project items from the structured JSON results returned by each check agent — no local files are written.
 
 ## How Agents Use Modules
 

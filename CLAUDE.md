@@ -8,24 +8,18 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
 .claude/skills/                  — Skill definitions (SKILL.md files)
   shared/references/             — Shared reference docs used across skills
     gh-cli-patterns.md           — gh CLI patterns, auth, repo detection, context, edge cases
-    backlog-format.md            — Backlog directory structure, file naming, metadata, scoring
+    projects-format.md           — GitHub Projects schema, custom fields, item types, scoring via jq
     scoring-logic.md             — Health score calculation and tier weights
     output-conventions.md        — Terminal output formatting conventions
     agent-spawning.md            — Worktree-based parallel agent patterns
     implementation-workflow.md   — Repo clone/pull, worktree mgmt, branch/commit/push/PR
     edge-cases.md                — Rate limiting, content filters, permission errors, retries
     item-categories.md           — Health item classification (Category A/B/CI) and routing
-    config.md                    — Centralized scoring constants and display thresholds
-    sync-format.md               — Sync contract: labels, issue body template, metadata
+    config.md                    — Centralized scoring constants, display thresholds, project constants
+    sync-format.md               — Sync contract: labels, issue body template, draft promotion
     agent-result-contract.md     — Universal agent JSON response format
     gsd-integration.md           — GSD framework detection, command patterns, complexity routing
-    state-persistence.md         — STATE.md pattern for session state across context resets
-backlog/                         — Backlog items per repo (health findings + issues)
-  {owner}_{repo}/
-    SUMMARY.md                   — Unified repo summary
-    STATE.md                     — Session state: decisions, blockers, history (optional)
-    health/                      — Health check findings
-    issues/                      — Open GitHub issues
+    state-persistence.md         — GitHub Issue-based session state across context resets
 .planning/                       — Refactoring roadmap and project-level planning
 repos/                           — Local clones of target repositories (gitignored)
 .gh-skills/backlog-items/        — Ideas and planned skills not yet implemented
@@ -66,7 +60,7 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 | File | Purpose |
 |------|---------|
 | `gh-cli-patterns.md` | Auth, repo detection, context detection, issue/PR/label ops, error handling, edge cases |
-| `backlog-format.md` | Directory structure, file naming, metadata fields, tier system, scoring rules, status values |
+| `projects-format.md` | GitHub Projects schema, custom fields, item types, scoring via jq |
 | `scoring-logic.md` | Tier definitions (T1=4pts, T2=2pts, T3=1pt), formula, priority algorithm |
 | `output-conventions.md` | Status indicators, table patterns, progress bars, summary blocks |
 | `agent-spawning.md` | Repo cloning, worktree creation, parallel execution, cleanup, context budgets |

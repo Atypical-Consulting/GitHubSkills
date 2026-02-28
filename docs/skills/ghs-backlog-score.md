@@ -9,7 +9,7 @@ Calculates and displays the health score for a repository from its backlog items
 
 ## What It Does
 
-`ghs-backlog-score` is a lightweight, focused view that shows only the health score and tier breakdown. It reads backlog files, applies the scoring rules, and renders a compact display. No API calls, no side effects.
+`ghs-backlog-score` is a lightweight, focused view that shows only the health score and tier breakdown. It queries GitHub Project items via `gh project item-list`, applies a jq scoring pipeline, and renders a compact display. No file writes, no side effects.
 
 Use this when you want a quick score check without the full dashboard that `ghs-backlog-board` provides.
 
@@ -61,8 +61,8 @@ After viewing the score, GHS suggests:
 
 | Property | Value |
 |----------|-------|
-| Allowed tools | `Bash(python3:*)`, `Read`, `Glob` |
+| Allowed tools | `Bash(gh:*)`, `Read` |
 | Spawns sub-agents | No — read-only score calculator |
-| Phases | 3 (Collect Health Items, Calculate Score, Display Score) |
-| Requires | `python3`, backlog data from a prior `ghs-repo-scan` run |
+| Phases | 3 (Query Project Items, Calculate Score via jq, Display Score) |
+| Requires | `gh` CLI (authenticated), GitHub Project data from a prior `ghs-repo-scan` run |
 | Re-run safe | Yes — read-only, no side effects |

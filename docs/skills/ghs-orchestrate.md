@@ -9,7 +9,7 @@ Run a full maintenance pipeline across repositories --- update, scan, fix, revie
 
 ## What It Does
 
-`ghs-orchestrate` chains existing ghs-skills into a sequential pipeline for end-to-end repository maintenance. It manages the lifecycle across one or many repositories, with human checkpoints before destructive stages and STATE.md-based resume from interruption.
+`ghs-orchestrate` chains existing ghs-skills into a sequential pipeline for end-to-end repository maintenance. It manages the lifecycle across one or many repositories, with human checkpoints before destructive stages and state issue-based resume from interruption.
 
 ### Pipeline Stages
 
@@ -43,17 +43,17 @@ Stages 3 (fix), 5 (merge), and 7 (release) are destructive and require human con
 
 1. **Parse input** --- Determine repo list, stage range, and flags
 2. **Pre-flight** --- Verify auth, git, skill availability, archived repos
-3. **Load state** --- Read STATE.md for resume from previous runs
+3. **Load state** --- Read state issue (GitHub Issue with `ghs:state` label) for resume from previous runs
 4. **Show plan** --- Display pipeline plan, wait for confirmation
 5. **Execute** --- Process each repo sequentially through pipeline stages
-6. **Write state** --- Update STATE.md with session results
+6. **Write state** --- Update state issue with session results
 7. **Summary** --- Final dashboard with all repos and their status
 
 ### Input Modes
 
 | Mode | Trigger | Example |
 |------|---------|---------|
-| Multi-repo (all) | "maintain my repos" | Process all repos in `backlog/` |
+| Multi-repo (all) | "maintain my repos" | Process all repos with a GitHub Project |
 | Multi-repo (list) | "pipeline for repo1, repo2" | Process specified repos |
 | Single-repo | "pipeline for owner/repo" | Full pipeline for one repo |
 | Partial pipeline | `--from scan --to fix` | Only run stages in range |
@@ -98,7 +98,7 @@ To view updated dashboard: /ghs-backlog-board
 
 ### Resume from Interruption
 
-If a previous pipeline run was interrupted, STATE.md enables resume:
+If a previous pipeline run was interrupted, the state issue enables resume:
 
 ```
 Previous orchestration run detected for phmatray/Formidable:

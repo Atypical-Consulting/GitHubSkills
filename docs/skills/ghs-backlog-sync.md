@@ -1,20 +1,20 @@
 # ghs-backlog-sync
 
-Syncs local health backlog items to GitHub Issues for team visibility and tracking.
+Promotes draft GitHub Project items to real GitHub Issues for team visibility and tracking.
 
 ## When to Use
 
-Use this skill after running `ghs-repo-scan` to publish health findings as GitHub Issues. This makes your backlog visible to collaborators through GitHub's native issue tracker.
+Use this skill after running `ghs-repo-scan` to promote health findings from draft project items to full GitHub Issues. This makes your backlog visible to collaborators through GitHub's native issue tracker.
 
 **Trigger phrases:** "sync backlog", "create issues from health checks", "push findings to GitHub", "publish backlog", "sync health items"
 
 ## What It Does
 
-1. **Discovers** local FAIL health items from `backlog/{owner}_{repo}/health/`
+1. **Queries** FAIL health items from the GitHub Project via `gh project item-list`
 2. **Creates labels** on the target repo (`ghs:health-check`, `tier:1/2/3`, `category:*`)
 3. **Fetches** existing synced issues to avoid duplicates (title-based dedup)
-4. **Creates/updates/closes** GitHub Issues matching local item status
-5. **Updates local files** with `Synced Issue` and `Issue URL` metadata
+4. **Creates/updates/closes** GitHub Issues matching project item status
+5. **Updates project items** with the linked Issue URL via `gh project item-edit`
 6. **Reports** a summary table of all sync actions
 
 ## Label Taxonomy
@@ -45,7 +45,7 @@ All synced issues use the title format `[Health] {Check Name}`. This title is th
 
 ## Integration with backlog-fix
 
-After syncing, `ghs-backlog-fix` automatically detects `Synced Issue` metadata on backlog items:
+After syncing, `ghs-backlog-fix` automatically detects the linked Issue URL on project items:
 
 - **Category B fixes**: PRs include `Fixes #{number}` for auto-close on merge
 - **Category A fixes**: Issues are closed directly after applying the API change
@@ -73,14 +73,13 @@ Summary:
 
 - `gh` CLI authenticated with write access to the target repo
 - Issues must be enabled on the repository
-- Backlog data must exist from a prior `ghs-repo-scan` run
+- GitHub Project data must exist from a prior `ghs-repo-scan` run
 
 ## Requirements
 
 | Tool | Required |
 |------|----------|
 | `gh` CLI | Yes (authenticated) |
-| `python3` | Yes |
 | Network | Yes |
 
 ## Related Skills

@@ -36,8 +36,8 @@ When the check should return each status:
 - **FAIL** --- condition not met
 - **WARN** --- cannot verify (e.g., insufficient permissions, API unavailable)
 
-### Backlog Content
-What to write to the backlog if the check fails:
+### Project Item Content
+What to create as a GitHub Project item if the check fails:
 - **Title** --- concise description of the issue
 - **Description** --- what's wrong and why it matters
 - **Acceptance Criteria** --- what "fixed" looks like
@@ -62,7 +62,7 @@ Verify README.md or README exists in the repository root.
 - FAIL: No README found
 - WARN: Cannot access repository contents
 
-### Backlog Content
+### Project Item Content
 Title: Add README.md
 Description: The repository has no README file...
 Acceptance Criteria: README.md exists in repo root with project description
@@ -88,7 +88,7 @@ Verify Directory.Build.props exists in the repository root via `gh api`.
 - FAIL: Directory.Build.props not found
 - WARN: Cannot access repository contents (403)
 
-### Backlog Content
+### Project Item Content
 Title: Add Directory.Build.props
 Description: No centralized MSBuild properties file found...
 Acceptance Criteria: Directory.Build.props exists with shared properties

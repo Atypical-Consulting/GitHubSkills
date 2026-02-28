@@ -78,13 +78,15 @@ What skills are available?
 
 Claude will list all 9 GHS skills with their descriptions and trigger phrases.
 
-## Optional: Python 3
+## Required: GitHub Projects scope
 
-Some skills use Python scripts for score calculation and backlog parsing. Most systems have Python 3 pre-installed. Verify with:
+GHS stores all findings in GitHub Projects (ProjectsV2). Ensure your `gh` token includes the `project` scope:
 
 ```bash
-python3 --version
+gh auth login --scopes repo,read:org,project
 ```
+
+Score calculation and item discovery are done with `jq` pipelines against the GitHub Projects API — no local files or Python scripts are required.
 
 ## Next Steps
 

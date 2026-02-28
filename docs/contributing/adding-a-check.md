@@ -44,7 +44,7 @@ scoring: Normal|INFO only
 Then include these sections:
 - **What to Check** --- verification logic
 - **Status Rules** --- when PASS, FAIL, WARN
-- **Backlog Content** --- what to write if FAIL (title, description, acceptance criteria)
+- **Project Item Content** --- what to create as a GitHub Project item if FAIL (title, description, acceptance criteria)
 
 ## Step 3: Register in the Module Index
 
@@ -89,5 +89,5 @@ To add an entirely new language module (e.g., Python, Node):
 5. Update `shared/references/scoring-logic.md` with the module's max points
 6. Update `shared/references/config.md` with the module constants
 7. Update `shared/references/item-categories.md` with fix routing
-8. Update `shared/references/backlog-format.md` with the new backlog directory
+8. Update `shared/references/projects-format.md` with the new project item fields for the module
 9. Update consumer skills (ghs-repo-scan, ghs-backlog-board, ghs-backlog-score, ghs-backlog-fix)

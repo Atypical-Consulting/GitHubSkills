@@ -26,7 +26,7 @@ flowchart LR
 
 - **7-stage pipeline**: pull, scan, fix, review, merge, sync, release
 - **Human checkpoints**: Pause for confirmation before destructive stages (fix, merge, release)
-- **STATE.md resume**: Pick up where you left off if interrupted
+- **State issue resume**: Pick up where you left off if interrupted (session state stored in a GitHub Issue with `ghs:state` label)
 - **Dry-run mode**: Preview what would happen without executing
 - **Partial ranges**: Run only specific stages with `--from` / `--to`
 
@@ -91,7 +91,7 @@ flowchart TD
 
 ```
 You: dev loop on phmatray/Formidable
-GHS: [pre-flight checks, loads STATE.md]
+GHS: [pre-flight checks, loads state issue]
 GHS: ## Priority Queue --- phmatray/Formidable
      Health Score: 65% (P2 maintenance needed)
      Open Issues: 7 (1 critical, 2 high, 4 normal)
@@ -124,6 +124,6 @@ GHS: ## Cycle Summary
 | Issue processing | No | Yes (triage, analyze, implement) |
 | Code review | Yes | Yes |
 | Priority queue | No (sequential stages) | Yes (P0-P6) |
-| Resume | STATE.md per repo | STATE.md per cycle |
+| Resume | State issue per repo | State issue per cycle |
 | Modes | Single run | Single, continuous, watch |
 | Budget | N/A | Configurable per cycle |

@@ -9,12 +9,12 @@ description: >
   Also trigger when the user says "list backlog", "show findings", "show issues", or just "backlog".
   Do NOT use for scanning new repos (use ghs-repo-scan), applying fixes (use ghs-backlog-fix), or reviewing code.
   For quick "what should I work on next?" queries, prefer ghs-backlog-next instead.
-allowed-tools: "Bash(python3:*) Read Glob"
-compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-scan run."
+allowed-tools: "Bash(gh:*) Bash(jq:*) Bash(bc:*)"
+compatibility: "Requires gh CLI (authenticated) with project scope. Project data must exist from a prior ghs-repo-scan run."
 license: MIT
 metadata:
   author: phmatray
-  version: 6.0.0
+  version: 7.0.0
 routes-to:
   - ghs-backlog-fix
   - ghs-backlog-sync
@@ -31,33 +31,34 @@ routes-from:
 Display a cross-repo dashboard of all backlog items with scores, progress, and next-action recommendations.
 
 <context>
-Purpose: Read-only dashboard renderer for backlog data produced by ghs-repo-scan.
+Purpose: Read-only dashboard renderer for GitHub Project data produced by ghs-repo-scan.
 
 Roles:
-1. **Dashboard Renderer** (you) — reads SUMMARY.md files, formats the display, recommends next action
+1. **Dashboard Renderer** (you) — queries GitHub Projects, formats the display, recommends next action
 
-No sub-agents — this is a read-only skill that renders local data.
+No sub-agents — this is a read-only skill that renders project data.
 
 Shared references (use these, do not duplicate their logic):
 
 | Reference | Purpose |
 |-----------|---------|
 | `../shared/references/scoring-logic.md` | Tier weights, score formula, module weighting, priority algorithm, progress bar format |
-| `../shared/references/backlog-format.md` | Directory structure, file naming, metadata formats, module-to-directory mapping, status values |
+| `../shared/references/projects-format.md` | Project naming, item schema, custom fields, jq scoring pipelines, score record format, state issue lookup |
 | `../shared/references/output-conventions.md` | Dashboard tables, status indicators, recommendation block |
-| `../shared/references/state-persistence.md` | STATE.md format, lifecycle, reading patterns for dashboard enrichment |
-| `../shared/checks/index.md` | Module registry — which modules exist and their scoring weights |
+| `../shared/references/state-persistence.md` | State issue format, lifecycle, reading patterns for dashboard enrichment |
+| `../shared/references/config.md` | Scoring constants, display thresholds |
+| `../shared/references/gh-cli-patterns.md` | Project Operations section — auth check, project discovery, item queries |
 </context>
 
 <anti-patterns>
 
 | Do NOT | Do Instead | Why |
 |--------|-----------|-----|
-| Re-read every backlog item when SUMMARY.md exists | Use SUMMARY.md as the index — it has scores, tier breakdowns, and item lists | Avoids unnecessary file I/O and keeps rendering fast |
-| Recalculate scores from scratch | Use the score from SUMMARY.md, or `python ../shared/scripts/calculate_score.py` | SUMMARY.md is the single source of truth for scores |
+| Re-query all project items when `[GHS Score]` item exists | Use the `[GHS Score]` item as the index — it has the computed score, tier breakdowns, and timestamps | Avoids unnecessary API calls and keeps rendering fast |
+| Recalculate scores from scratch | Use the score from the `[GHS Score]` item body, or the jq pipeline from `projects-format.md` | `[GHS Score]` item is the single source of truth for scores |
 | Suggest fixes inline in the dashboard | Route to `ghs-backlog-fix` for any fix action | Dashboard is read-only; fixes belong in a separate skill |
-| Show resolved/PASS items by default | Only show FAIL and WARN items; show PASS items only when user drills down | Keeps the dashboard focused on actionable items |
-| Read individual health/issue files unprompted | Only read individual files when the user asks for detail on a specific item | Progressive disclosure — load detail on demand |
+| Show resolved/Done items by default | Only show Todo (FAIL/OPEN) items; show Done items only when user drills down | Keeps the dashboard focused on actionable items |
+| Read all project items unprompted | Only read individual items when the user asks for detail on a specific item | Progressive disclosure — load detail on demand |
 
 </anti-patterns>
 
@@ -78,7 +79,7 @@ Next routing:
 
 ## Input
 
-No input required. The skill scans all `backlog/` subdirectories automatically.
+No input required. The skill discovers all `[GHS]` projects automatically.
 
 Optional filters the user might provide:
 - A specific repo: "show backlog for phmatray/NewSLN"
@@ -86,38 +87,71 @@ Optional filters the user might provide:
 - A specific tier: "show tier 1 items"
 - Only failures: "show remaining failures"
 
-## Phase 1 — Discover Repositories (SUMMARY.md as Index)
+## Pre-flight
 
-Scan `backlog/` for all `{owner}_{repo}/` directories. For directory structure, see `../shared/references/backlog-format.md`.
+Verify project scope before any project API call:
 
-For each repo, read **only** `SUMMARY.md` to extract:
-- Health score (earned / max / percentage) — may include per-module breakdown
+```bash
+gh auth status 2>&1 | grep -q "project" || echo "[FAIL] Run: gh auth refresh -s project"
+```
+
+## Phase 1 — Discover Repositories (`[GHS Score]` as Index)
+
+Discover all `[GHS]` projects for the owner:
+
+```bash
+gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title | startswith("[GHS]"))'
+```
+
+For each project, read **only** the `[GHS Score]` draft item to extract:
+- Health score (earned / possible / percentage) — may include per-module breakdown from the JSON body
 - Tier breakdown (earned per tier, per module)
 - Active modules (core, dotnet, etc.)
 - Combined score if multiple modules active
-- Open issue count
-- Generated date
-- Visibility (Public / Private)
+- Last updated date (from `[GHS Score]` item body `"updated"` field)
 
-Then check for `STATE.md` (if it exists) to extract:
+```bash
+# Get the score record for a project
+ITEMS=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500)
+SCORE_ITEM=$(echo "$ITEMS" | jq '.items[] | select(.title == "[GHS Score]")')
+SCORE_BODY=$(echo "$SCORE_ITEM" | jq -r '.body' | jq '.')
+```
+
+Also count open issue items and health Todo items from the project:
+
+```bash
+OPEN_ISSUES=$(echo "$ITEMS" | jq '[.items[] | select(.source == "GitHub Issue" and .status == "Todo")] | length')
+FAIL_HEALTH=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .status == "Todo")] | length')
+```
+
+Then look up the state issue for this repo to extract activity context:
+
+```bash
+# Find the state issue
+gh issue list --repo {owner}/{repo} --label "ghs:state" --state open \
+  --json number,title,body --limit 1
+```
+
+From the state issue body, extract:
 - **Last activity** — date from most recent session entry
 - **Active blockers** — count of blockers with status ACTIVE
 - **Decisions** — any user preferences that affect display (e.g., skip list)
 - **Last session summary** — skill name and outcome (e.g., "ghs-backlog-fix — 3 PASS, 1 FAILED")
 
-> **Rule:** SUMMARY.md is the single source of truth for scores. STATE.md enriches the view with activity context.
+> **Rule:** `[GHS Score]` item is the single source of truth for scores. The state issue enriches the view with activity context.
 >
 > **Trigger:** User asks "show backlog", "dashboard", "how are my repos doing"
 >
-> **Example:** Read `backlog/phmatray_NewSLN/SUMMARY.md` for `10/31 (32%)`, then `STATE.md` for "Last activity: 2026-02-28 — 3 items fixed". Do NOT scan individual item files.
+> **Example:** Read `[GHS Score]` item from `[GHS] phmatray/NewSLN` project for `10/31 (32%)`, then query the state issue for "Last activity: 2026-02-28 — 3 items fixed". Do NOT read every individual project item.
 
 ### Progressive Disclosure
 
 | User Action | Data Source |
 |-------------|------------|
-| "show backlog" / "dashboard" | SUMMARY.md + STATE.md (if exists) |
-| "show details for phmatray/NewSLN" | SUMMARY.md + STATE.md + list FAIL/WARN files from `health/`, `dotnet/` (if exists), and `issues/` |
-| "tell me about the README item" | Read the specific `tier-1--readme.md` file |
+| "show backlog" / "dashboard" | `[GHS Score]` item body + state issue (if exists) |
+| "show details for phmatray/NewSLN" | `[GHS Score]` item + state issue + list Todo items from project (health and issues) |
+| "tell me about the README item" | Query the specific `[Health] README` project item |
 
 ## Phase 2 — Display the Dashboard
 
@@ -125,15 +159,15 @@ Then check for `STATE.md` (if it exists) to extract:
 
 | Column | Source | Description |
 |--------|--------|-------------|
-| Repository | Directory name | `{owner}/{repo}` format |
-| Health | SUMMARY.md | `{earned}/{possible} ({pct}%)` |
-| Progress | Computed | 8-char bar per `../shared/references/scoring-logic.md` |
-| Issues | SUMMARY.md | Total open issue count |
-| Open | SUMMARY.md | Issues currently open |
-| PRs | SUMMARY.md | Issues with PRs created |
-| Last Scan | SUMMARY.md | `YYYY-MM-DD` generated date |
-| Last Activity | STATE.md | Most recent session date, or `--` if no STATE.md |
-| Blockers | STATE.md | Count of ACTIVE blockers, or `--` if none |
+| Repository | Project title (strip `[GHS] ` prefix) | `{owner}/{repo}` format |
+| Health | `[GHS Score]` item body | `{earned}/{possible} ({pct}%)` |
+| Progress | Computed from score | 8-char bar per `../shared/references/scoring-logic.md` |
+| Issues | Project item count | Count of items with `Source = GitHub Issue` and `Status = Todo` |
+| Open | Project item count | Issues with `Status = Todo` |
+| PRs | Project item count | Issues with `Status = In Progress` (PR created) |
+| Last Scan | `[GHS Score]` item body `"updated"` field | `YYYY-MM-DD` |
+| Last Activity | State issue body | Most recent session date, or `--` if no state issue |
+| Blockers | State issue body | Count of ACTIVE blockers, or `--` if none |
 
 ### Status Indicators
 
@@ -141,15 +175,15 @@ See `../shared/references/output-conventions.md` for the canonical list. Key ind
 
 | Indicator | When Shown |
 |-----------|-----------|
-| `[FAIL]` | Health check failed — action required |
-| `[WARN]` | Cannot verify (permissions) — shown but not actionable |
+| `[FAIL]` | Health check in Todo column — action required |
+| `[WARN]` | Permission-blocked check — shown in terminal output but not in project |
 | `[PASS]` | Only in drill-down view, not default dashboard |
 
 ### Multi-repo overview (when multiple repos exist)
 
-> **Rule:** Show one row per repo. Only FAIL/WARN counts matter in the overview.
+> **Rule:** Show one row per repo. Only Todo (FAIL/OPEN) counts matter in the overview.
 >
-> **Trigger:** Multiple `backlog/{owner}_{repo}/` directories found
+> **Trigger:** Multiple `[GHS]` projects found for the owner
 >
 > **Example output:**
 
@@ -164,15 +198,15 @@ See `../shared/references/output-conventions.md` for the canonical list. Key ind
 Total: 2 repos | Health items: 25 (14 pass) | Issues: 23 (17 open)
 ```
 
-The Last Activity and Blockers columns are sourced from STATE.md. Repos with no STATE.md show `--`.
+The Last Activity and Blockers columns are sourced from the state issue. Repos with no state issue show `--`.
 
 Progress bar format is defined in `../shared/references/scoring-logic.md`.
 
 ### Single-repo detail (when one repo, or user filters to one)
 
-> **Rule:** Show remaining FAIL/WARN items by default. Show PASS items in a collapsed section.
+> **Rule:** Show remaining Todo (FAIL/OPEN) items by default. Show Done items in a collapsed section.
 >
-> **Trigger:** Single repo in backlog, or user says "show backlog for {owner}/{repo}"
+> **Trigger:** Single `[GHS]` project found, or user says "show backlog for {owner}/{repo}"
 >
 > **Example output:**
 
@@ -213,22 +247,22 @@ Progress bar format is defined in `../shared/references/scoring-logic.md`.
 
 Labels: bug: 5 | enhancement: 8 | docs: 2 | unlabeled: 3
 
-### Active Blockers (from STATE.md)
+### Active Blockers (from state issue)
 
 | Blocker | Affected Items | Status |
 |---------|---------------|--------|
 | No admin access | branch-protection, security-alerts | ACTIVE |
 ```
 
-If STATE.md exists and has ACTIVE blockers, show the blockers section. If no STATE.md or no active blockers, omit this section entirely.
+If a state issue exists and has ACTIVE blockers, show the blockers section. If no state issue or no active blockers, omit this section entirely.
 
-The "Issue" column in the health table shows `#{number}` for items synced via `ghs-backlog-sync`, or `--` for non-synced items. Only display this column when at least one item has a synced issue.
+The "Issue" column in the health table shows `#{number}` for items that are linked GitHub Issues (synced via `ghs-backlog-sync`), or `--` for draft health items not yet synced. Only display this column when at least one item has a linked issue.
 
 Order health items by tier (1 first), then by points (highest first). Order issues by creation date (oldest first).
 
 #### Good vs Bad Output
 
-**Good** (default view — only FAIL/WARN):
+**Good** (default view — only Todo/FAIL items):
 ```
 ### Health — Remaining Items (by priority)
 
@@ -239,7 +273,7 @@ Order health items by tier (1 first), then by points (highest first). Order issu
 | 3 | .editorconfig | 2 | 2 | FAIL |
 ```
 
-**Bad** (showing everything including PASS — clutters the view):
+**Bad** (showing everything including Done/PASS — clutters the view):
 ```
 ### Health — All Items
 
@@ -267,22 +301,22 @@ See `../shared/references/output-conventions.md` for the canonical format:
 The highest-impact item is **README** (Health -- Tier 1, 4 points).
 To apply it:
 
-  /ghs-backlog-fix backlog/phmatray_NewSLN/health/tier-1--readme.md
+  /ghs-backlog-fix {owner}/{repo} --item readme
 ```
 
 ### Routing Logic
 
 | User Situation | Suggest | Command |
 |---------------|---------|---------|
-| Has failing health items | Apply the top-priority fix | `/ghs-backlog-fix backlog/{owner}_{repo}/health/{item}` |
+| Has failing health items | Apply the top-priority fix | `/ghs-backlog-fix {owner}/{repo} --item {slug}` |
 | All health items pass, has open issues | Implement the oldest issue | `/ghs-issue-implement {owner}/{repo}#{number}` |
 | Scan data > 30 days old | Re-scan the repo | `/ghs-repo-scan {owner}/{repo}` |
-| Items not synced to GitHub | Sync backlog to issues | `/ghs-backlog-sync {owner}/{repo}` |
+| Items not yet linked to GitHub issues | Sync backlog to issues | `/ghs-backlog-sync {owner}/{repo}` |
 | All items resolved | Congratulations message | (none) |
 
 ### Stale Scan Detection
 
-If the scan date is more than 30 days old (threshold defined in `../shared/references/scoring-logic.md`), add:
+If the `[GHS Score]` item `"updated"` date is more than 30 days old (threshold defined in `../shared/references/scoring-logic.md`), add:
 
 ```
 > This scan is 45 days old. Consider re-running:
@@ -295,24 +329,24 @@ If the scan date is more than 30 days old (threshold defined in `../shared/refer
 >
 > **Trigger:** User says "apply it", "fix it", "do it", "yes" after seeing the recommendation
 >
-> **Example:** User sees README recommended, says "fix it" -> invoke `ghs-backlog-fix backlog/phmatray_NewSLN/health/tier-1--readme.md`
+> **Example:** User sees README recommended, says "fix it" -> invoke `ghs-backlog-fix phmatray/NewSLN --item readme`
 
 </process>
 
 ## Edge Cases
 
-- **No backlog directory**: Tell the user no scans have been run yet and suggest: `/ghs-repo-scan {owner}/{repo}`
+- **No GitHub Projects found**: Tell the user no scans have been run yet and suggest: `/ghs-repo-scan {owner}/{repo}`
 - **All items done**: Display a congratulatory message with the final score
-- **WARN items**: Show them separately -- they are not actionable without permission changes
-- **Missing issues directory**: If a repo had no open issues when scanned, the `issues/` directory will not exist. This is normal.
+- **WARN items**: Show them separately in terminal output -- they are not in the project and not actionable without permission changes
+- **No open issues in project**: Normal — if the repo had no open issues when scanned, there are no `GitHub Issue` items in the project
 
 ## Troubleshooting
 
-**"No backlog directory found"**
+**"No GitHub Projects found"**
 No repos have been scanned yet. Run `/ghs-repo-scan owner/repo` first.
 
 **Scores don't match expectations**
-Re-run the scan to refresh: `/ghs-repo-scan owner/repo`. Scores are based on the last scan's SUMMARY.md.
+Re-run the scan to refresh: `/ghs-repo-scan owner/repo`. Scores are based on the last scan's `[GHS Score]` item.
 
 **Stale scan data**
 If a scan is more than 30 days old, the dashboard will flag it with a re-scan suggestion.

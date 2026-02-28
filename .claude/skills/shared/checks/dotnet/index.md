@@ -125,5 +125,5 @@ Each check agent receives a module (`dotnet`) and tier assignment. It:
 3. Reads the individual check file
 4. Runs the verification command from the check file
 5. Determines PASS/FAIL/WARN based on status rules
-6. If FAIL/WARN, writes a backlog item to `backlog/{owner}_{repo}/dotnet/` using the Backlog Content section
+6. If FAIL/WARN, includes the Backlog Content section data in the structured result and returns it to the orchestrator for project item creation
 7. Returns structured results to the orchestrator
