@@ -2,7 +2,7 @@
 
 ## Skills
 
-GHS is a collection of **12 Claude Code skills**. Skills are markdown files in `.claude/skills/` that define how Claude Code performs specific tasks. Each skill has a name, trigger phrases, allowed tools, and a structured process.
+GHS is a collection of **18 Claude Code skills**. Skills are markdown files in `.claude/skills/` that define how Claude Code performs specific tasks. Each skill has a name, trigger phrases, allowed tools, and a structured process.
 
 You invoke skills with natural language. Saying "scan my repo" triggers `ghs-repo-scan`. Saying "fix the backlog" triggers `ghs-backlog-fix`. Claude Code matches your intent to the right skill automatically.
 
@@ -121,6 +121,15 @@ When `ghs-backlog-fix` or `ghs-issue-implement` runs:
 6. Worktrees are cleaned up after the agents finish
 
 This approach avoids branch switching conflicts and allows true parallel execution.
+
+## Orchestration
+
+Beyond the individual loops, GHS provides two orchestration skills that chain everything together:
+
+- **ghs-orchestrate** --- runs a full maintenance pipeline across multiple repos (pull, scan, fix, review, merge, sync, release) with human checkpoints and STATE.md-based resume
+- **ghs-dev-loop** --- acts as an autonomous developer for a single repo, processing issues in priority order through the full lifecycle (triage, analyze, implement, review, merge) with budget-constrained cycles
+
+Both orchestration skills delegate all work to the individual skills above --- they never modify code directly.
 
 ## Categories
 
