@@ -7,6 +7,7 @@ description: >
   "how healthy is my repo", "score check", or "points breakdown".
   Do NOT use for full dashboards with issue lists (use ghs-backlog-board), scanning repos (use ghs-repo-scan),
   or applying fixes (use ghs-backlog-fix).
+argument-hint: "[owner/repo]"
 allowed-tools: "Bash(gh:*) Bash(jq:*) Bash(bc:*)"
 compatibility: "Requires gh CLI (authenticated) with project scope. Project data must exist from a prior ghs-repo-scan run."
 license: MIT
@@ -26,6 +27,17 @@ routes-from:
 Calculate and display the health score for a repository from its GitHub Project health items. This is a lightweight, read-only view -- just the score, tier breakdown, and points summary.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/projects-format.md
+- ../shared/references/scoring-logic.md
+- ../shared/references/config.md
+</execution_context>
+
 Purpose: Read-only score renderer that calculates and displays health scores from GitHub Project data.
 
 Roles:
@@ -57,6 +69,10 @@ No sub-agents — this is a lightweight, read-only skill.
 | Use python scripts | Use jq pipelines from `projects-format.md` § Scoring via jq | Python dependency eliminated; jq is the canonical scoring tool |
 
 </anti-patterns>
+
+<required_reading>
+- Read project items via `gh project item-list` before any operation
+</required_reading>
 
 <rules>
 

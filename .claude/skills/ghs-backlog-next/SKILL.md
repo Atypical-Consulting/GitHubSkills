@@ -8,6 +8,7 @@ description: >
   in the context of backlog work.
   Do NOT use for full dashboards (use ghs-backlog-board), scanning repos (use ghs-repo-scan),
   or applying fixes directly (use ghs-backlog-fix).
+argument-hint: "[owner/repo]"
 allowed-tools: "Bash(gh:*) Bash(jq:*) Bash(bc:*)"
 compatibility: "Requires gh CLI (authenticated) with project scope. Project data must exist from a prior ghs-repo-scan run."
 license: MIT
@@ -28,6 +29,17 @@ Quickly find and recommend the **single** highest-impact backlog item to work on
 No sub-agents — this is a lightweight, read-only skill.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/projects-format.md
+- ../shared/references/scoring-logic.md
+- ../shared/references/config.md
+</execution_context>
+
 Purpose: Read-only recommendation engine that selects the single highest-impact project item using the priority algorithm.
 
 Roles:
@@ -82,6 +94,10 @@ Verify project scope before any project API call:
 ```bash
 gh auth status 2>&1 | grep -q "project" || echo "[FAIL] Run: gh auth refresh -s project"
 ```
+
+<required_reading>
+- Read all projects via `gh project item-list` for recommendation data
+</required_reading>
 
 <process>
 

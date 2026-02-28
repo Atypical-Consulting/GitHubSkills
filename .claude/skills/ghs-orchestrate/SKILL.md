@@ -9,6 +9,7 @@ description: >
   "scan and fix all repos", "process all repos", "pipeline for {repo}", "run all skills",
   "maintenance run", "end-to-end maintenance", or "run the full workflow".
   Do NOT use for single skill invocations — use the individual skill directly.
+argument-hint: "[owner/repo...] [--stages pull,scan,fix,review,merge,sync,release] [--dry-run] [--resume]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Skill"
 compatibility: "Requires gh CLI (authenticated), git, all ghs-skills available, GSD framework (for fix stage)"
 license: MIT
@@ -27,6 +28,19 @@ routes-from:
 Chain existing ghs-skills into a full maintenance pipeline across one or many repositories. Manages the lifecycle: update repos, scan for issues, apply fixes, review PRs, merge, sync to GitHub, and optionally cut releases. Resumes from interruption via the state issue.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/state-persistence.md
+- ../shared/references/checkpoint-patterns.md
+- ../shared/references/agent-spawning.md
+- ../shared/references/config.md
+- ../shared/references/scoring-logic.md
+</execution_context>
+
 Purpose: Orchestrate existing ghs-skills into a sequential pipeline for end-to-end repository maintenance. This skill **only orchestrates** — it never directly modifies code, creates PRs, or calls the GitHub API for mutations. Every action is delegated to the appropriate skill via the Skill tool.
 
 Roles:
@@ -103,6 +117,10 @@ Next routing:
 - Suggest `ghs-backlog-board` to see the updated dashboard — "To view results: `/ghs-backlog-board`"
 </objective>
 
+<required_reading>
+Read state issue for resume context and previous pipeline progress.
+</required_reading>
+
 <process>
 
 ## Input
@@ -155,6 +173,13 @@ Next routing:
 | merge | ghs-merge-prs | Yes (merges PRs) | Yes | Yes | Merge approved PRs |
 | sync | ghs-backlog-sync | No | No | Yes | Sync remaining findings to GitHub Issues |
 | release | ghs-release | Yes (creates tag) | Yes | Yes (opt-in via `--release`) | Cut a release |
+
+### Dry-Run Mode
+When `--dry-run` is present in $ARGUMENTS:
+- Run pull and scan stages normally (read-only)
+- Show fix, merge, sync, release plans without executing
+- Display the dry-run indicator box from ui-brand.md
+- Useful for previewing what a full pipeline would do
 
 ## Phase 1 — Input Parsing
 

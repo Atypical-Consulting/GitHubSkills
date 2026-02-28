@@ -9,6 +9,7 @@ description: >
   "review draft PRs", or "review ready PRs".
   Do NOT use for merging PRs (use ghs-merge-prs), implementing issues (use ghs-issue-implement),
   or scanning repo health (use ghs-repo-scan).
+argument-hint: "[owner/repo] [--pr <number>] [--all] [--author <name>]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Glob Grep"
 compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
@@ -27,6 +28,15 @@ routes-from:
 Fetch a GitHub PR diff and metadata, clone the repo for context, analyze code changes, and post a structured review comment with findings categorized by severity.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/checkpoint-patterns.md
+</execution_context>
+
 Purpose: Review GitHub pull requests by inspecting the actual diff against the codebase, producing actionable review comments that catch bugs, security issues, and quality problems before merge.
 
 Roles:
@@ -81,6 +91,10 @@ Next routing (see `output-conventions.md` § Routing Suggestions):
 - If the PR addresses an issue, suggest reviewing the linked issue
 - For batch reviews, show a summary table
 </objective>
+
+<required_reading>
+Fetch PR diff and file list before analysis.
+</required_reading>
 
 <process>
 

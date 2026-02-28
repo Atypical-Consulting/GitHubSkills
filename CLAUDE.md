@@ -10,7 +10,10 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
     gh-cli-patterns.md           — gh CLI patterns, auth, repo detection, context, edge cases
     projects-format.md           — GitHub Projects schema, custom fields, item types, scoring via jq
     scoring-logic.md             — Health score calculation and tier weights
-    output-conventions.md        — Terminal output formatting conventions
+    output-conventions.md        — Terminal output data formats: tables, progress bars, summary blocks
+    ui-brand.md                  — Visual output branding: banners, checkpoints, status symbols, routing
+    argument-parsing.md          — Standardized $ARGUMENTS parsing: repo detection, flags, defaults
+    checkpoint-patterns.md       — Typed human-in-the-loop patterns: verification, decision, action, confirmation
     agent-spawning.md            — Worktree-based parallel agent patterns
     implementation-workflow.md   — Repo clone/pull, worktree mgmt, branch/commit/push/PR
     edge-cases.md                — Rate limiting, content filters, permission errors, retries
@@ -20,6 +23,12 @@ A collection of Claude Code skills for auditing, managing, and improving GitHub 
     agent-result-contract.md     — Universal agent JSON response format
     gsd-integration.md           — GSD framework detection, command patterns, complexity routing
     state-persistence.md         — GitHub Issue-based session state across context resets
+  shared/templates/              — Reusable output templates with {placeholder} variables
+    pr-body.md                   — PR description template (backlog-fix, issue-implement, action-fix)
+    analysis-comment.md          — Issue analysis comment template (issue-analyze)
+    review-comment.md            — PR review comment template (review-pr)
+    state-issue-body.md          — State issue body template (backlog-fix, orchestrate, dev-loop)
+    sync-issue-body.md           — Synced issue body template (backlog-sync)
 .planning/                       — Refactoring roadmap and project-level planning
 repos/                           — Local clones of target repositories (gitignored)
 .gh-skills/backlog-items/        — Ideas and planned skills not yet implemented
@@ -34,7 +43,34 @@ repos/                           — Local clones of target repositories (gitign
 - Skills should handle errors gracefully: 404 = missing, 403 = insufficient permissions (don't fail hard)
 - Output should be clean, scannable terminal text — use tables, status indicators (`[PASS]`, `[FAIL]`, `[WARN]`, `[INFO]`), and progress bars where appropriate
 - Skills should detect the current repo from `gh repo view` when no explicit repo is provided
-- Follow the SKILL.md frontmatter format: `name`, `description` (with trigger phrases)
+- Follow the SKILL.md frontmatter format (see "Skill Frontmatter Fields" below)
+
+### Skill Frontmatter Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Skill identifier with `ghs-` prefix (e.g., `ghs-repo-scan`) |
+| `description` | Yes | Multi-line description with trigger phrases and "Do NOT use for" routing |
+| `argument-hint` | Yes | Free-form string showing expected args: `<required>`, `[optional]`, `(no arguments)` |
+| `allowed-tools` | Yes | Tool whitelist for the skill's execution |
+| `compatibility` | Yes | Runtime requirements (gh CLI, git, jq, etc.) |
+| `license` | Yes | License identifier (MIT) |
+| `metadata` | Yes | Author and version info |
+| `routes-to` | No | Skills suggested after this one completes |
+| `routes-from` | No | Skills that may invoke this one |
+
+### Skill Body Tags
+
+| Tag | Required | Purpose |
+|-----|----------|---------|
+| `<execution_context>` | Yes | Lists shared reference files the skill depends on |
+| `<required_reading>` | Yes | Prerequisites to read before execution (state, project data, etc.) |
+| `<context>` | Yes | Purpose, roles, key definitions |
+| `<anti-patterns>` | Yes | 3-column `Do NOT \| Do Instead \| Why` table |
+| `<objective>` | Yes | Goal, outputs, next actions |
+| `<process>` | Yes | Step-by-step execution flow |
+| `<rules>` | No | Additional constraints |
+| `<examples>` | No | Good/bad output pairs |
 
 ### Prompt Structure (GSD-Inspired)
 
@@ -63,6 +99,9 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 | `projects-format.md` | GitHub Projects schema, custom fields, item types, scoring via jq |
 | `scoring-logic.md` | Tier definitions (T1=4pts, T2=2pts, T3=1pt), formula, priority algorithm |
 | `output-conventions.md` | Status indicators, table patterns, progress bars, summary blocks |
+| `ui-brand.md` | Visual output branding: stage banners, checkpoint boxes, status symbols, routing blocks |
+| `argument-parsing.md` | Standardized $ARGUMENTS parsing: repo detection, flags, item slugs, defaults |
+| `checkpoint-patterns.md` | Typed human-in-the-loop patterns: verification, decision, action, confirmation |
 | `agent-spawning.md` | Repo cloning, worktree creation, parallel execution, cleanup, context budgets |
 | `implementation-workflow.md` | Repo prep, worktree mgmt, branch/commit/push/PR workflow, pre-flight checks |
 | `edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
@@ -123,12 +162,21 @@ Common patterns are extracted into `shared/references/` to avoid duplication. Sk
 ## Adding New Skills
 
 1. Create `.claude/skills/ghs-<skill-name>/SKILL.md`
-2. Include frontmatter with `name: ghs-<skill-name>`, `description` (with trigger phrases), `allowed-tools`, and `compatibility`
-3. Structure the body following the prompt patterns above:
+2. Include all frontmatter fields (see "Skill Frontmatter Fields" above), especially:
+   - `argument-hint` with `<required>` / `[optional]` / `(no arguments)` syntax
+   - `routes-to` / `routes-from` for skill routing
+3. Add required body tags:
+   - `<execution_context>` listing all shared references the skill depends on
+   - `<required_reading>` for prerequisites (state issues, project data, auth checks)
+   - `<context>`, `<anti-patterns>`, `<objective>`, `<process>` (see "Skill Body Tags")
+4. Structure the body following the prompt patterns above:
    - Add an **Anti-Patterns** section with common failure modes
    - Use **rule/trigger/example triples** instead of prose paragraphs
    - Use **tables** for structured data (checks, weights, routing, output specs)
    - Include **good/bad example pairs** for output quality
    - Add a **Scope Boundary** if the skill modifies anything
    - Reference **shared files** from `shared/references/` instead of duplicating logic
-4. Update the "Available Skills" list above
+   - Use **templates** from `shared/templates/` for generated output (PRs, comments, issues)
+   - Add `--dry-run` support for mutation skills (see `argument-parsing.md`)
+   - Use **typed checkpoints** from `checkpoint-patterns.md` for human-in-the-loop interactions
+5. Update the "Available Skills" list above

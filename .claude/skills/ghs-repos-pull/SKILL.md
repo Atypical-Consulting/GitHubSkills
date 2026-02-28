@@ -3,6 +3,7 @@ name: ghs-repos-pull
 description: >
   Pull (update) all locally cloned repositories in the repos/ directory.
   Trigger: "pull all repos", "update all repos", "git pull repos", "refresh repos", "sync repos"
+argument-hint: "(no arguments)"
 allowed-tools: "Bash(git:*) Bash(ls:*) Bash(find:*) Read Glob"
 compatibility: "Requires git, network access"
 license: MIT
@@ -15,6 +16,17 @@ routes-from:
 ---
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+</execution_context>
+
+<required_reading>
+Verify `repos/` directory exists before iterating.
+</required_reading>
 
 ## Purpose
 
@@ -60,6 +72,10 @@ Iterate over every cloned repository under `{repoRoot}/repos/` and run `git pull
 **Next**: Any skill that reads from `repos/` (e.g., `ghs-repo-scan`, `ghs-backlog-fix`)
 
 </objective>
+
+<required_reading>
+- Check repos/ directory exists before attempting to list or pull repositories
+</required_reading>
 
 <process>
 

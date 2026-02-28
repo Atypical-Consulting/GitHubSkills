@@ -11,6 +11,7 @@ description: >
   project", "create a 100% repo", "start a new project", or "create a perfect repo".
   Do NOT use for scanning existing repos (use ghs-repo-scan), fixing existing repos
   (use ghs-backlog-fix), or implementing issues (use ghs-issue-implement).
+argument-hint: "<name> [--template <stack>] [--private] [--description <desc>]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Bash(python3:*) Read Write Edit Glob Grep Skill"
 compatibility: "Requires gh CLI (authenticated), git, GSD framework, network access"
 license: MIT
@@ -28,6 +29,16 @@ routes-from: []
 Scaffold a new GitHub repository with all quality essentials — Tier 1 (Required), Tier 2 (Recommended), and Tier 3 (Nice to Have) — tailored to the detected tech stack, targeting a 100% health score from `ghs-repo-scan`. Uses GSD framework for orchestrating the scaffolding pipeline.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/scoring-logic.md
+- ../shared/references/gsd-integration.md
+</execution_context>
+
 Purpose: Create a new GitHub repository (or scaffold an existing empty one) with every file and setting that `ghs-repo-scan` checks, producing a repo that scores 100% on its first scan.
 
 ### Roles
@@ -144,6 +155,10 @@ Next routing:
 **Rule:** Visibility must be explicitly confirmed before repo creation.
 **Trigger:** User says "create repo my-tool" without specifying visibility.
 **Example:** Ask: "Public or private? (default: public)"
+
+<required_reading>
+Detect tech stack from existing files (if converting) or from user input.
+</required_reading>
 
 <process>
 

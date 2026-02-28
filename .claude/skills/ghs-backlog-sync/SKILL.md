@@ -10,6 +10,7 @@ description: >
   "push findings to GitHub", "publish backlog", "sync health items", "sync findings to issues",
   "promote drafts", or "create GitHub issues from scan".
   Do NOT use for scanning repos (use ghs-repo-scan), applying fixes (use ghs-backlog-fix), or viewing backlog (use ghs-backlog-board).
+argument-hint: "[owner/repo] [--dry-run]"
 allowed-tools: "Bash(gh:*) Bash(jq:*) Read Write Edit Glob Grep"
 compatibility: "Requires gh CLI (authenticated, with project scope), jq, network access. Target repo must have Issues enabled."
 license: MIT
@@ -29,6 +30,17 @@ routes-from:
 Promote draft health items in a GitHub Project to real GitHub Issues for team visibility and tracking.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/projects-format.md
+- ../shared/references/sync-format.md
+- ../shared/references/config.md
+</execution_context>
+
 Purpose: Promoter — draft health findings in a GitHub Project become real GitHub Issues. Deletes the draft from the project, creates a real issue, then re-links the issue back into the project with the same custom field values.
 
 All data comes from the GitHub Project (`[GHS] {owner}/{repo}`) — there are no local backlog files. Draft items (type `DraftIssue`) in the `Todo` column with `Source = Health Check` are the promotion targets.
@@ -180,6 +192,17 @@ done
 ITEMS=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500)
 DRAFT_ITEMS=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .status == "Todo" and .type == "DraftIssue")]')
 ```
+
+<required_reading>
+- Read project items via `gh project item-list` for draft items to promote
+</required_reading>
+
+### Dry-Run Mode
+When `--dry-run` is present in $ARGUMENTS:
+- Show the execution plan (items, waves, agents) but do not spawn agents
+- Show what PRs/issues would be created but do not create them
+- Display the dry-run indicator box from ui-brand.md
+- Exit after the plan display
 
 <process>
 

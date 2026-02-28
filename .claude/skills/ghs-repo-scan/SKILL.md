@@ -10,6 +10,7 @@ description: >
   "repository checklist", "health check", "what issues are open", "organize my issues",
   "save health report", "export audit results", or "create backlog from audit".
   Do NOT use for managing GitHub Actions workflows, reviewing pull requests, creating repositories, or modifying code.
+argument-hint: "[owner/repo]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Bash(jq:*) Read Write Glob Task"
 compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
@@ -44,6 +45,18 @@ Route users to `ghs-backlog-fix` for applying fixes.
 | **Issues Agent** (1x, spawned via Task) | Fetch open issues, return issue summary |
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/projects-format.md
+- ../shared/references/scoring-logic.md
+- ../shared/references/config.md
+- ../shared/references/item-categories.md
+</execution_context>
+
 Purpose: Scan a GitHub repository for quality best practices and open issues, produce a scored report, and save all findings as items in a GitHub Project.
 
 ### Shared References
@@ -89,6 +102,10 @@ Next routing:
 - Suggest `ghs-backlog-board` to view the full dashboard
 - Suggest `ghs-issue-triage` for unlabeled issues
 </objective>
+
+<required_reading>
+Verify gh authentication and project scope before scanning.
+</required_reading>
 
 <process>
 

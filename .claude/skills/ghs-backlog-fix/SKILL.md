@@ -12,6 +12,7 @@ description: >
   tier-1--license", or references an item in a GitHub Project. Also trigger when the user says "apply all
   backlog items", "fix all findings", "resolve all tier 1 items", or "apply all for {repo}".
   Do NOT use for scanning repos (use ghs-repo-scan), viewing backlog status (use ghs-backlog-board), or general code review.
+argument-hint: "[owner/repo] [--item <slug>] [--tier 1|2|3] [--all] [--dry-run]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Bash(jq:*) Read Write Edit Glob Grep Task"
 compatibility: "Requires gh CLI (authenticated, with project scope), git, jq, network access"
 license: MIT
@@ -89,6 +90,24 @@ After 3 failures on the same item, the orchestrator moves on. The worktree is le
 | Branch hygiene | Branch already exists with unrelated commits | Pre-flight detects stale branch — flag in plan, ask user before force-creating |
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/agent-spawning.md
+- ../shared/references/implementation-workflow.md
+- ../shared/references/projects-format.md
+- ../shared/references/scoring-logic.md
+- ../shared/references/config.md
+- ../shared/references/edge-cases.md
+- ../shared/references/item-categories.md
+- ../shared/references/state-persistence.md
+- ../shared/references/checkpoint-patterns.md
+- ../shared/references/agent-result-contract.md
+</execution_context>
+
 Purpose: Apply project item fixes using wave-based parallel agents — one clone, dependency-aware waves, simultaneous agents per wave.
 
 Roles:
@@ -136,6 +155,11 @@ Next routing:
 - Suggest `ghs-repo-scan` to re-scan and verify all fixes
 </objective>
 
+<required_reading>
+- Read project items via `gh project item-list` before any operation
+- Check state issue for blockers and previous session context
+</required_reading>
+
 <process>
 
 ## Input
@@ -149,6 +173,13 @@ Two invocation modes:
 - **Batch (repo)**: A repo identifier like `phmatray/Formidable`
   - Discovers all Todo items in the `[GHS] {owner}/{repo}` project with `Source = Health Check`
   - Processes them in waves using worktree-based agents
+
+### Dry-Run Mode
+When `--dry-run` is present in $ARGUMENTS:
+- Show the execution plan (items, waves, agents) but do not spawn agents
+- Show what PRs/issues would be created but do not create them
+- Display the dry-run indicator box from ui-brand.md
+- Exit after the plan display
 
 ## Item Categories
 
