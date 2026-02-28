@@ -7,12 +7,12 @@ description: >
   "how healthy is my repo", "score check", or "points breakdown".
   Do NOT use for full dashboards with issue lists (use ghs-backlog-board), scanning repos (use ghs-repo-scan),
   or applying fixes (use ghs-backlog-fix).
-allowed-tools: "Bash(python3:*) Read Glob"
-compatibility: "Requires python3. Backlog data must exist from a prior ghs-repo-scan run."
+allowed-tools: "Bash(gh:*) Bash(jq:*) Bash(bc:*)"
+compatibility: "Requires gh CLI (authenticated) with project scope. Project data must exist from a prior ghs-repo-scan run."
 license: MIT
 metadata:
   author: phmatray
-  version: 4.0.0
+  version: 5.0.0
 routes-to:
   - ghs-backlog-board
   - ghs-backlog-next
@@ -23,13 +23,13 @@ routes-from:
 
 # Backlog Score
 
-Calculate and display the health score for a repository from its backlog health items. This is a lightweight, read-only view -- just the score, tier breakdown, and points summary.
+Calculate and display the health score for a repository from its GitHub Project health items. This is a lightweight, read-only view -- just the score, tier breakdown, and points summary.
 
 <context>
-Purpose: Read-only score renderer that calculates and displays health scores from existing backlog data.
+Purpose: Read-only score renderer that calculates and displays health scores from GitHub Project data.
 
 Roles:
-1. **Score Calculator** (you) — reads backlog items, computes scores using shared scripts, renders the output
+1. **Score Calculator** (you) — queries GitHub Project items, computes scores using jq pipelines, renders the output
 
 No sub-agents — this is a lightweight, read-only skill.
 
@@ -38,9 +38,10 @@ No sub-agents — this is a lightweight, read-only skill.
 | Reference | Path | Purpose |
 |-----------|------|---------|
 | Scoring Logic | `../shared/references/scoring-logic.md` | Tier weights, formula, module weighting, status rules, progress bar format |
-| Backlog Format | `../shared/references/backlog-format.md` | Directory structure, file naming, module-to-directory mapping, metadata parsing |
+| Projects Format | `../shared/references/projects-format.md` | Project naming, item schema, custom fields, jq scoring pipelines, score record format |
 | Output Conventions | `../shared/references/output-conventions.md` | Terminal output patterns, table formats, routing suggestions |
-| Module Registry | `../shared/checks/index.md` | Module detection, scoring weights (core 60%, lang 40%) |
+| Config | `../shared/references/config.md` | Scoring constants, display thresholds |
+| gh CLI Patterns | `../shared/references/gh-cli-patterns.md` | Project Operations section — auth check, project discovery, item queries |
 </context>
 
 <anti-patterns>
@@ -49,10 +50,11 @@ No sub-agents — this is a lightweight, read-only skill.
 
 | Do NOT | Do Instead | Why |
 |--------|-----------|-----|
-| Re-scan the repo | Read existing backlog data only; if no data exists, tell the user to run `/ghs-repo-scan` first | This skill is read-only — scanning is `ghs-repo-scan`'s job |
-| Modify backlog items | Never update statuses, points, or metadata during scoring | This skill is strictly read-only |
-| Invent scores for missing items | Skip unparseable files and note the gap | Fabricated data produces misleading scores |
+| Re-scan the repo | Query GitHub Project data only; if no project found, tell the user to run `/ghs-repo-scan` first | This skill is read-only — scanning is `ghs-repo-scan`'s job |
+| Modify project items | Never update statuses, points, or fields during scoring | This skill is strictly read-only |
+| Invent scores for missing items | Skip items with missing field values and note the gap | Fabricated data produces misleading scores |
 | Show full issue lists | Show only the numeric score and tier breakdown | Full item lists are `ghs-backlog-board`'s job |
+| Use python scripts | Use jq pipelines from `projects-format.md` § Scoring via jq | Python dependency eliminated; jq is the canonical scoring tool |
 
 </anti-patterns>
 
@@ -65,46 +67,92 @@ No sub-agents — this is a lightweight, read-only skill.
 | Trigger | Behavior |
 |---------|----------|
 | User names a repo (`"score for owner/repo"`) | Score that single repo |
-| User says `"all scores"` or gives no repo | Score every repo found under `backlog/` |
-| Backlog directory does not exist | Stop and suggest `/ghs-repo-scan {owner}/{repo}` |
+| User says `"all scores"` or gives no repo | Score every `[GHS]` project found for the owner |
+| No GitHub Project found for this repo | Stop and suggest `/ghs-repo-scan {owner}/{repo}` |
+
+Pre-flight: verify project scope before any project API call:
+
+```bash
+gh auth status 2>&1 | grep -q "project" || echo "[FAIL] Run: gh auth refresh -s project"
+```
+
+Discover projects for an owner:
+
+```bash
+# Find the project number for a specific repo
+PROJECT_NUM=$(gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title == "[GHS] {owner}/{repo}") | .number')
+
+# Find all GHS projects for an owner (for "all scores" mode)
+gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title | startswith("[GHS]"))'
+```
 
 Example -- user says: `"what's the score for phmatray/Formidable?"`
-Action: look up `backlog/phmatray_Formidable/` and score it.
+Action: look up `[GHS] phmatray/Formidable` project and score it using jq.
 
 ### Rule 2: Collect health items and calculate score
 
-Use the shared Python script for reliable, consistent scoring:
+Query project items and compute score using jq pipelines (from `projects-format.md` § Scoring via jq):
 
 ```bash
-python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}
+ITEMS=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500)
+
+# Overall score
+EARNED=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .status == "Done") | .points] | add // 0')
+POSSIBLE=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and (.status == "Todo" or .status == "Done")) | .points] | add // 0')
+SCORE=$(echo "scale=0; $EARNED * 100 / $POSSIBLE" | bc)
 ```
 
-If you need to parse individual items:
+For repos with language modules (e.g., .NET), filter by `Module` field:
 
 ```bash
-python .claude/skills/shared/scripts/parse_backlog_item.py <path>
+# Core module score
+CORE_EARNED=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .module == "core" and .status == "Done") | .points] | add // 0')
+CORE_POSSIBLE=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .module == "core" and (.status == "Todo" or .status == "Done")) | .points] | add // 0')
+
+# .NET module score
+DOTNET_EARNED=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .module == "dotnet" and .status == "Done") | .points] | add // 0')
+DOTNET_POSSIBLE=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .module == "dotnet" and (.status == "Todo" or .status == "Done")) | .points] | add // 0')
+
+# Combined score
+COMBINED=$(echo "scale=0; ($CORE_EARNED * 100 / $CORE_POSSIBLE) * 60 / 100 + ($DOTNET_EARNED * 100 / $DOTNET_POSSIBLE) * 40 / 100" | bc)
+```
+
+Also read the `[GHS Score]` item body for a cached breakdown if it exists:
+
+```bash
+echo "$ITEMS" | jq '.items[] | select(.title == "[GHS Score]") | .body' | jq -r '.'
 ```
 
 The scoring formula (from `scoring-logic.md`):
 
 | Component | Formula |
 |-----------|---------|
-| Earned points | `sum(tier_points for each PASS check)` — per module |
-| Possible points | `sum(tier_points for each PASS or FAIL check)` — per module |
+| Earned points | `sum(points for each Done health check item)` — per module |
+| Possible points | `sum(points for each Todo or Done health check item)` — per module |
 | Module percentage | `round(earned / possible * 100)` |
 | Combined score (core only) | `core_pct` |
 | Combined score (core + lang) | `round(core_pct * 0.6 + lang_pct * 0.4)` |
 
-The script automatically detects modules by scanning `health/` (core) and `dotnet/` (if present).
+`In Progress` items are treated as `Todo` for scoring purposes (not yet passing).
 
-Status scoring rules:
+WARN items are never added to the project and are automatically excluded from scoring.
 
-| Status | Earned | In Possible? | Reason |
-|--------|--------|-------------|--------|
-| PASS | Full tier points | Yes | Check passed |
-| FAIL | 0 | Yes | Action required |
-| WARN | 0 | No | Permission issue -- excluded from both totals |
-| INFO | 0 | No | Informational only -- no score impact |
+Tier point values:
+
+| Tier | Points |
+|------|--------|
+| 1 — Required | 4 |
+| 2 — Recommended | 2 |
+| 3 — Nice to Have | 1 |
+
+Count items per tier for the breakdown:
+
+```bash
+# Per-tier counts (Done vs total)
+echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .tier == "1 — Required")] | {done: [.[] | select(.status == "Done")] | length, total: length}'
+```
 
 ### Rule 3: Display the score
 
@@ -156,14 +204,16 @@ Status scoring rules:
 
 Progress bars: 8 chars wide, `█` filled, `░` empty (see `scoring-logic.md`).
 
+PASS count = Done health check items. FAIL count = Todo health check items. WARN = reported in terminal only (not in project).
+
 ### Rule 4: Handle edge cases
 
 | Situation | Action |
 |-----------|--------|
-| No backlog directory | Tell user to run `/ghs-repo-scan {owner}/{repo}` |
+| No GitHub Project found for this repo | Tell user to run `/ghs-repo-scan {owner}/{repo}` |
 | All checks pass (100%) | Show congratulatory 100% score with full bars |
 | Only WARN items (0/0) | Show "N/A" -- explain all checks are permission-blocked |
-| SUMMARY.md date > 30 days old | Note staleness and suggest `/ghs-repo-scan` to refresh |
+| `[GHS Score]` updated date > 30 days old | Note staleness and suggest `/ghs-repo-scan` to refresh |
 
 ### Rule 5: Suggest next actions
 
@@ -214,7 +264,7 @@ Why bad: This skill should NOT list individual items or suggest fixes inline. Th
 ```
 ## Health Score: phmatray/Formidable
 Score: 12/36 (33%)
-(Note: Could not parse 2 files, estimated their scores as FAIL)
+(Note: Could not parse 2 items, estimated their scores as FAIL)
 ```
 
-Why bad: Never estimate or invent scores. Report only what can be parsed. Note unparseable files as skipped.
+Why bad: Never estimate or invent scores. Report only what can be queried. Note items with missing field values as skipped.

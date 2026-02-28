@@ -7,17 +7,17 @@ description: >
   between related items and recalculates health scores after each wave for incremental progress.
   Persists session state for multi-session continuity.
   Use this skill whenever the user wants to apply, fix, or
-  resolve a backlog item, references a backlog markdown file, or says things like "apply this
+  resolve a backlog item, references a project item, or says things like "apply this
   backlog item", "fix this issue", "resolve this finding", "work on this backlog item", "apply
-  tier-1--license", or points to any file under backlog/. Also trigger when the user says "apply all
+  tier-1--license", or references an item in a GitHub Project. Also trigger when the user says "apply all
   backlog items", "fix all findings", "resolve all tier 1 items", or "apply all for {repo}".
   Do NOT use for scanning repos (use ghs-repo-scan), viewing backlog status (use ghs-backlog-board), or general code review.
-allowed-tools: "Bash(gh:*) Bash(git:*) Bash(python3:*) Read Write Edit Glob Grep Task"
-compatibility: "Requires gh CLI (authenticated), git, python3, network access"
+allowed-tools: "Bash(gh:*) Bash(git:*) Bash(jq:*) Read Write Edit Glob Grep Task"
+compatibility: "Requires gh CLI (authenticated, with project scope), git, jq, network access"
 license: MIT
 metadata:
   author: phmatray
-  version: 8.0.0
+  version: 9.0.0
 routes-to:
   - ghs-merge-prs
   - ghs-backlog-board
@@ -31,26 +31,26 @@ routes-from:
 
 # Apply Backlog Item
 
-Read structured backlog items (health findings or GitHub issues), apply fixes using wave-based parallel agents, verify acceptance criteria, and update item statuses. Uses dependency-aware wave execution to prevent conflicts and persists session state across conversations.
+Read structured project items (health findings or GitHub issues), apply fixes using wave-based parallel agents, verify acceptance criteria, and update item statuses. Uses dependency-aware wave execution to prevent conflicts and persists session state across conversations.
 
 <anti-patterns>
 
 | Do NOT | Do Instead | Why |
 |--------|-----------|-----|
-| Modify files outside the fix scope | Only touch what the backlog item describes | Out-of-scope changes cause merge conflicts and unreviewed modifications |
-| Chain fixes — one backlog item per agent, no side-quests | Keep each agent focused on its single assigned item | Side-quests bloat diffs and bypass acceptance criteria |
+| Modify files outside the fix scope | Only touch what the project item describes | Out-of-scope changes cause merge conflicts and unreviewed modifications |
+| Chain fixes — one project item per agent, no side-quests | Keep each agent focused on its single assigned item | Side-quests bloat diffs and bypass acceptance criteria |
 | Retry failed fixes more than 3 times | Mark as failed and move on after 3 attempts | Infinite retry loops waste time and API quota |
 | Skip verification before creating a PR | Every fix must pass its acceptance criteria before PR creation | Broken PRs waste reviewer time and erode trust |
 | Create PRs for incomplete fixes | Partial work stays local until complete | Incomplete PRs block the merge queue and confuse reviewers |
 | Spawn all agents flat when dependencies exist | Build dependency graph and execute in waves | CI workflow fixes may depend on .editorconfig; contributing guide links to LICENSE |
-| Ignore STATE.md at start | Read STATE.md for blockers and previous attempts | Re-trying known-blocked items wastes time; re-trying same approach on failed items is pointless |
-| Skip score recalculation between waves | Recalculate after each wave completes | Users need incremental progress feedback; blocked items in later waves need accurate state |
+| Ignore state issue at start | Read state issue for blockers and previous attempts | Re-trying known-blocked items wastes time; re-trying same approach on failed items is pointless |
+| Skip score recalculation between waves | Recalculate after each wave completes using jq pipeline | Users need incremental progress feedback; blocked items in later waves need accurate state |
 
 </anti-patterns>
 
 ## Scope Boundary
 
-Only fix what the backlog item describes. Pre-existing issues, linting warnings, or
+Only fix what the project item describes. Pre-existing issues, linting warnings, or
 unrelated findings are out of scope. Log discoveries to deferred-items if needed.
 
 ## Context Budget
@@ -59,12 +59,12 @@ What to pass to each subagent:
 
 | Pass | Do NOT Pass |
 |------|-------------|
-| The specific backlog item file content | All backlog items for the repo |
+| The specific project item title, body, and custom field values | All project items for the repo |
 | Repository structure overview (tech stack, default branch) | Full scan results |
 | Acceptance criteria for this item | Other agents' output |
 | Worktree path (for B/CI agents) | Unrelated check details |
 | Synced issue number (if applicable) | Previous run history |
-| Active blockers affecting this item (from STATE.md) | Full STATE.md contents |
+| Active blockers affecting this item (from state issue) | Full state issue contents |
 
 See `../shared/references/agent-spawning.md` for the full agent spawning protocol, context budgeting, and worktree management patterns.
 
@@ -89,10 +89,10 @@ After 3 failures on the same item, the orchestrator moves on. The worktree is le
 | Branch hygiene | Branch already exists with unrelated commits | Pre-flight detects stale branch — flag in plan, ask user before force-creating |
 
 <context>
-Purpose: Apply backlog item fixes using wave-based parallel agents — one clone, dependency-aware waves, simultaneous agents per wave.
+Purpose: Apply project item fixes using wave-based parallel agents — one clone, dependency-aware waves, simultaneous agents per wave.
 
 Roles:
-1. **Orchestrator** (you) — discovers items, classifies them, builds dependency graph, prepares the repo, creates worktrees, spawns agents in waves, collects results, updates backlog, writes STATE.md, cleans up
+1. **Orchestrator** (you) — discovers items, classifies them, builds dependency graph, prepares the repo, creates worktrees, spawns agents in waves, collects results, updates project items, writes state issue, cleans up
 2. **Category A Agent** — handles all API-only fixes (no worktree needed)
 3. **Category B Agents** — one per file-change item, each working in its own worktree
 4. **Category CI Agent** — handles ci-workflow-health in its own worktree (diagnoses before fixing)
@@ -104,29 +104,30 @@ Agent prompts: `agents/category-a-agent.md`, `agents/category-b-agent.md`, `agen
 | Reference | Path | Use For |
 |-----------|------|---------|
 | Agent spawning | `../shared/references/agent-spawning.md` | Worktree creation, agent spawning, context budgeting, result contract, bounded retries, cleanup, wave-based execution |
-| State persistence | `../shared/references/state-persistence.md` | STATE.md lifecycle, reading/writing session state |
-| Backlog format | `../shared/references/backlog-format.md` | File formats and status values |
-| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, error handling |
+| State persistence | `../shared/references/state-persistence.md` | State issue lifecycle, reading/writing session state |
+| Projects format | `../shared/references/projects-format.md` | Project item schema, custom fields, status values, scoring via jq |
+| gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication, repo detection, project operations, error handling |
 | Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, summary blocks |
 | Implementation workflow | `../shared/references/implementation-workflow.md` | Repo prep, worktree mgmt, branch/commit/push/PR, agent result contract, pre-flight, content filter |
-| Config | `../shared/references/config.md` | Scoring constants |
+| Config | `../shared/references/config.md` | Scoring constants and display thresholds |
 | Sync format | `../shared/references/sync-format.md` | Sync metadata contract (synced issue fields) |
 | Item categories | `../shared/references/item-categories.md` | Item classification (Category A/B/CI) and routing rules |
 | Edge cases | `../shared/references/edge-cases.md` | Rate limiting, content filters, permission errors, bounded retries |
 | Agent result contract | `../shared/references/agent-result-contract.md` | Universal agent response format |
 
-The user must have **write access** to the target repository — required for pushing branches and creating PRs.
+The user must have **write access** to the target repository — required for pushing branches and creating PRs. The `project` scope must be authorized on the gh CLI token.
 </context>
 
 <objective>
-Apply fixes to FAIL backlog items and create PRs for file changes.
+Apply fixes to Todo project items and create PRs for file changes.
 
 Outputs:
 - PRs created on GitHub for each Category B/CI item
 - API settings applied for Category A items
-- Updated backlog item files (status changed from FAIL to PASS)
-- Updated SUMMARY.md with new score
-- Updated STATE.md with session entry, blockers, and decisions
+- Project items moved from Todo → Done (status updated via built-in Status field)
+- PR URL written to the `PR URL` custom field on each resolved item
+- State issue updated with session comment and score change
+- `[GHS Score]` project item updated with new health score
 - Terminal report with results table and per-wave progress
 
 Next routing:
@@ -141,12 +142,12 @@ Next routing:
 
 Two invocation modes:
 
-- **Single item**: A path to a backlog item markdown file
-  - Health: `backlog/phmatray_Formidable/health/tier-1--license.md`
-  - Issue: `backlog/phmatray_Formidable/issues/issue-42--login-bug.md`
+- **Single item**: A project item reference — title, slug, or description
+  - Health: `{owner}/{repo} [Health] LICENSE`
+  - Issue: `{owner}/{repo} issue #42`
 
-- **Batch (repo)**: A repo identifier like `phmatray_Formidable`
-  - Discovers all FAIL items in `backlog/{owner}_{repo}/health/` and other module dirs
+- **Batch (repo)**: A repo identifier like `phmatray/Formidable`
+  - Discovers all Todo items in the `[GHS] {owner}/{repo}` project with `Source = Health Check`
   - Processes them in waves using worktree-based agents
 
 ## Item Categories
@@ -155,44 +156,67 @@ See `../shared/references/item-categories.md` for the full classification table 
 
 ## Phase 1 — Read State & Discover Items
 
-### Read STATE.md
+### Read State Issue
 
 Per `../shared/references/state-persistence.md` § Reading State:
 
-```
-1. Read backlog/{owner}_{repo}/STATE.md (if exists)
-2. Extract active blockers → skip blocked items in plan
-3. Extract decisions → apply user preferences (merge method, skip list)
-4. Extract last session → show "Last activity: {date} — {summary}"
+```bash
+# 1. Find state issue
+STATE_ISSUE=$(gh issue list --repo {owner}/{repo} --label "ghs:state" --state open \
+  --json number,body --limit 1)
+
+# 2. Parse the JSON from the HTML comment in the body
+#    Extract active blockers → skip blocked items in plan
+#    Extract decisions → apply user preferences (merge method, skip list)
+#    Extract last session comment → show "Last activity: {date} — {summary}"
+gh issue view {state_number} --repo {owner}/{repo} \
+  --json comments --jq '.comments | sort_by(.createdAt) | reverse | .[0:1]'
 ```
 
 ### Single-item mode
 
-Parse the provided backlog item file. Determine its type and category. Skip if status is already PASS. Skip if STATE.md has an active blocker for this item (unless user explicitly asks to retry).
+Look up the project item by title/slug in the `[GHS] {owner}/{repo}` project:
 
-If the item has a `Synced Issue` field (from `ghs-backlog-sync`):
+```bash
+# Find project number
+PROJECT_NUM=$(gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title == "[GHS] {owner}/{repo}") | .number')
+
+# List items and filter by title or slug
+gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500 \
+  | jq '.items[] | select(.title == "[Health] {Check Name}")'
+```
+
+Determine the item's category from its `Category` custom field. Skip if the item's Status is already `Done`. Skip if the state issue has an active blocker for this item's slug (unless user explicitly asks to retry).
+
+If the item is a linked GitHub issue (Source = `GitHub Issue`):
 1. Fetch latest state: `gh issue view {number} --json state,body --repo {owner}/{repo}`
 2. If the issue is closed and the check passes → skip
-3. If the issue is closed but still FAIL → warn the user, process anyway
+3. If the issue is closed but item is still Todo → warn the user, process anyway
 4. Store the issue number for agent prompts (Phase 6)
 
 ### Batch mode
 
-Scan all module directories under `backlog/{owner}_{repo}/` for items:
-- `health/` — core module items (always present if failures exist)
-- `dotnet/` — .NET module items (present if .NET module was active and had failures)
+Query the project for all Todo health items:
 
-For each file in these directories:
+```bash
+PROJECT_NUM=$(gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title == "[GHS] {owner}/{repo}") | .number')
 
-1. Read the file and check the `Status` field
-2. Skip items with status PASS
-3. Skip items with active blockers in STATE.md (unless user insists)
-4. Classify each FAIL item into Category A, B, or CI based on its slug
-5. Check for `Synced Issue` field — if present, fetch issue state and store the number for agent prompts
+ITEMS=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500)
 
-You can parse items programmatically: `python .claude/skills/shared/scripts/parse_backlog_item.py <path>`
+# Filter to actionable items: Source = Health Check, Status = Todo
+echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .status == "Todo")]'
+```
 
-For detailed fix strategies per check, determine the module from the item's `Module` metadata field:
+For each item in the filtered list:
+
+1. Extract slug, tier, points, category from the item's custom fields
+2. Skip items with active blockers in the state issue (unless user insists)
+3. Classify each item into Category A, B, or CI based on its `Category` field
+4. For linked GitHub issues (Source = `GitHub Issue`), fetch issue state and store the number for agent prompts
+
+For detailed fix strategies per check, determine the module from the item's `Module` field:
 - Core items: read `../shared/checks/core/index.md` for the Slug-to-Path Lookup, then `../shared/checks/core/{category}/{slug}.md`
 - .NET items: read `../shared/checks/dotnet/index.md` for the Slug-to-Path Lookup, then `../shared/checks/dotnet/{category}/{slug}.md`
 
@@ -222,7 +246,7 @@ Per `../shared/references/agent-spawning.md` § Wave-Based Execution:
 1. For each item in the batch:
    a. Look up dependencies from the table above
    b. If any dependency is also in the batch and hasn't been assigned → item must wait
-   c. If all dependencies are already PASS or not in the batch → assign to Wave 1
+   c. If all dependencies are already Done or not in the batch → assign to Wave 1
 2. Items with no dependencies → Wave 1
 3. Items whose dependencies are all in Wave 1 → Wave 2
 4. Repeat until all items assigned
@@ -231,7 +255,7 @@ Per `../shared/references/agent-spawning.md` § Wave-Based Execution:
 
 ### Flat vs Wave Decision
 
-If the dependency graph has no edges (all items independent), use flat parallel execution — a single wave. This is the common case and preserves backward compatibility with v7.0 behavior.
+If the dependency graph has no edges (all items independent), use flat parallel execution — a single wave. This is the common case and preserves backward compatibility with v8.0 behavior.
 
 Category A items are always in Wave 1 (API-only, no dependencies on file changes).
 
@@ -251,21 +275,21 @@ Display a summary table organized by waves:
 ### Wave 1 ({n} items — independent)
 | # | Item | Tier | Pts | Category | Issue | Branch | Worktree |
 |---|------|------|-----|----------|-------|--------|----------|
-| 1 | LICENSE | T1 | 4 | B (file) | #42 | fix/license | repos/{o}_{r}--worktrees/fix--license/ |
-| 2 | Branch Protection | T1 | 4 | A (API) | #39 | — | — |
-| 3 | .editorconfig | T2 | 2 | B (file) | — | fix/editorconfig | repos/{o}_{r}--worktrees/fix--editorconfig/ |
+| 1 | [Health] LICENSE | T1 | 4 | B (file) | #42 | fix/license | repos/{o}_{r}--worktrees/fix--license/ |
+| 2 | [Health] Branch Protection | T1 | 4 | A (API) | — | — | — |
+| 3 | [Health] .editorconfig | T2 | 2 | B (file) | — | fix/editorconfig | repos/{o}_{r}--worktrees/fix--editorconfig/ |
 
 ### Wave 2 ({n} items — depends on Wave 1)
 | # | Item | Tier | Pts | Category | Depends On | Branch | Worktree |
 |---|------|------|-----|----------|-----------|--------|----------|
-| 4 | Contributing Guide | T2 | 2 | B (file) | LICENSE, README | fix/contributing-md | repos/.../ |
-| 5 | CI Workflow Health | T2 | 2 | CI | .editorconfig | fix/ci-workflow-health | repos/.../ |
+| 4 | [Health] Contributing Guide | T2 | 2 | B (file) | LICENSE, README | fix/contributing-md | repos/.../ |
+| 5 | [Health] CI Workflow Health | T2 | 2 | CI | .editorconfig | fix/ci-workflow-health | repos/.../ |
 
 {If blocked items:}
-### Blocked ({n} items — active blockers in STATE.md)
+### Blocked ({n} items — active blockers in state issue)
 | # | Item | Blocker | Notes |
 |---|------|---------|-------|
-| 6 | Branch Protection | No admin access | Needs org admin |
+| 6 | [Health] Branch Protection | No admin access | Needs org admin |
 
 Total items: {N} ({cat_a} API-only, {cat_b} file changes, {cat_ci} CI)
 Waves: {n_waves}
@@ -337,17 +361,33 @@ All agents use `subagent_type: general-purpose`.
 
 1. Parse JSON results per `../shared/references/agent-spawning.md` § Agent Result Contract
 2. Apply circuit breaker for FAILED items (retry up to 3 total attempts)
-3. Update backlog items: change `| **Status** | FAIL |` to `| **Status** | PASS |` for successful items
-4. Recalculate health score: `python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}`
-5. Report wave progress:
+3. Move successful project items from Todo → Done via the built-in Status field:
+   ```bash
+   # Get project/item/field IDs, then update Status to Done option
+   gh project item-edit --project-id {project_node_id} --id {item_node_id} \
+     --field-id {status_field_id} --single-select-option-id {done_option_id}
+   ```
+4. Set the `PR URL` custom field on each resolved item:
+   ```bash
+   gh project item-edit --project-id {project_node_id} --id {item_node_id} \
+     --field-id {pr_url_field_id} --text "{pr_url}"
+   ```
+5. Recalculate health score via jq pipeline (see `../shared/references/projects-format.md` § Scoring via jq):
+   ```bash
+   ITEMS=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500)
+   EARNED=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .status == "Done") | .points] | add // 0')
+   POSSIBLE=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and (.status == "Todo" or .status == "Done")) | .points] | add // 0')
+   SCORE=$(echo "scale=0; $EARNED * 100 / $POSSIBLE" | bc)
+   ```
+6. Report wave progress:
 
 ```
 Wave 1 complete: {n_pass}/{n_total} passed
   Points recovered: {points} | Score: {old}% → {new}% (+{delta})
 ```
 
-6. Clean up worktrees for PASS and FAILED items in this wave
-7. Check Wave 2 dependencies — skip items whose dependencies failed (mark as BLOCKED)
+7. Clean up worktrees for PASS and FAILED items in this wave
+8. Check Wave 2 dependencies — skip items whose dependencies failed (mark as BLOCKED)
 
 ## Phase 7 — Execute Remaining Waves
 
@@ -359,8 +399,8 @@ For wave_n in 2..N:
   2. Create worktrees for this wave's B/CI items
   3. Spawn agents in single Task message (parallel within wave)
   4. Collect results, apply circuit breaker
-  5. Update backlog items
-  6. Recalculate score, report progress
+  5. Update project item statuses (Todo → Done) and PR URL fields
+  6. Recalculate score via jq, report progress
   7. Clean up worktrees
 ```
 
@@ -368,14 +408,30 @@ Items with failed dependencies are marked BLOCKED (not FAILED) — they didn't f
 
 ## Phase 8 — Write State & Final Report
 
-### Write STATE.md
+### Write State Issue
 
 Per `../shared/references/state-persistence.md` § Writing State:
 
-Append a session entry to `backlog/{owner}_{repo}/STATE.md`:
+Find or create the state issue, then append a session comment:
 
-```markdown
-### {YYYY-MM-DD} — ghs-backlog-fix ({single|batch})
+```bash
+# Find or create state issue
+STATE_ISSUE_NUM=$(gh issue list --repo {owner}/{repo} --label "ghs:state" --state open \
+  --json number --limit 1 --jq '.[0].number // empty')
+
+if [ -z "$STATE_ISSUE_NUM" ]; then
+  gh label create "ghs:state" --color "1d76db" --description "GHS session state tracking" \
+    --repo {owner}/{repo} 2>&1 || true
+  STATE_ISSUE_NUM=$(gh issue create --repo {owner}/{repo} \
+    --title "[GHS State] {owner}/{repo}" \
+    --label "ghs:state" \
+    --body "{initial_body}" \
+    --json number --jq '.number')
+fi
+
+# Append session comment
+gh issue comment $STATE_ISSUE_NUM --repo {owner}/{repo} --body "$(cat <<'EOF'
+## {YYYY-MM-DD} — ghs-backlog-fix ({single|batch})
 
 **Items attempted**: {N}
 **Results**: {pass} PASS, {fail} FAILED, {human} NEEDS_HUMAN, {blocked} BLOCKED
@@ -385,15 +441,29 @@ Append a session entry to `backlog/{owner}_{repo}/STATE.md`:
 | {slug} | {wave_n} | {status} | {pr_url or —} | {brief note} |
 
 **Score change**: {before}% → {after}% ({delta})
+EOF
+)"
 ```
 
-Record any new blockers (permissions, content filters) and decisions (skip patterns, merge preferences).
+Record any new blockers (permissions, content filters) and decisions (skip patterns, merge preferences) by updating the issue body's JSON block.
 
-### Update SUMMARY.md
+### Update [GHS Score] Project Item
 
-- Change status from FAIL to PASS for successful items
-- Add PR URLs where applicable
-- Update the health score
+Update the `[GHS Score]` draft item's `Score` field and body with the new health score:
+
+```bash
+# Find [GHS Score] item node ID
+SCORE_ITEM_ID=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500 \
+  | jq -r '.items[] | select(.title == "[GHS Score]") | .id')
+
+# Update Score field
+gh project item-edit --project-id {project_node_id} --id $SCORE_ITEM_ID \
+  --field-id {score_field_id} --number {new_score}
+
+# Update body with new JSON breakdown
+gh project item-edit --project-id {project_node_id} --id $SCORE_ITEM_ID \
+  --field-id {body_field_id} --text "{updated_score_json}"
+```
 
 ### Final Report
 
@@ -402,11 +472,11 @@ Record any new blockers (permissions, content filters) and decisions (skip patte
 
 | Item | Wave | Tier | Pts | Status | PR |
 |------|------|------|-----|--------|----|
-| LICENSE | 1 | T1 | 4 | [PASS] | #12 |
-| Branch Protection | 1 | T1 | 4 | [PASS] | — (API) |
-| .editorconfig | 1 | T2 | 2 | [PASS] | #13 |
-| Contributing Guide | 2 | T2 | 2 | [PASS] | #14 |
-| CI Workflow Health | 2 | T2 | 2 | [BLOCKED] | — |
+| [Health] LICENSE | 1 | T1 | 4 | [PASS] | #12 |
+| [Health] Branch Protection | 1 | T1 | 4 | [PASS] | — (API) |
+| [Health] .editorconfig | 1 | T2 | 2 | [PASS] | #13 |
+| [Health] Contributing Guide | 2 | T2 | 2 | [PASS] | #14 |
+| [Health] CI Workflow Health | 2 | T2 | 2 | [BLOCKED] | — |
 
 ---
 
@@ -462,57 +532,59 @@ Before creating a PR, every agent must verify:
 
 ## Single-Item Fast Path
 
-When a single file path is provided:
+When a single project item reference is provided:
 
-1. Read STATE.md — check for blockers on this item
-2. Parse the item, classify as Category A, B, or CI
-3. Clone/pull repo (Phase 3)
-4. Show single-item plan, get `y/n` (Phase 4)
-5. **Category A**: run the `gh` command directly in the orchestrator — no agent needed for a single API call
-6. **Category B/CI**: create one worktree, spawn one agent
-7. Update backlog, write STATE.md, cleanup worktree, report
+1. Read state issue — check for blockers on this item's slug
+2. Look up the item in `[GHS] {owner}/{repo}` project by title/slug, extract custom field values
+3. Classify as Category A, B, or CI from the `Category` field
+4. Clone/pull repo (Phase 3)
+5. Show single-item plan, get `y/n` (Phase 4)
+6. **Category A**: run the `gh` command directly in the orchestrator — no agent needed for a single API call
+7. **Category B/CI**: create one worktree, spawn one agent
+8. Move project item to Done, set PR URL field, write state issue comment, cleanup worktree, report
 
 ## Edge Cases
 
-- **Already PASS**: Skip the item. In batch mode, exclude from the plan table.
-- **Already closed issues**: Update local backlog status to CLOSED and skip.
-- **Active blocker in STATE.md**: Skip the item with a note. Suggest resolving the blocker first.
+- **Already Done**: Skip the item. In batch mode, exclude from the plan table.
+- **Already closed issues**: Update the linked project item Status to Done and skip.
+- **Active blocker in state issue**: Skip the item with a note. Suggest resolving the blocker first.
 - **Branch already exists remotely**: Flag in plan table. If user confirms, force-create the branch (`-B` flag on worktree add).
 - **Agent failure**: One agent failing doesn't block others in the same wave. Mark the item FAILED in the report.
 - **Dependency failure**: If a Wave 1 item fails and a Wave 2 item depends on it, mark the Wave 2 item as BLOCKED (not FAILED).
 - **NEEDS_HUMAN**: Worktree left in place with instructions. Not cleaned up.
-- **Re-running is safe**: Phase 1 skips already-PASS items. Idempotent.
-- **WARN items**: These indicate permission issues. Before applying, check if the user now has sufficient permissions. If not, record as blocker in STATE.md.
+- **Re-running is safe**: Phase 1 skips already-Done items. Idempotent.
+- **WARN items**: These indicate permission issues. Before applying, check if the user now has sufficient permissions. If not, record as blocker in state issue.
 - **Complex issues**: If an issue seems too complex to auto-fix, present a plan and let the user guide the implementation.
 - **Merge conflicts**: If a worktree branch has conflicts, report and let the user decide.
 - **PR already exists for branch**: Check with `gh pr list --head fix/{slug}` before creating a new one.
 - **Content filtering blocks agent output**: The orchestrator detects content filter failures and retries with a download-based approach. See `../shared/references/edge-cases.md` for the workaround pattern.
-- **All items independent (no dependencies)**: Falls back to flat parallel execution — single wave, same as v7.0 behavior. No overhead from wave construction.
+- **All items independent (no dependencies)**: Falls back to flat parallel execution — single wave, same as v8.0 behavior. No overhead from wave construction.
+- **project scope missing**: Pre-flight check catches missing project scope. Instruct user: `gh auth refresh -s project`.
 
 ## Examples
 
 **Example 1: Apply a single health item**
-User says: "apply backlog/phmatray_Formidable/health/tier-1--license.md"
-Result: Read STATE.md -> parse item (Category B) -> clone/pull repo -> show plan -> create one worktree -> spawn one agent -> agent generates LICENSE file -> commits, pushes, creates PR -> orchestrator verifies -> updates backlog to PASS -> writes STATE.md -> cleans up worktree.
+User says: "apply the LICENSE health item for phmatray/Formidable"
+Result: Read state issue -> look up `[Health] LICENSE` in `[GHS] phmatray/Formidable` project -> parse item (Category B) -> clone/pull repo -> show plan -> create one worktree -> spawn one agent -> agent generates LICENSE file -> commits, pushes, creates PR -> orchestrator verifies -> moves project item to Done, sets PR URL field -> writes state issue comment -> cleans up worktree.
 
 **Example 2: Apply all items with dependencies (wave execution)**
-User says: "apply all for phmatray_Formidable"
-Result: Read STATE.md -> discover 8 FAIL items -> classify (2 Cat A, 5 Cat B, 1 Cat CI) -> build dependency graph (contributing-md depends on license, ci-workflow-health depends on editorconfig) -> assign waves:
+User says: "apply all for phmatray/Formidable"
+Result: Read state issue -> query `[GHS] phmatray/Formidable` for Todo Health Check items -> find 8 items -> classify (2 Cat A, 5 Cat B, 1 Cat CI) -> build dependency graph (contributing-md depends on license, ci-workflow-health depends on editorconfig) -> assign waves:
 - Wave 1 (6 items): license, readme, editorconfig, gitignore + 2 API items → parallel execution → score 45% → 72%
 - Wave 2 (2 items): contributing-md, ci-workflow-health → parallel execution → score 72% → 85%
-- Write STATE.md with full session log → Final report with score progression.
+- Write state issue comment with full session log → Final report with score progression.
 
 **Example 3: Blocked items from previous session**
-User says: "apply all for phmatray_Formidable"
-Result: Read STATE.md -> finds active blocker "No admin access" on branch-protection -> skips branch-protection in plan -> shows "1 blocked item" -> processes remaining items -> reports blocker in final output.
+User says: "apply all for phmatray/Formidable"
+Result: Read state issue -> finds active blocker "No admin access" on branch-protection -> skips branch-protection in plan -> shows "1 blocked item" -> processes remaining items -> reports blocker in final output.
 
 **Example 4: Apply an issue fix**
-User says: "fix backlog/phmatray_Formidable/issues/issue-42--login-page-crashes.md"
-Result: Read STATE.md -> parse issue (Category B) -> fetch full issue body from GitHub -> create worktree -> spawn agent -> agent implements fix with "Fixes #42" in commit -> creates PR -> updates backlog -> writes STATE.md.
+User says: "fix issue #42 for phmatray/Formidable"
+Result: Read state issue -> look up issue item in project (Source = GitHub Issue) -> fetch full issue body from GitHub -> create worktree -> spawn agent -> agent implements fix with "Fixes #42" in commit -> creates PR -> moves project item to Done, sets PR URL field -> writes state issue comment.
 
 ## Troubleshooting
 
-**Item status is already PASS**
+**Item status is already Done**
 The fix has already been applied. The skill will skip it and tell you.
 
 **"Permission denied" when pushing branch**
@@ -532,4 +604,7 @@ Common causes: branch already exists remotely (skill checks for this in Phase 4)
 Run `git -C repos/{owner}_{repo} worktree list` to see active worktrees. Remove with `git worktree remove <path>`.
 
 **Wave 2 items all BLOCKED**
-This means Wave 1 dependencies failed. Fix the Wave 1 items first (check the error), then re-run. STATE.md will show what failed and why.
+This means Wave 1 dependencies failed. Fix the Wave 1 items first (check the error), then re-run. The state issue will show what failed and why.
+
+**project scope missing**
+Run `gh auth refresh -s project` to add the project scope to your token.

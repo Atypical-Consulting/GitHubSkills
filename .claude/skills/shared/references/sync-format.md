@@ -1,6 +1,6 @@
 # Sync Format Reference
 
-Defines the contract for syncing local health backlog items to GitHub Issues. Consumed by: ghs-backlog-sync, ghs-backlog-fix, ghs-backlog-board, ghs-backlog-next.
+Defines the contract for promoting draft health items in a GitHub Project to real GitHub Issues. Consumed by: ghs-backlog-sync, ghs-backlog-fix, ghs-backlog-board, ghs-backlog-next.
 
 ## Label Taxonomy
 
@@ -70,7 +70,7 @@ detected: {YYYY-MM-DD}
 
 ## References
 
-- Local backlog item: `backlog/{owner}_{repo}/health/tier-{N}--{slug}.md`
+- Project item: [GHS] {owner}/{repo} project, slug: {slug}
 - Check definition: `.claude/skills/shared/checks/{category}/{slug}.md`
 ```
 
@@ -83,28 +83,16 @@ The `<!-- ghs-sync:metadata ... -->` block at the top of the issue body is machi
 
 **Never strip or modify this comment** when updating issue bodies — it is the source of truth for the sync relationship.
 
-## Local Backlog Metadata Additions
+## Promotion Workflow
 
-After syncing, two optional rows are added to the local backlog item's metadata table:
+When `ghs-backlog-sync` runs, it promotes draft items in the GitHub Project to real GitHub Issues:
 
-```markdown
-| **Synced Issue** | #{number} |
-| **Issue URL** | {url} |
-```
+1. Find draft items in `Todo` column where `Source = Health Check`
+2. For each draft item without a matching real issue (title-based dedup):
+   a. Create a real GitHub Issue with labels (`ghs:health-check`, `tier:N`, `category:*`)
+   b. Delete the draft from the project (`gh project item-delete`)
+   c. Add the new issue to the project (`gh project item-add --url`)
+   d. Copy custom field values (Tier, Points, Slug, Category, Detected) to the linked item
+3. For items that already have matching real issues: update if metadata changed, skip otherwise
 
-These rows are appended after the existing `| **Detected** | ... |` row. They are backward-compatible — items that have not been synced simply lack these rows.
-
-Example of a synced health item metadata table:
-
-```markdown
-| Field | Value |
-|-------|-------|
-| **Repository** | `phmatray/NewSLN` |
-| **Source** | Health Check |
-| **Tier** | 1 — Required |
-| **Points** | 4 |
-| **Status** | FAIL |
-| **Detected** | 2026-01-15 |
-| **Synced Issue** | #42 |
-| **Issue URL** | https://github.com/phmatray/NewSLN/issues/42 |
-```
+The `PR URL` custom field on the project item links the finding to any fix PR created by `ghs-backlog-fix`.

@@ -89,9 +89,21 @@ Examples:
 
 ## Score Verification
 
+Query the GitHub Project and calculate via jq:
+
 ```bash
-python .claude/skills/shared/scripts/calculate_score.py backlog/{owner}_{repo}
+ITEMS=$(gh project item-list $PROJECT_NUM --owner {owner} --format json --limit 500)
+
+# Earned = PASS items (in Done column with Source = Health Check)
+EARNED=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and .status == "Done") | .points] | add // 0')
+
+# Possible = PASS + FAIL items (Done + Todo columns with Source = Health Check)
+POSSIBLE=$(echo "$ITEMS" | jq '[.items[] | select(.source == "Health Check" and (.status == "Todo" or .status == "Done")) | .points] | add // 0')
+
+SCORE=$(( EARNED * 100 / POSSIBLE ))
 ```
+
+See `projects-format.md` § Scoring via jq for module-specific scoring.
 
 ## Stale Scan Detection
 

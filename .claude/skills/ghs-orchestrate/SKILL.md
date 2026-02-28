@@ -3,7 +3,7 @@ name: ghs-orchestrate
 description: >
   Run a full maintenance pipeline across repositories — update, scan, fix, review, merge, sync,
   and optionally release. Chains existing ghs-skills in sequence with human checkpoints before
-  destructive stages, STATE.md-based resume, and dry-run mode.
+  destructive stages, state issue-based resume, and dry-run mode.
   Use this skill whenever the user wants to orchestrate a pipeline, maintain repos end-to-end,
   or says things like "orchestrate", "run pipeline", "maintain my repos", "full pipeline",
   "scan and fix all repos", "process all repos", "pipeline for {repo}", "run all skills",
@@ -14,7 +14,7 @@ compatibility: "Requires gh CLI (authenticated), git, all ghs-skills available, 
 license: MIT
 metadata:
   author: phmatray
-  version: 1.0.0
+  version: 2.0.0
 routes-to:
   - ghs-backlog-board
 routes-from:
@@ -24,13 +24,13 @@ routes-from:
 
 # Multi-Repo Pipeline Orchestrator
 
-Chain existing ghs-skills into a full maintenance pipeline across one or many repositories. Manages the lifecycle: update repos, scan for issues, apply fixes, review PRs, merge, sync to GitHub, and optionally cut releases. Resumes from interruption via STATE.md.
+Chain existing ghs-skills into a full maintenance pipeline across one or many repositories. Manages the lifecycle: update repos, scan for issues, apply fixes, review PRs, merge, sync to GitHub, and optionally cut releases. Resumes from interruption via the state issue.
 
 <context>
 Purpose: Orchestrate existing ghs-skills into a sequential pipeline for end-to-end repository maintenance. This skill **only orchestrates** — it never directly modifies code, creates PRs, or calls the GitHub API for mutations. Every action is delegated to the appropriate skill via the Skill tool.
 
 Roles:
-1. **Orchestrator** (you) — parses input, validates pre-flight, tracks per-repo stage progress, invokes skills, enforces human checkpoints, writes STATE.md, produces the summary dashboard
+1. **Orchestrator** (you) — parses input, validates pre-flight, tracks per-repo stage progress, invokes skills, enforces human checkpoints, writes state issue comments, produces the summary dashboard
 
 ### Pipeline Diagram
 
@@ -50,7 +50,8 @@ Stages 3, 5, and 7 are destructive and require human confirmation unless `--no-c
 | gh CLI patterns | `../shared/references/gh-cli-patterns.md` | Authentication check, repo detection, error handling |
 | Output conventions | `../shared/references/output-conventions.md` | Status indicators, table formats, routing suggestions |
 | GSD integration | `../shared/references/gsd-integration.md` | GSD detection (fix stage depends on GSD for complex items) |
-| State persistence | `../shared/references/state-persistence.md` | STATE.md lifecycle, resume from interruption |
+| State persistence | `../shared/references/state-persistence.md` | State issue lifecycle (GitHub Issues), resume from interruption |
+| GitHub Projects format | `../shared/references/projects-format.md` | Project naming, discovery, score record, state record |
 </context>
 
 <anti-patterns>
@@ -63,8 +64,8 @@ Stages 3, 5, and 7 are destructive and require human confirmation unless `--no-c
 | Process repos in parallel | Process repos **sequentially** — one repo completes its pipeline before the next starts | Parallel repo processing causes gh CLI rate limiting and confusing interleaved output |
 | Continue pipeline if scan finds zero items | Skip fix/review/merge/sync stages — report "nothing to fix" and move to next repo | Running fix on an empty backlog wastes time and produces confusing output |
 | Release without merging first | Complete merge stage before release — unmerged PRs mean the release tag misses changes | A release from a branch with open PRs produces an incomplete release |
-| Re-scan a repo that was just scanned | Check STATE.md for recent scan — if < 1 hour old, skip pull+scan unless user forces | Re-scanning wastes API quota and time; use cached results |
-| Ignore STATE.md resume data | Always read STATE.md at start — offer resume if a previous run was interrupted | Users expect to pick up where they left off, not restart from scratch |
+| Re-scan a repo that was just scanned | Check state issue for recent scan — if < 1 hour old, skip pull+scan unless user forces | Re-scanning wastes API quota and time; use cached results |
+| Ignore state issue resume data | Always read state issue at start — offer resume if a previous run was interrupted | Users expect to pick up where they left off, not restart from scratch |
 
 </anti-patterns>
 
@@ -77,7 +78,7 @@ This skill **only orchestrates** — it delegates all work to existing skills. I
 - Runs tests or linters
 
 The sole writes this skill performs are:
-1. Reading/writing STATE.md for orchestration progress
+1. Reading/writing state issue comments for orchestration progress
 2. Terminal output (dashboards, progress updates)
 3. Invoking other skills via the Skill tool
 
@@ -95,7 +96,7 @@ Orchestrate a complete maintenance pipeline across one or many repositories by c
 
 Outputs:
 - Per-repo stage completion dashboard (terminal)
-- Updated STATE.md with orchestration session entry per repo
+- State issue comment with orchestration session entry per repo
 - Summary table showing all repos and their final status
 
 Next routing:
@@ -110,7 +111,7 @@ Next routing:
 
 | Mode | Trigger | Example |
 |------|---------|---------|
-| Multi-repo (all) | "orchestrate", "run pipeline", "maintain my repos", "process all repos" | Processes all repos in `backlog/` |
+| Multi-repo (all) | "orchestrate", "run pipeline", "maintain my repos", "process all repos" | Processes all repos with `[GHS]` projects |
 | Multi-repo (list) | "pipeline for repo1, repo2" | Processes specified repos only |
 | Single-repo | "pipeline for {owner}/{repo}", "run pipeline on phmatray/Formidable" | Full pipeline for one repo |
 | Partial pipeline | `--from {stage} --to {stage}` | Only run stages in the specified range |
@@ -127,9 +128,9 @@ Next routing:
 
 ### Rule/Trigger/Example Triples
 
-**Rule:** Multi-repo mode processes all repos with existing backlog directories.
+**Rule:** Multi-repo mode processes all repos with existing `[GHS]` projects.
 **Trigger:** User says "maintain my repos" or "run pipeline".
-**Example:** Discover `backlog/phmatray_Formidable/` and `backlog/phmatray_OtherRepo/` -> process each sequentially through the full pipeline.
+**Example:** Discover `[GHS] phmatray/Formidable` and `[GHS] phmatray/OtherRepo` projects -> process each sequentially through the full pipeline.
 
 **Rule:** Partial pipeline skips stages outside the specified range.
 **Trigger:** User says "run pipeline --from scan --to merge".
@@ -139,8 +140,8 @@ Next routing:
 **Trigger:** User says "orchestrate --dry-run".
 **Example:** Display the pipeline plan for all repos, show which stages would run, then stop.
 
-**Rule:** Resume from interruption uses STATE.md.
-**Trigger:** STATE.md shows a previous orchestration session with incomplete stages.
+**Rule:** Resume from interruption uses the state issue.
+**Trigger:** State issue shows a previous orchestration session with incomplete stages.
 **Example:** "Previous run interrupted at fix stage for phmatray/Formidable. Resume from fix? (y/n/fresh)"
 
 ## Pipeline Stage Table
@@ -159,23 +160,24 @@ Next routing:
 
 Parse the user's request to determine:
 
-1. **Repo list**: All repos in `backlog/`, a specified list, or a single repo
+1. **Repo list**: All repos with `[GHS]` projects, a specified list, or a single repo
 2. **Stage range**: `--from` and `--to` (default: `pull` through `sync`)
 3. **Flags**: `--dry-run`, `--release`, `--no-checkpoint`
 
 ### Repo Discovery
 
 ```bash
-# List all audited repos
-ls -d backlog/*/
+# List all GHS-audited repos via their GitHub Projects
+gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title | startswith("[GHS]"))'
 ```
 
-Each directory name follows the pattern `{owner}_{repo}`. Convert to `{owner}/{repo}` for skill invocations.
+Each project title follows the pattern `[GHS] {owner}/{repo}`. Extract `{owner}/{repo}` for skill invocations.
 
-If no repos exist in `backlog/`, stop with a helpful message:
+If no `[GHS]` projects exist, stop with a helpful message:
 
 ```
-[WARN] No repos found in backlog/. Run a scan first:
+[WARN] No [GHS] projects found. Run a scan first:
 
   /ghs-repo-scan {owner}/{repo}
 ```
@@ -188,7 +190,7 @@ Verify all prerequisites before starting the pipeline:
 |-------|---------|------------|
 | gh authenticated | `gh auth status` | Stop — "Run `gh auth login` first" |
 | git available | `git --version` | Stop — "git is required" |
-| Repo list valid | `ls backlog/{owner}_{repo}/SUMMARY.md` for each repo | Warn and skip invalid repos |
+| Repo list valid | `gh project list --owner {owner}` to confirm project exists for each repo | Warn and skip repos with no `[GHS]` project |
 | Skills available | Verify each required skill file exists | Warn about missing skills, skip their stages |
 
 ### Skill Availability Check
@@ -217,11 +219,16 @@ If archived, skip fix, merge, and release stages (read-only stages still apply).
 
 ## Phase 3 — Load/Create Orchestration State
 
-### Read STATE.md
+### Read State Issue
 
-For each repo, read `backlog/{owner}_{repo}/STATE.md` (per `../shared/references/state-persistence.md` § Reading State):
+For each repo, read the state issue (per `../shared/references/state-persistence.md` § Reading State):
 
-1. Check for a previous orchestration session entry
+```bash
+gh issue list --repo {owner}/{repo} --label "ghs:state" --state open \
+  --json number,title,body --limit 1
+```
+
+1. Check for a previous orchestration session entry (in issue comments)
 2. If found and incomplete (stages not all DONE), offer to resume:
 
 ```
@@ -305,7 +312,7 @@ Each stage invokes its corresponding skill. The orchestrator passes the repo ide
 |-------|-----------------|----------------|
 | pull | `/ghs-repos-pull` | (no args — pulls all) |
 | scan | `/ghs-repo-scan {owner}/{repo}` | Repo identifier |
-| fix | `/ghs-backlog-fix {owner}_{repo}` | Repo identifier (batch mode) |
+| fix | `/ghs-backlog-fix {owner}/{repo}` | Repo identifier (batch mode) |
 | review | `/ghs-review-pr {owner}/{repo}` | Repo identifier |
 | merge | `/ghs-merge-prs {owner}/{repo}` | Repo identifier |
 | sync | `/ghs-backlog-sync {owner}/{repo}` | Repo identifier |
@@ -382,9 +389,16 @@ After each stage completes, display the updated tracking table:
 
 ## Phase 6 — Write State & Summary
 
-### Write STATE.md (Per Repo)
+### Write State Issue Comment (Per Repo)
 
-Per `../shared/references/state-persistence.md` § Writing State, append an orchestration session entry to each repo's STATE.md:
+Per `../shared/references/state-persistence.md` § Writing State, append an orchestration session comment to each repo's state issue:
+
+```bash
+gh issue comment {state_number} --repo {owner}/{repo} --body "$(cat <<'EOF'
+## {YYYY-MM-DD} — ghs-orchestrate ({single|multi}-repo)
+EOF
+)"
+```
 
 ```markdown
 ### {YYYY-MM-DD} — ghs-orchestrate ({single|multi}-repo)
@@ -443,12 +457,12 @@ Summary:
 
 | Scenario | Behavior |
 |----------|----------|
-| No repos in `backlog/` | Stop with message suggesting `ghs-repo-scan` first |
+| No `[GHS]` projects found | Stop with message suggesting `ghs-repo-scan` first |
 | Repo is archived | Skip fix/merge/release stages; run scan and sync only |
-| Rate limiting mid-pipeline | Pause, report to user, record in STATE.md, suggest resuming later |
+| Rate limiting mid-pipeline | Pause, report to user, record in state issue, suggest resuming later |
 | Skill not available (file missing) | Skip that stage with `[WARN]`, continue pipeline |
-| STATE.md exists from previous run | Offer resume or fresh start before proceeding |
-| Pipeline interrupted (Ctrl+C, context limit) | STATE.md enables resume — next run detects incomplete stages |
+| State issue exists from previous run | Offer resume or fresh start before proceeding |
+| Pipeline interrupted (Ctrl+C, context limit) | State issue enables resume — next run detects incomplete stages |
 | All items already fixed (scan finds 0 FAIL) | Skip fix/review/merge, report "nothing to fix", continue to sync |
 | Scan fails for a repo | Mark repo as BLOCKED, continue to next repo |
 | Fix stage creates 0 PRs (all API-only fixes) | Skip review/merge, continue to sync |
@@ -456,7 +470,7 @@ Summary:
 | `--no-checkpoint` on destructive stages | Execute without pausing — user accepted the risk via the flag |
 | Mixed archived and active repos | Process each according to its archive status |
 | Single stage pipeline (`--from merge --to merge`) | Only run merge for each repo, skip everything else |
-| Repo not yet scanned (no SUMMARY.md) | Run scan first regardless of `--from` flag — scan is always required |
+| Repo not yet scanned (no `[GHS]` project) | Run scan first regardless of `--from` flag — scan is always required |
 
 ## Good and Bad Examples
 
@@ -499,23 +513,23 @@ The bad example lacks per-stage visibility, score tracking, item counts, and str
 
 **Example 1: Full pipeline on all repos**
 User: "maintain my repos"
-Flow: Discover 3 repos in `backlog/` -> pre-flight checks -> show plan -> pull all -> for each repo: scan, checkpoint+fix, review, checkpoint+merge, sync -> write STATE.md per repo -> final dashboard.
+Flow: Discover `[GHS]` projects -> pre-flight checks -> show plan -> pull all -> for each repo: scan, checkpoint+fix, review, checkpoint+merge, sync -> write state issue comment per repo -> final dashboard.
 
 **Example 2: Single repo with release**
 User: "pipeline for phmatray/Formidable --release"
-Flow: Pre-flight -> show plan (1 repo, 7 stages) -> pull -> scan -> checkpoint+fix -> review -> checkpoint+merge -> sync -> checkpoint+release -> STATE.md -> summary.
+Flow: Pre-flight -> show plan (1 repo, 7 stages) -> pull -> scan -> checkpoint+fix -> review -> checkpoint+merge -> sync -> checkpoint+release -> state issue comment -> summary.
 
 **Example 3: Partial pipeline (scan and fix only)**
 User: "run pipeline --from scan --to fix"
-Flow: Skip pull -> scan each repo -> checkpoint+fix -> stop after fix -> STATE.md -> summary.
+Flow: Skip pull -> scan each repo -> checkpoint+fix -> stop after fix -> state issue comment -> summary.
 
 **Example 4: Dry run**
 User: "orchestrate --dry-run"
-Flow: Discover repos -> pre-flight -> show plan with all stages and expected actions -> stop without executing.
+Flow: Discover repos via `[GHS]` projects -> pre-flight -> show plan with all stages and expected actions -> stop without executing.
 
 **Example 5: Resume interrupted pipeline**
-User: "run pipeline" (STATE.md shows previous run stopped at fix stage)
-Flow: Read STATE.md -> "Previous run interrupted at fix for phmatray/Formidable. Resume? (y/fresh)" -> user says y -> skip pull and scan -> start at fix -> continue through remaining stages.
+User: "run pipeline" (state issue shows previous run stopped at fix stage)
+Flow: Read state issue -> "Previous run interrupted at fix for phmatray/Formidable. Resume? (y/fresh)" -> user says y -> skip pull and scan -> start at fix -> continue through remaining stages.
 
 **Example 6: All items already fixed**
 User: "maintain my repos"

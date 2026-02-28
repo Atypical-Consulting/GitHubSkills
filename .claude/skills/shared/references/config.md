@@ -16,10 +16,10 @@ Centralized configuration values used across multiple skills. Reference this fil
 
 ## Modules
 
-| Module | Slug | Detection Marker | Backlog Subdir |
-|--------|------|------------------|----------------|
-| Core | `core` | Always active | `health/` |
-| .NET | `dotnet` | `*.sln` in repo root | `dotnet/` |
+| Module | Slug | Detection Marker | Project Field Value |
+|--------|------|------------------|---------------------|
+| Core | `core` | Always active | `core` |
+| .NET | `dotnet` | `*.sln` in repo root | `dotnet` |
 
 ## Display
 
@@ -39,6 +39,18 @@ Centralized configuration values used across multiple skills. Reference this fil
 | Stale scan threshold | 30 days | ghs-backlog-board, ghs-backlog-next |
 | Max issues fetched | 500 | ghs-repo-scan |
 | Classification body limit | 2000 chars | ghs-issue-triage |
+
+## GitHub Projects
+
+| Constant | Value | Used By |
+|----------|-------|---------|
+| Project title prefix | `[GHS]` | ghs-repo-scan, ghs-backlog-board, ghs-backlog-score, ghs-backlog-next |
+| Project title format | `[GHS] {owner}/{repo}` | ghs-repo-scan |
+| State issue label | `ghs:state` | ghs-backlog-fix, ghs-issue-implement, ghs-action-fix, ghs-orchestrate, ghs-dev-loop |
+| State issue title | `[GHS State] {owner}/{repo}` | ghs-backlog-fix, ghs-issue-implement, ghs-action-fix |
+| Score item title | `[GHS Score]` | ghs-repo-scan, ghs-backlog-score |
+| Health item title prefix | `[Health]` | ghs-repo-scan, ghs-backlog-sync |
+| Auth scope required | `project` | All project-interacting skills |
 
 ## Status Indicators
 

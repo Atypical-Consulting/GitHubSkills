@@ -126,6 +126,111 @@ Append `2>&1 || true` to `gh` commands that may return non-zero for expected con
 - Distinguish "doesn't exist" (404 = FAIL) from "can't check" (403 = WARN)
 - If authentication errors occur, stop and tell the user to re-authenticate
 
+## Project Operations
+
+GitHub Projects (ProjectsV2) are used to track health findings and issues per repository. The `project` scope is required.
+
+### Auth Prerequisite
+
+```bash
+# Verify project scope is available
+gh auth status 2>&1 | grep -q "project" || {
+  echo "[FAIL] Missing project scope. Run: gh auth refresh -s project"
+  exit 1
+}
+```
+
+### Pre-flight Check Pattern
+
+Every skill that interacts with projects must check scope before any project API call:
+
+```bash
+gh auth status 2>&1 | grep -q "project" || echo "[FAIL] Run: gh auth refresh -s project"
+```
+
+### Project CRUD
+
+```bash
+# Create a project (owned by user or org)
+gh project create --owner {owner} --title "[GHS] {owner}/{repo}" --format json
+
+# List projects for an owner (filter by [GHS] prefix)
+gh project list --owner {owner} --format json --jq '.projects[] | select(.title | startswith("[GHS]"))'
+
+# View a specific project (by number)
+gh project view {number} --owner {owner} --format json
+
+# Delete a project
+gh project delete {number} --owner {owner}
+```
+
+### Item Operations
+
+```bash
+# Add a draft item (health finding)
+gh project item-create {number} --owner {owner} --title "{title}" --body "{body}" --format json
+
+# Add an existing issue/PR to the project
+gh project item-add {number} --owner {owner} --url {issue_url} --format json
+
+# List all items in a project
+gh project item-list {number} --owner {owner} --format json --limit 500
+
+# Edit an item's field value (requires 3-ID lookup)
+gh project item-edit --project-id {project_node_id} --id {item_node_id} --field-id {field_node_id} --single-select-option-id {option_node_id}
+gh project item-edit --project-id {project_node_id} --id {item_node_id} --field-id {field_node_id} --text "{value}"
+gh project item-edit --project-id {project_node_id} --id {item_node_id} --field-id {field_node_id} --number {value}
+gh project item-edit --project-id {project_node_id} --id {item_node_id} --field-id {field_node_id} --date "{YYYY-MM-DD}"
+
+# Delete an item
+gh project item-delete {number} --owner {owner} --id {item_node_id}
+```
+
+### Field Operations
+
+```bash
+# List all fields for a project
+gh project field-list {number} --owner {owner} --format json
+
+# Create a custom field
+gh project field-create {number} --owner {owner} --name "{name}" --data-type "{TEXT|NUMBER|DATE|SINGLE_SELECT}" --format json
+
+# Create a single-select field with options
+gh project field-create {number} --owner {owner} --name "{name}" --data-type "SINGLE_SELECT" \
+  --single-select-options '{option1},{option2},{option3}' --format json
+```
+
+### The 3-ID Lookup Pattern
+
+Editing a project item's field requires three node IDs:
+
+1. **Project ID** — the GraphQL node ID of the project (from `gh project view ... --format json | jq '.id'`)
+2. **Item ID** — the GraphQL node ID of the item (from `gh project item-list ... --format json | jq '.items[].id'`)
+3. **Field ID** — the GraphQL node ID of the field (from `gh project field-list ... --format json | jq '.fields[] | select(.name == "{name}") | .id'`)
+
+For SINGLE_SELECT fields, you also need:
+4. **Option ID** — the GraphQL node ID of the select option (from the field's `.options[]`)
+
+Cache these IDs after the first lookup — they do not change for the lifetime of the project.
+
+### Idempotent Project Setup
+
+When creating a project with custom fields, use a lookup-or-create pattern:
+
+```bash
+# Look up existing project
+PROJECT_NUM=$(gh project list --owner {owner} --format json \
+  --jq '.projects[] | select(.title == "[GHS] {owner}/{repo}") | .number')
+
+if [ -z "$PROJECT_NUM" ]; then
+  # Create new project
+  PROJECT_NUM=$(gh project create --owner {owner} --title "[GHS] {owner}/{repo}" --format json | jq '.number')
+fi
+
+# Look up existing fields, create missing ones
+EXISTING_FIELDS=$(gh project field-list $PROJECT_NUM --owner {owner} --format json --jq '.fields[].name')
+```
+
 ## Git Requirement
 
 Git must be available for any skill that clones or modifies repositories.
