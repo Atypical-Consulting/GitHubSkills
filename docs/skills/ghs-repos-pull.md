@@ -4,6 +4,7 @@ Pull (update) all locally cloned repositories in the repos/ directory.
 
 ::: info Skill Info
 **Version:** 1.0.0
+**Arguments:** `(no arguments)`
 **Trigger phrases:** "pull all repos", "update all repos", "git pull repos", "refresh repos", "sync repos"
 :::
 

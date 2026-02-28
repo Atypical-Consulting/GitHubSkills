@@ -6,6 +6,7 @@ Promotes draft GitHub Project items to real GitHub Issues for team visibility an
 
 Use this skill after running `ghs-repo-scan` to promote health findings from draft project items to full GitHub Issues. This makes your backlog visible to collaborators through GitHub's native issue tracker.
 
+**Arguments:** `[owner/repo] [--dry-run]`
 **Trigger phrases:** "sync backlog", "create issues from health checks", "push findings to GitHub", "publish backlog", "sync health items"
 
 ## What It Does

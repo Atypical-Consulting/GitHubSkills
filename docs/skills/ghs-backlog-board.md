@@ -4,6 +4,7 @@ Shows a read-only dashboard of all backlog items across audited repositories wit
 
 ::: info Skill Info
 **Version:** 5.0.0
+**Arguments:** `[--sort score|progress|name]`
 **Trigger phrases:** "show me the backlog board", "show my repos", "what's the status?", "backlog status", "dashboard", "show all repos", "how are my repos doing", "progress report"
 :::
 

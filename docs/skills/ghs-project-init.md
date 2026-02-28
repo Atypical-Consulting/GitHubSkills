@@ -4,6 +4,7 @@ Scaffold a new GitHub repository with all quality essentials to achieve a 100% h
 
 ::: info Skill Info
 **Version:** 1.0.0
+**Arguments:** `<name> [--template <stack>] [--private] [--description <desc>]`
 **Trigger phrases:** "init project", "create repo", "scaffold repository", "new project", "project init", "bootstrap project", "create a 100% repo", "set up new repo", "start a new project"
 :::
 

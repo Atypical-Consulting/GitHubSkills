@@ -4,6 +4,7 @@ Applies backlog item fixes using parallel worktree-based agents -- clones the re
 
 ::: info Skill Info
 **Version:** 7.0.0
+**Arguments:** `[owner/repo] [--item <slug>] [--tier 1|2|3] [--all] [--dry-run]`
 **Trigger phrases:** "fix the backlog", "fix phmatray/my-project", "fix the failing checks", "apply this backlog item", "resolve all tier 1 items", "apply all for {repo}"
 :::
 

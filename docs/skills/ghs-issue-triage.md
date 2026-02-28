@@ -4,6 +4,7 @@ Verifies and applies proper labels (type, priority, status) to GitHub issues usi
 
 ::: info Skill Info
 **Version:** 4.0.0
+**Arguments:** `[owner/repo] [--issue <number>] [--all] [--auto]`
 **Trigger phrases:** "triage my issues", "label the issues", "triage phmatray/my-project", "classify open issues", "auto-triage", "set up issue labels"
 :::
 

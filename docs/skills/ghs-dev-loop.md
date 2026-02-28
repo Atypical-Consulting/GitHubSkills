@@ -4,6 +4,7 @@ Act as an autonomous developer for a repository --- triage, analyze, implement, 
 
 ::: info Skill Info
 **Version:** 1.0.0
+**Arguments:** `[owner/repo] [--budget <N>] [--cycle single|continuous] [--include-health] [--include-deps]`
 **Trigger phrases:** "dev loop", "be my developer", "autonomous developer", "work on my repo", "process all issues", "developer mode", "full dev loop", "maintain this repo", "handle everything", "automate development", "dev cycle"
 :::
 
