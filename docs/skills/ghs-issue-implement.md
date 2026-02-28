@@ -4,6 +4,7 @@ Implements GitHub issues using parallel worktree-based agents, then creates PRs 
 
 ::: info Skill Info
 **Version:** 4.0.0
+**Arguments:** `<owner/repo#number> [--all-triaged] [--all-bugs]`
 **Trigger phrases:** "implement issue #123", "fix issue #5", "build feature from issue #15", "implement all triaged issues", "implement all bugs", "code issue #42"
 :::
 

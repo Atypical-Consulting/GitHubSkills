@@ -8,6 +8,7 @@ description: >
   issues", "add labels to issues", "auto-triage", "triage all --auto", or "set up issue labels".
   Do NOT use for analyzing issue implementation (use ghs-issue-analyze), implementing issues
   (use ghs-issue-implement), or scanning repo health (use ghs-repo-scan).
+argument-hint: "[owner/repo] [--issue <number>] [--all] [--auto]"
 allowed-tools: "Bash(gh:*) Read"
 compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
@@ -26,6 +27,15 @@ routes-from:
 Verify a consistent label taxonomy exists on a GitHub repository, then classify and label open issues by type and priority.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/sync-format.md
+</execution_context>
+
 Purpose: Ensure consistent issue labeling by establishing a label taxonomy and classifying issues by type and priority.
 
 Roles:
@@ -66,6 +76,10 @@ Next routing:
 - Suggest `ghs-issue-analyze` for complex issues — "For complex issues, run `/ghs-issue-analyze #{number}` before implementing"
 - Suggest `ghs-issue-implement` to start working — "To implement triaged issues: `/ghs-issue-implement all triaged issues`"
 </objective>
+
+<required_reading>
+Fetch issue metadata via `gh issue view` before labeling.
+</required_reading>
 
 <process>
 

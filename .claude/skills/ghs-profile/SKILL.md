@@ -10,6 +10,7 @@ description: >
   "show github activity for {user}", "360 view", "user summary", or "profile report".
   Do NOT use for scanning repository health (use ghs-repo-scan), managing issues
   (use ghs-issue-triage), or fixing code (use ghs-backlog-fix).
+argument-hint: "[username]"
 allowed-tools: "Bash(gh:*) Read"
 compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
@@ -28,6 +29,14 @@ routes-from: []
 Display a full 360-degree view of a GitHub user: profile, repos, contributions, open work, orgs, and activity.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+</execution_context>
+
 Purpose: Read-only profile renderer that fetches and displays GitHub user data via the gh CLI.
 
 Roles:
@@ -78,6 +87,10 @@ Next routing:
 - Suggest `/ghs-issue-triage {user}/{repo}` if the user has repos with open issues
 - Suggest `/ghs-backlog-board` for cross-repo overview
 </objective>
+
+<required_reading>
+No prerequisites.
+</required_reading>
 
 <process>
 

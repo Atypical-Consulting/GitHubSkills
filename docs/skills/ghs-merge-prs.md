@@ -4,6 +4,7 @@ Merges open pull requests with CI-aware confirmation, batch support, and automat
 
 ::: info Skill Info
 **Version:** 4.0.0
+**Arguments:** `[owner/repo] [--pr <number>] [--mine] [--renovate] [--all] [--dry-run]`
 **Trigger phrases:** "merge my PRs", "merge the Renovate PRs", "merge all PRs", "merge PR #42", "batch merge", "merge bot PRs", "merge passing PRs"
 :::
 

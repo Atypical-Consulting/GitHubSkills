@@ -4,6 +4,7 @@ Fix failing GitHub Actions pipelines directly — detect broken workflows, diagn
 
 ::: info Skill Info
 **Version:** 2.0.0
+**Arguments:** `[owner/repo] [--workflow <name>]`
 **Trigger phrases:** "fix my pipeline", "fix CI", "my actions are failing", "fix my workflows", "repair my build", "CI is broken", "fix GitHub Actions", "debug my workflow", "why is my build failing", "action fix"
 :::
 

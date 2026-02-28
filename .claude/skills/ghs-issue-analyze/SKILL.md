@@ -9,6 +9,7 @@ description: >
   "deep dive on issue #42", or "break down issue #42".
   Do NOT use for triaging/labeling issues (use ghs-issue-triage), implementing issues
   (use ghs-issue-implement), or scanning repo health (use ghs-repo-scan).
+argument-hint: "<owner/repo#number> | <issue-url>"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Glob Grep"
 compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
@@ -27,6 +28,15 @@ routes-from:
 Fetch a GitHub issue, clone the repo, search the codebase for relevant files and patterns, then produce a structured analysis posted as a GitHub comment.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/gsd-integration.md
+</execution_context>
+
 Purpose: Deep-analyze GitHub issues by inspecting the actual codebase, producing actionable analysis that speeds up implementation.
 
 Roles:
@@ -78,6 +88,10 @@ Next routing (see `output-conventions.md` § Routing Suggestions):
 - If the issue lacks labels, suggest `ghs-issue-triage` first
 - For batch analysis, show a summary table and suggest implementing the simplest issues first
 </objective>
+
+<required_reading>
+Clone and read repository structure before analysis.
+</required_reading>
 
 <process>
 

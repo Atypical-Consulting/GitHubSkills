@@ -8,6 +8,7 @@ description: >
   build", "CI is broken", "fix GitHub Actions", "debug my workflow", "why is my build failing", or
   "action fix". Do NOT use for scanning repos (use ghs-repo-scan), applying backlog items
   (use ghs-backlog-fix), or merging PRs (use ghs-merge-prs).
+argument-hint: "[owner/repo] [--workflow <name>]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Bash(python3:*) Read Write Edit Glob Grep Task"
 compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
@@ -70,6 +71,18 @@ See `../shared/references/agent-spawning.md` for the full agent spawning protoco
 After 3 failures on the same workflow, the orchestrator moves on. The worktree is left in place for manual continuation.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/agent-spawning.md
+- ../shared/references/implementation-workflow.md
+- ../shared/references/edge-cases.md
+- ../shared/references/agent-result-contract.md
+</execution_context>
+
 Purpose: Direct-action skill for fixing failing GitHub Actions pipelines — no backlog or prior scan needed.
 
 Roles:
@@ -104,6 +117,10 @@ Next routing:
 - Suggest `ghs-merge-prs` to merge the created PRs — "To merge: `/ghs-merge-prs {owner}/{repo}`"
 - Suggest `ghs-repo-scan` to run a full health check
 </objective>
+
+<required_reading>
+Fetch workflow run logs before diagnosis.
+</required_reading>
 
 <process>
 

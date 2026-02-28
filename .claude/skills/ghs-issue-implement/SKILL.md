@@ -13,6 +13,7 @@ description: >
   Do NOT use for triaging/labeling issues (use ghs-issue-triage), analyzing issues
   (use ghs-issue-analyze), applying backlog health items (use ghs-backlog-fix), or scanning
   repos (use ghs-repo-scan).
+argument-hint: "<owner/repo#number> [--all-triaged] [--all-bugs]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Task Skill"
 compatibility: "Requires gh CLI (authenticated), git, GSD framework (for complex issues), network access"
 license: MIT
@@ -32,6 +33,21 @@ routes-from:
 Implement GitHub issues using parallel worktree-based agents. For simple issues, spawns a single agent per issue. For complex issues, invokes GSD's full planning and execution pipeline — discuss, plan, execute, verify — with wave-based parallelization and fresh context per task.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/agent-spawning.md
+- ../shared/references/implementation-workflow.md
+- ../shared/references/gsd-integration.md
+- ../shared/references/edge-cases.md
+- ../shared/references/state-persistence.md
+- ../shared/references/checkpoint-patterns.md
+- ../shared/references/agent-result-contract.md
+</execution_context>
+
 Purpose: Implement GitHub issues and create PRs. Routes through either the **fast path** (single-shot agent) or the **GSD path** (multi-phase pipeline) based on issue complexity.
 
 ### Shared References
@@ -136,6 +152,10 @@ Outputs:
 Next routing:
 - Suggest `ghs-merge-prs` to merge the created PRs — "To merge: `/ghs-merge-prs {owner}/{repo}`"
 </objective>
+
+<required_reading>
+Read issue analysis comment (if exists) and state issue before implementation.
+</required_reading>
 
 ## Input
 

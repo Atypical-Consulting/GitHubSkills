@@ -9,6 +9,7 @@ description: >
   Also trigger when the user says "list backlog", "show findings", "show issues", or just "backlog".
   Do NOT use for scanning new repos (use ghs-repo-scan), applying fixes (use ghs-backlog-fix), or reviewing code.
   For quick "what should I work on next?" queries, prefer ghs-backlog-next instead.
+argument-hint: "[--sort score|progress|name]"
 allowed-tools: "Bash(gh:*) Bash(jq:*) Bash(bc:*)"
 compatibility: "Requires gh CLI (authenticated) with project scope. Project data must exist from a prior ghs-repo-scan run."
 license: MIT
@@ -31,6 +32,17 @@ routes-from:
 Display a cross-repo dashboard of all backlog items with scores, progress, and next-action recommendations.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/projects-format.md
+- ../shared/references/scoring-logic.md
+- ../shared/references/config.md
+</execution_context>
+
 Purpose: Read-only dashboard renderer for GitHub Project data produced by ghs-repo-scan.
 
 Roles:
@@ -74,6 +86,10 @@ Next routing:
 - Suggest `ghs-repo-scan` if scan data is stale (> 30 days)
 - If user says "apply it" or "fix it" after seeing the recommendation, treat as a trigger for `ghs-backlog-fix`
 </objective>
+
+<required_reading>
+- Read all projects via `gh project item-list` for dashboard data
+</required_reading>
 
 <process>
 

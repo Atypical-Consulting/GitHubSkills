@@ -10,6 +10,7 @@ description: >
   "dev cycle", "work through issues", "run a dev cycle", "be my dev", or "take over this repo".
   Do NOT use for single-skill operations — use the individual skill directly.
   Do NOT use for multi-repo pipelines — use ghs-orchestrate instead.
+argument-hint: "[owner/repo] [--budget <N>] [--cycle single|continuous] [--include-health] [--include-deps]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Skill"
 compatibility: "Requires gh CLI (authenticated), git, all ghs-skills, GSD framework"
 license: MIT
@@ -28,6 +29,19 @@ routes-from:
 Act as an autonomous developer for a single repository. Process work in priority-driven cycles: health maintenance, issue triage/analysis/implementation, code review, PR merging, dependency updates, and optional releases. Each cycle enforces human checkpoints for irreversible operations.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/state-persistence.md
+- ../shared/references/checkpoint-patterns.md
+- ../shared/references/gsd-integration.md
+- ../shared/references/config.md
+- ../shared/references/scoring-logic.md
+</execution_context>
+
 Purpose: Replace a human developer for a single repository by orchestrating the full suite of ghs-skills in priority order, operating in budget-constrained cycles with safety checkpoints.
 
 ### Roles
@@ -240,6 +254,10 @@ When a checkpoint is reached:
 4. If modified: apply the user's adjustments (e.g., "skip issue #15, do the rest")
 
 In `continuous` and `watch` modes, checkpoints still pause execution — they are never auto-approved.
+
+<required_reading>
+Read state issue for cycle history and issue processing queue.
+</required_reading>
 
 <process>
 

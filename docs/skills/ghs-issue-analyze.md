@@ -4,6 +4,7 @@ Deep-analyzes a GitHub issue by inspecting the codebase and posts a structured a
 
 ::: info Skill Info
 **Version:** 4.0.0
+**Arguments:** `<owner/repo#number> | <issue-url>`
 **Trigger phrases:** "analyze issue #123", "deep dive on this issue", "what would it take to fix #42", "assess this issue", "how complex is issue #42", "break down issue #42"
 :::
 

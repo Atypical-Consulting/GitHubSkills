@@ -6,6 +6,7 @@ Display a full 360-degree view of a GitHub user: profile info, repository portfo
 
 Use this skill to view a GitHub user's complete profile — your own or someone else's. Defaults to the authenticated user when no username is given.
 
+**Arguments:** `[username]`
 **Trigger phrases:** "show my profile", "github profile", "who is {user}", "show @me", "my github stats", "what repos does {user} have", "contribution summary", "profile overview", "360 view"
 
 ## What It Does

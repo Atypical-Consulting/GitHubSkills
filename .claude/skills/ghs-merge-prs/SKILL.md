@@ -8,6 +8,7 @@ description: >
   open pull requests. Also trigger for "merge all for {repo}", "squash merge renovate",
   "merge passing PRs", or just "merge" in the context of pull request work.
   Do NOT use for creating PRs (use ghs-backlog-fix), reviewing code, or scanning repos (use ghs-repo-scan).
+argument-hint: "[owner/repo] [--pr <number>] [--mine] [--renovate] [--all] [--dry-run]"
 allowed-tools: "Bash(gh:*) Read"
 compatibility: "Requires gh CLI (authenticated), network access"
 license: MIT
@@ -27,6 +28,15 @@ routes-from:
 Merge open pull requests on a GitHub repository — individually, by author type, or all at once. Supports batch operations with CI status awareness and automatic branch cleanup.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/checkpoint-patterns.md
+</execution_context>
+
 Purpose: Batch-merge open PRs with CI awareness, merge strategy selection, and automatic branch cleanup.
 
 Roles:
@@ -129,6 +139,10 @@ Always skip these PRs automatically — report them but do not attempt to merge.
 | Changes requested | `reviewDecision: "CHANGES_REQUESTED"` | Skip unless user explicitly confirms |
 
 </rules>
+
+<required_reading>
+List open PRs and their CI status before merging.
+</required_reading>
 
 <process>
 
@@ -287,6 +301,13 @@ Remaining open PRs: {N}
 ```
 
 </process>
+
+### Dry-Run Mode
+When `--dry-run` is present in $ARGUMENTS:
+- List PRs that would be merged with their status
+- Show the merge strategy that would be used
+- Display the dry-run indicator box from ui-brand.md
+- Do not merge any PRs or delete any branches
 
 ## Edge Cases
 

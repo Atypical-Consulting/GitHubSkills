@@ -4,6 +4,7 @@ Recommends the single highest-impact backlog item to fix across all audited repo
 
 ::: info Skill Info
 **Version:** 4.0.0
+**Arguments:** `[owner/repo]`
 **Trigger phrases:** "what should I fix next?", "what's the highest impact fix?", "next item", "priority item", "next action", "recommend something to fix"
 :::
 

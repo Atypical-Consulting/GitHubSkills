@@ -4,6 +4,7 @@ Calculates and displays the health score for a repository from its backlog items
 
 ::: info Skill Info
 **Version:** 4.0.0
+**Arguments:** `[owner/repo]`
 **Trigger phrases:** "what's the score?", "show me the score", "health score", "recalculate score", "how healthy is my repo", "score check", "points breakdown"
 :::
 

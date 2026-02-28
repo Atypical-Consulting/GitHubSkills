@@ -4,6 +4,7 @@ Review a GitHub pull request — fetch the diff, analyze code changes against th
 
 ::: info Skill Info
 **Version:** 1.0.0
+**Arguments:** `[owner/repo] [--pr <number>] [--all] [--author <name>]`
 **Trigger phrases:** "review PR #42", "review my PRs", "code review", "check PR #42", "review all open PRs", "review PRs by renovate", "is PR #42 safe to merge", "review draft PRs", "review ready PRs"
 :::
 

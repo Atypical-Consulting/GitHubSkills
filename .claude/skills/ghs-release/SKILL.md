@@ -10,6 +10,7 @@ description: >
   "tag a release", "ship it", or "what changed since last release".
   Do NOT use for merging PRs (use ghs-merge-prs), fixing backlog items (use ghs-backlog-fix),
   scanning repo health (use ghs-repo-scan), or managing GitHub Actions (use ghs-action-fix).
+argument-hint: "[owner/repo] [--bump major|minor|patch] [--pre-release] [--dry-run]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Glob Grep"
 compatibility: "Requires gh CLI (authenticated), git, network access"
 license: MIT
@@ -28,6 +29,15 @@ routes-from:
 Automate GitHub Release creation: generate a changelog from commits and merged PRs since the last release, determine the version bump, create a Git tag and GitHub Release with structured release notes.
 
 <context>
+<execution_context>
+References:
+- ../shared/references/gh-cli-patterns.md
+- ../shared/references/output-conventions.md
+- ../shared/references/ui-brand.md
+- ../shared/references/argument-parsing.md
+- ../shared/references/checkpoint-patterns.md
+</execution_context>
+
 Purpose: Create GitHub Releases with auto-generated changelogs, semver version detection, and conventional commit classification.
 
 Roles:
@@ -79,6 +89,10 @@ Next routing (see `output-conventions.md` @ Routing Suggestions):
 - If there are open PRs remaining, suggest `ghs-merge-prs` — "To merge remaining PRs: `/ghs-merge-prs {owner}/{repo}`"
 </objective>
 
+<required_reading>
+Read git tags and merged PRs since last release.
+</required_reading>
+
 <process>
 
 ## Input
@@ -100,6 +114,13 @@ Next routing (see `output-conventions.md` @ Routing Suggestions):
 | Pre-release suffix detection | Version contains `-alpha`, `-beta`, `-rc` | `release v1.0.0-beta.1` — set `--prerelease` flag |
 | Draft flag detection | User says "draft" | `draft release` — set `--draft` flag |
 | Repo detection | No explicit repo | Detect from `gh repo view` (see `gh-cli-patterns.md` @ Repo Detection) |
+
+### Dry-Run Mode
+When `--dry-run` is present in $ARGUMENTS:
+- Calculate next version and generate changelog
+- Display the full release notes that would be published
+- Do not create any tags, releases, or commits
+- Display the dry-run indicator box from ui-brand.md
 
 ## Phase 1 — Detect Current Version
 

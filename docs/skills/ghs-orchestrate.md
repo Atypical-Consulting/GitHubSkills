@@ -4,6 +4,7 @@ Run a full maintenance pipeline across repositories --- update, scan, fix, revie
 
 ::: info Skill Info
 **Version:** 1.0.0
+**Arguments:** `[owner/repo...] [--stages pull,scan,fix,review,merge,sync,release] [--dry-run] [--resume]`
 **Trigger phrases:** "orchestrate", "run pipeline", "maintain my repos", "full pipeline", "scan and fix all repos", "process all repos", "pipeline for {repo}", "maintenance run", "end-to-end maintenance"
 :::
 

@@ -4,6 +4,7 @@ Create a GitHub Release with auto-generated changelog from merged PRs and conven
 
 ::: info Skill Info
 **Version:** 1.0.0
+**Arguments:** `[owner/repo] [--bump major|minor|patch] [--pre-release] [--dry-run]`
 **Trigger phrases:** "create release", "release v1.2.0", "patch release", "what would the next release look like", "changelog", "prepare release", "draft release", "pre-release", "cut a release", "ship it"
 :::
 
