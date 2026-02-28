@@ -361,11 +361,13 @@ See `../shared/references/agent-spawning.md` (Pre-flight Checks section) for the
 
 Create worktrees only for the current wave's Category B/CI items:
 
+**Use absolute paths** — resolve `GHS_ROOT`, `REPO_PATH`, and `WT_DIR` once at skill start (see `agent-spawning.md` § Repository Cloning):
+
 | Step | Command | Notes |
 |------|---------|-------|
-| 1. Create worktree dir | `mkdir -p repos/{owner}_{repo}--worktrees` | Sibling to main clone, never nested inside |
-| 2. Add worktree | `git -C repos/{owner}_{repo} worktree add ../repos/{owner}_{repo}--worktrees/{prefix}--{slug} -b {prefix}/{slug}` | One worktree per Category B/CI item |
-| 3. Verify creation | `ls repos/{owner}_{repo}--worktrees/{prefix}--{slug}/.git` | Confirm worktree is valid |
+| 1. Create worktree dir | `mkdir -p "$WT_DIR"` | Sibling to main clone, never nested inside |
+| 2. Add worktree | `git -C "$REPO_PATH" worktree add "$WT_DIR/{prefix}--{slug}" -b {prefix}/{slug}` | One worktree per Category B/CI item |
+| 3. Verify creation | `ls "$WT_DIR/{prefix}--{slug}/.git"` | Confirm worktree is valid |
 
 Category A items don't need worktrees — they use `gh` API commands directly.
 
@@ -622,7 +624,7 @@ The fix has already been applied. The skill will skip it and tell you.
 You need write access to the repository. Check `gh repo view --json viewerPermission`.
 
 **Worktree creation fails**
-If the branch already exists locally: `git -C repos/{owner}_{repo} branch -D fix/{slug}` then retry.
+If the branch already exists locally: `git -C "$REPO_PATH" branch -D fix/{slug}` then retry.
 If it exists remotely: use `-B` flag to force-create, or ask user.
 
 **Agent returns NEEDS_HUMAN**
@@ -632,7 +634,7 @@ The fix requires human judgment. The worktree is left in place — `cd` into it 
 Common causes: branch already exists remotely (skill checks for this in Phase 4), or default branch is protected. Check `gh pr list --head fix/{slug}` for existing PRs.
 
 **Worktrees not cleaned up**
-Run `git -C repos/{owner}_{repo} worktree list` to see active worktrees. Remove with `git worktree remove <path>`.
+Run `git -C "$REPO_PATH" worktree list` to see active worktrees. Remove with `git worktree remove <path>`.
 
 **Wave 2 items all BLOCKED**
 This means Wave 1 dependencies failed. Fix the Wave 1 items first (check the error), then re-run. The state issue will show what failed and why.

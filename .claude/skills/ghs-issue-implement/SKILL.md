@@ -9,11 +9,12 @@ description: >
   Use this skill whenever the user wants to implement an issue, fix
   a bug from an issue, build a feature from an issue, or says things like "implement issue #42",
   "fix issue #42", "implement #42", "build feature from issue #15", "implement all triaged issues",
-  "implement all bugs", "work on issue #42", or "code issue #42".
+  "implement all bugs", "work on issue #42", "code issue #42", or describes work with no issue
+  number like "owner/repo refresh readme" or "owner/repo fix the broken badge".
   Do NOT use for triaging/labeling issues (use ghs-issue-triage), analyzing issues
   (use ghs-issue-analyze), applying backlog health items (use ghs-backlog-fix), or scanning
   repos (use ghs-repo-scan).
-argument-hint: "<owner/repo#number> [--all-triaged] [--all-bugs]"
+argument-hint: "<owner/repo> <#number | free-form description> [--all-triaged] [--all-bugs]"
 allowed-tools: "Bash(gh:*) Bash(git:*) Read Write Edit Glob Grep Task Skill"
 compatibility: "Requires gh CLI (authenticated), git, GSD framework (for complex issues), network access"
 license: MIT
@@ -75,6 +76,7 @@ The user must have **write access** to the target repository.
 | Pass entire scan/backlog to subagent | Pass only: issue details, repo structure, acceptance criteria, tech stack | Bloats agent context, causes confusion and hallucination |
 | Force GSD on simple issues | Use complexity routing — Low/Medium go fast path, High/Very High go GSD | GSD overhead isn't justified for a typo fix or single-file change |
 | Skip state issue check at start | Read state issue for active blockers and previous attempts | Re-trying known-blocked items wastes time and confuses users |
+| Apply `type:*` labels without checking they exist | Check existing labels first; create missing ones or fall back to repo defaults | Repos without the GHS label taxonomy will fail on `gh issue create --label` |
 
 </anti-patterns>
 
@@ -159,13 +161,14 @@ Read issue analysis comment (if exists) and state issue before implementation.
 
 ## Input
 
-Three invocation modes — the trigger phrase determines which:
+Four invocation modes — the trigger phrase determines which:
 
 | Trigger | Mode | What It Fetches |
 |---------|------|-----------------|
 | `implement issue #42`, `fix #42`, `code issue #42` | Single issue | One issue by number |
 | `implement all triaged issues` | Batch by label | Issues with `status:triaged` |
 | `implement all bugs` | Batch by type | Issues with `type:bug` |
+| `owner/repo refresh readme for .NET 10` | Create-and-implement | No issue — creates one from description |
 
 ### Rule/Trigger/Example Triples
 
@@ -184,6 +187,10 @@ Three invocation modes — the trigger phrase determines which:
 **Rule:** A closed issue is skipped unless explicitly requested.
 **Trigger:** User says "implement #42" but #42 is closed.
 **Example:** Warn the user and skip. If user insists, proceed with a note.
+
+**Rule:** No issue number + free-form text resolves to create-and-implement mode.
+**Trigger:** User says "owner/repo refresh readme" or "owner/repo fix the broken badge".
+**Example:** Investigate repo -> create issue with description -> assess complexity -> route -> implement -> PR.
 
 ## Branch Naming
 
@@ -238,6 +245,49 @@ gh issue list --repo {owner}/{repo} --state open --label "{filter_label}" \
 For each issue, extract: number, title, body, type label (for branch prefix), priority label (for ordering — critical first), comments (check for analysis from `ghs-issue-analyze`).
 
 **Analysis context:** If an issue has a comment starting with `## Issue Analysis` (from `ghs-issue-analyze`), extract and pass it to the agent. This provides affected files, suggested approach, and complexity assessment.
+
+**Create-and-implement mode (no issue number):**
+
+When the user provides a free-form description instead of an issue number (e.g., `/ghs-issue-implement owner/repo refresh readme for .NET 10`), create the issue first:
+
+1. Parse the remaining tokens after `owner/repo` as a description
+2. Investigate the repo to understand what needs to change (read relevant files via `gh api`)
+3. Determine the appropriate type label (bug, feature, docs, etc.)
+4. **Check existing labels** before applying (see Label Safety below)
+5. Create the issue:
+   ```bash
+   gh issue create --repo {owner}/{repo} \
+     --title "{type}: {concise title}" \
+     --body "{detailed description with acceptance criteria}" \
+     {--label "{type_label}" only if label exists on repo}
+   ```
+6. Continue with single-issue mode using the newly created issue number
+
+### Label Safety
+
+Before applying any labels (on issue creation or label updates), check which labels exist on the target repo:
+
+```bash
+EXISTING_LABELS=$(gh label list --repo {owner}/{repo} --json name --jq '.[].name')
+```
+
+| Scenario | Action |
+|----------|--------|
+| `type:docs` exists | Use it on `--label` flag |
+| `type:docs` does not exist but `documentation` does | Use the repo's existing label instead |
+| Neither exists | Create the issue without type labels; note in plan that labels are missing |
+| `status:triaged` does not exist | Skip applying it; suggest running `ghs-issue-triage` to set up taxonomy |
+
+**Fallback mapping** for repos using GitHub's default labels:
+
+| GHS Label | GitHub Default Equivalent |
+|-----------|--------------------------|
+| `type:bug` | `bug` |
+| `type:feature` | `enhancement` |
+| `type:docs` | `documentation` |
+| `type:hotfix` | `bug` + `priority:critical` |
+
+Never fail on a missing label — fall back gracefully or omit the label entirely.
 
 ### Phase 2 — Assess Complexity & Route
 
@@ -320,14 +370,13 @@ Wait for user confirmation before continuing.
 
 Create worktrees and spawn agents as before — this is the existing v4.0 behavior.
 
-Per `../shared/references/agent-spawning.md` § Worktree Creation:
+Per `../shared/references/agent-spawning.md` § Worktree Creation. **Use absolute paths** — resolve `GHS_ROOT`, `REPO_PATH`, and `WT_DIR` once at skill start (see agent-spawning.md § Repository Cloning):
 
 ```bash
-mkdir -p repos/{owner}_{repo}--worktrees
+WT_PATH="$WT_DIR/{prefix}--{number}-{slug}"
+mkdir -p "$WT_DIR"
 
-git -C repos/{owner}_{repo} worktree add \
-  ../repos/{owner}_{repo}--worktrees/{prefix}--{number}-{slug} \
-  -b {prefix}/{number}-{slug}
+git -C "$REPO_PATH" worktree add "$WT_PATH" -b {prefix}/{number}-{slug}
 ```
 
 Spawn all fast-path agents in a **single Task tool message** using `subagent_type: general-purpose`. See `../shared/references/agent-spawning.md` § Parallel Execution Pattern.
@@ -347,7 +396,7 @@ Check GSD is installed per `../shared/references/gsd-integration.md` § GSD Dete
 Create a worktree for the issue (same as fast path), then set up GSD's `.planning/` directory inside it:
 
 ```bash
-mkdir -p repos/{owner}_{repo}--worktrees/{prefix}--{number}-{slug}/.planning
+mkdir -p "$WT_DIR/{prefix}--{number}-{slug}/.planning"
 ```
 
 Write `.planning/PROJECT.md` with the issue context:
@@ -556,6 +605,8 @@ Fixes #{number}
 | Re-running on existing items | Issues with `status:in-progress` + open PR are skipped in batch |
 | Active blocker in state issue | Skip the issue; report blocker in plan |
 | Mixed batch (fast + GSD) | Execute fast-path issues in parallel first, then GSD issues sequentially |
+| No issue number provided | Create-and-implement mode — investigate repo, create issue, then implement |
+| Labels missing on target repo | Check labels first; use fallback mapping to GitHub defaults or omit labels |
 
 ## Examples
 
@@ -574,3 +625,7 @@ Flow: Read state issue -> fetch 5 triaged issues -> assess complexity (3 Low, 1 
 **Example 4: User forces GSD on a simple issue**
 User: "use GSD for issue #42"
 Flow: Same as Example 2 but skipping complexity assessment — user override wins.
+
+**Example 5: Create-and-implement (no issue number)**
+User: "/ghs-issue-implement owner/repo refresh readme for .NET 10 migration"
+Flow: Investigate repo (read README, global.json, csproj) -> check existing labels on repo -> create issue #32 with `documentation` label (repo doesn't have `type:docs`) -> assess complexity:Low -> route to FAST -> show plan -> implement -> PR -> report.
