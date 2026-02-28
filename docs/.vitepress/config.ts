@@ -158,16 +158,41 @@ export default withMermaid(
         ],
         '/reference/': [
           {
-            text: 'Reference',
+            text: 'Scoring & Format',
             items: [
               { text: 'Scoring', link: '/reference/scoring' },
               { text: 'GitHub Projects Format', link: '/reference/backlog-format' },
               { text: 'Check Format', link: '/reference/check-format' },
+              { text: 'Item Categories', link: '/reference/item-categories' },
+              { text: 'Config Constants', link: '/reference/config' },
+            ],
+          },
+          {
+            text: 'Agent Patterns',
+            items: [
+              { text: 'Agent Spawning', link: '/reference/agent-spawning' },
               { text: 'Agent Contract', link: '/reference/agent-contract' },
+              { text: 'Implementation Workflow', link: '/reference/implementation-workflow' },
+            ],
+          },
+          {
+            text: 'CLI & Output',
+            items: [
+              { text: 'gh CLI Patterns', link: '/reference/gh-cli-patterns' },
               { text: 'Argument Parsing', link: '/reference/argument-parsing' },
-              { text: 'Checkpoint Patterns', link: '/reference/checkpoint-patterns' },
+              { text: 'Output Conventions', link: '/reference/output-conventions' },
               { text: 'UI Branding', link: '/reference/ui-brand' },
               { text: 'Output Templates', link: '/reference/templates' },
+              { text: 'Checkpoint Patterns', link: '/reference/checkpoint-patterns' },
+            ],
+          },
+          {
+            text: 'Integration',
+            items: [
+              { text: 'GSD Integration', link: '/reference/gsd-integration' },
+              { text: 'State Persistence', link: '/reference/state-persistence' },
+              { text: 'Sync Format', link: '/reference/sync-format' },
+              { text: 'Edge Cases', link: '/reference/edge-cases' },
             ],
           },
         ],
