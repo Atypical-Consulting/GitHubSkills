@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **This repository has moved.** The code now lives in **[Atypical-Consulting/github-toolkit](https://github.com/Atypical-Consulting/github-toolkit)** under [`skills`](https://github.com/Atypical-Consulting/github-toolkit/tree/main/skills) — full git history preserved. This repository is archived (read-only).
+
 ![GitHubSkills banner](.github/banner.png)
 
 # GitHubSkills
